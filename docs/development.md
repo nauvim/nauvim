@@ -40,13 +40,25 @@ for the Neovim protocol defects that require initialization recovery.
 
 ## Native runner checks
 
-On Linux, check renderer selection and GPU discovery without a display:
+On Linux, build the native tests and check renderer selection, GPU discovery,
+and window options:
 
 ```sh
 cmake -S linux/runner/tests -B build/linux-renderer-tests
 cmake --build build/linux-renderer-tests
 ctest --test-dir build/linux-renderer-tests --output-on-failure
 ```
+
+The window-option tests check dimensions, decorations, opacity, and pending mode
+transitions through GTK. They require a GTK display and report a skip without one.
+GTK's Broadway backend can run these tests on a headless display; it does not
+validate a desktop window manager's acceptance of maximized/fullscreen requests
+or the final composited window appearance.
+
+On macOS, the `RunnerTests` target checks native window appearance and dimensions.
+Run it in Xcode on macOS. Also check native zoom, fullscreen entry/exit, and
+borderless keyboard focus interactively. Linux builds and GTK tests do not
+validate AppKit behavior.
 
 ## Desktop integration
 

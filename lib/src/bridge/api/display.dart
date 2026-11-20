@@ -112,6 +112,9 @@ class DisplayCursor {
           percentage == other.percentage;
 }
 
+/// Native window decorations requested at startup; omission selects full.
+enum DisplayDecorations { full, none }
+
 /// An ordered application event, handled once independently of painting.
 class DisplayEvent {
   final String kind;
@@ -407,6 +410,9 @@ class DisplayRow {
           cells == other.cells;
 }
 
+/// Initial native window state; omission selects windowed.
+enum DisplayStartupMode { windowed, maximized, fullscreen }
+
 /// An external UI widget with content selected by `kind`.
 ///
 /// Command-line positions are UTF-8 byte offsets including the displayed prefix.
@@ -510,19 +516,37 @@ class DisplayWindow {
           width == other.width;
 }
 
-/// Initial client-area dimensions and editor margins in logical pixels.
+/// Startup appearance, mode, client-area dimensions, and logical-pixel margins.
 class DisplayWindowOptions {
   final int? width;
   final int? height;
   final DisplayMargins margin;
+  final DisplayDecorations? decorations;
 
-  const DisplayWindowOptions({this.width, this.height, required this.margin});
+  /// Whole-window opacity, including text, controls, and native previews.
+  final double? opacity;
+  final DisplayStartupMode? startupMode;
+
+  const DisplayWindowOptions({
+    this.width,
+    this.height,
+    required this.margin,
+    this.decorations,
+    this.opacity,
+    this.startupMode,
+  });
 
   static Future<DisplayWindowOptions> default_() =>
       RustLib.instance.api.crateApiDisplayDisplayWindowOptionsDefault();
 
   @override
-  int get hashCode => width.hashCode ^ height.hashCode ^ margin.hashCode;
+  int get hashCode =>
+      width.hashCode ^
+      height.hashCode ^
+      margin.hashCode ^
+      decorations.hashCode ^
+      opacity.hashCode ^
+      startupMode.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -531,7 +555,10 @@ class DisplayWindowOptions {
           runtimeType == other.runtimeType &&
           width == other.width &&
           height == other.height &&
-          margin == other.margin;
+          margin == other.margin &&
+          decorations == other.decorations &&
+          opacity == other.opacity &&
+          startupMode == other.startupMode;
 }
 
 /// A typed bridge update. Frame rows contain only changes since the preceding update.

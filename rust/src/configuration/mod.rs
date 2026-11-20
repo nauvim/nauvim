@@ -1,6 +1,8 @@
 //! Validates the selected UI dictionary and resolves configuration-relative paths.
 
-use crate::api::display::{DisplayFont, DisplayMargins, DisplayWindowOptions};
+use crate::api::display::{
+    DisplayDecorations, DisplayFont, DisplayMargins, DisplayStartupMode, DisplayWindowOptions,
+};
 
 use nauvim_core::{Config, Error, UiConfig, UiTable, UiValue};
 
@@ -99,7 +101,18 @@ fn window(config: &UiConfig) -> Result<Option<DisplayWindowOptions>, Error> {
         None | Some(UiValue::Nil) => None,
         Some(value) => {
             let window = table(config, value, "window")?;
-            fields(window, &["width", "height", "margin"], "window")?;
+            fields(
+                window,
+                &[
+                    "width",
+                    "height",
+                    "margin",
+                    "decorations",
+                    "opacity",
+                    "startup_mode",
+                ],
+                "window",
+            )?;
             let margin = match window.get("margin") {
                 None | Some(UiValue::Nil) => DisplayMargins::default(),
                 Some(value) => {
@@ -118,9 +131,52 @@ fn window(config: &UiConfig) -> Result<Option<DisplayWindowOptions>, Error> {
                 width: integer(window.get("width"), "window.width", 1)?,
                 height: integer(window.get("height"), "window.height", 1)?,
                 margin,
+                decorations: match window.get("decorations") {
+                    None | Some(UiValue::Nil) => None,
+                    Some(UiValue::String(s)) if s == b"full" => Some(DisplayDecorations::Full),
+                    Some(UiValue::String(s)) if s == b"none" => Some(DisplayDecorations::None),
+                    _ => return Err(invalid("window.decorations must be 'full', 'none', or nil")),
+                },
+                opacity: opacity(window.get("opacity"))?,
+                startup_mode: match window.get("startup_mode") {
+                    None | Some(UiValue::Nil) => None,
+                    Some(UiValue::String(s)) if s == b"windowed" => {
+                        Some(DisplayStartupMode::Windowed)
+                    }
+                    Some(UiValue::String(s)) if s == b"maximized" => {
+                        Some(DisplayStartupMode::Maximized)
+                    }
+                    Some(UiValue::String(s)) if s == b"fullscreen" => {
+                        Some(DisplayStartupMode::Fullscreen)
+                    }
+                    _ => {
+                        return Err(invalid(
+                            "window.startup_mode must be 'windowed', 'maximized', 'fullscreen', or nil",
+                        ));
+                    }
+                },
             })
         }
     })
+}
+
+fn opacity(value: Option<&UiValue>) -> Result<Option<f64>, Error> {
+    let value = match value {
+        None | Some(UiValue::Nil) => return Ok(None),
+        Some(UiValue::Number(value)) => *value,
+        Some(UiValue::Integer(value)) => *value as f64,
+        _ => {
+            return Err(invalid(
+                "window.opacity must be a finite number in 0..=1 or nil",
+            ));
+        }
+    };
+    if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+        return Err(invalid(
+            "window.opacity must be a finite number in 0..=1 or nil",
+        ));
+    }
+    Ok(Some(value))
 }
 
 pub(crate) fn load(path: Option<&Path>) -> Result<(Config, UiOptions), Error> {

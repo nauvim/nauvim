@@ -923,9 +923,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayDecorations dco_decode_box_autoadd_display_decorations(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_display_decorations(raw);
+  }
+
+  @protected
   DisplayFrame dco_decode_box_autoadd_display_frame(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_display_frame(raw);
+  }
+
+  @protected
+  DisplayStartupMode dco_decode_box_autoadd_display_startup_mode(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_display_startup_mode(raw);
   }
 
   @protected
@@ -940,6 +952,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_display_window_options(raw);
+  }
+
+  @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
   }
 
   @protected
@@ -999,6 +1017,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       shape: dco_decode_String(arr[3]),
       percentage: dco_decode_u_32(arr[4]),
     );
+  }
+
+  @protected
+  DisplayDecorations dco_decode_display_decorations(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DisplayDecorations.values[raw as int];
   }
 
   @protected
@@ -1118,6 +1142,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayStartupMode dco_decode_display_startup_mode(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DisplayStartupMode.values[raw as int];
+  }
+
+  @protected
   DisplayWidget dco_decode_display_widget(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1157,12 +1187,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   DisplayWindowOptions dco_decode_display_window_options(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return DisplayWindowOptions(
       width: dco_decode_opt_box_autoadd_u_32(arr[0]),
       height: dco_decode_opt_box_autoadd_u_32(arr[1]),
       margin: dco_decode_display_margins(arr[2]),
+      decorations: dco_decode_opt_box_autoadd_display_decorations(arr[3]),
+      opacity: dco_decode_opt_box_autoadd_f_64(arr[4]),
+      startupMode: dco_decode_opt_box_autoadd_display_startup_mode(arr[5]),
     );
   }
 
@@ -1248,6 +1281,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       axis: dco_decode_String(arr[0]),
       value: dco_decode_f_64(arr[1]),
     );
+  }
+
+  @protected
+  int dco_decode_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
   }
 
   @protected
@@ -1371,9 +1410,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayDecorations? dco_decode_opt_box_autoadd_display_decorations(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_display_decorations(raw);
+  }
+
+  @protected
   DisplayFrame? dco_decode_opt_box_autoadd_display_frame(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_display_frame(raw);
+  }
+
+  @protected
+  DisplayStartupMode? dco_decode_opt_box_autoadd_display_startup_mode(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_display_startup_mode(raw);
   }
 
   @protected
@@ -1390,6 +1447,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return raw == null
         ? null
         : dco_decode_box_autoadd_display_window_options(raw);
+  }
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_f_64(raw);
   }
 
   @protected
@@ -1552,11 +1615,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayDecorations sse_decode_box_autoadd_display_decorations(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_display_decorations(deserializer));
+  }
+
+  @protected
   DisplayFrame sse_decode_box_autoadd_display_frame(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_display_frame(deserializer));
+  }
+
+  @protected
+  DisplayStartupMode sse_decode_box_autoadd_display_startup_mode(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_display_startup_mode(deserializer));
   }
 
   @protected
@@ -1573,6 +1652,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_display_window_options(deserializer));
+  }
+
+  @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_f_64(deserializer));
   }
 
   @protected
@@ -1629,6 +1714,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       shape: var_shape,
       percentage: var_percentage,
     );
+  }
+
+  @protected
+  DisplayDecorations sse_decode_display_decorations(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return DisplayDecorations.values[inner];
   }
 
   @protected
@@ -1766,6 +1860,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayStartupMode sse_decode_display_startup_mode(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return DisplayStartupMode.values[inner];
+  }
+
+  @protected
   DisplayWidget sse_decode_display_widget(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_kind = sse_decode_String(deserializer);
@@ -1819,10 +1922,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_width = sse_decode_opt_box_autoadd_u_32(deserializer);
     var var_height = sse_decode_opt_box_autoadd_u_32(deserializer);
     var var_margin = sse_decode_display_margins(deserializer);
+    var var_decorations = sse_decode_opt_box_autoadd_display_decorations(
+      deserializer,
+    );
+    var var_opacity = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_startupMode = sse_decode_opt_box_autoadd_display_startup_mode(
+      deserializer,
+    );
     return DisplayWindowOptions(
       width: var_width,
       height: var_height,
       margin: var_margin,
+      decorations: var_decorations,
+      opacity: var_opacity,
+      startupMode: var_startupMode,
     );
   }
 
@@ -1899,6 +2012,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_axis = sse_decode_String(deserializer);
     var var_value = sse_decode_f_64(deserializer);
     return FontVariation(axis: var_axis, value: var_value);
+  }
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt32();
   }
 
   @protected
@@ -2147,6 +2266,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayDecorations? sse_decode_opt_box_autoadd_display_decorations(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_display_decorations(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   DisplayFrame? sse_decode_opt_box_autoadd_display_frame(
     SseDeserializer deserializer,
   ) {
@@ -2154,6 +2286,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_display_frame(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  DisplayStartupMode? sse_decode_opt_box_autoadd_display_startup_mode(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_display_startup_mode(deserializer));
     } else {
       return null;
     }
@@ -2180,6 +2325,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_display_window_options(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_f_64(deserializer));
     } else {
       return null;
     }
@@ -2292,12 +2448,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getInt32();
-  }
-
-  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -2390,12 +2540,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_display_decorations(
+    DisplayDecorations self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_display_decorations(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_display_frame(
     DisplayFrame self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_display_frame(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_display_startup_mode(
+    DisplayStartupMode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_display_startup_mode(self, serializer);
   }
 
   @protected
@@ -2414,6 +2582,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_display_window_options(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self, serializer);
   }
 
   @protected
@@ -2456,6 +2630,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_32(self.col, serializer);
     sse_encode_String(self.shape, serializer);
     sse_encode_u_32(self.percentage, serializer);
+  }
+
+  @protected
+  void sse_encode_display_decorations(
+    DisplayDecorations self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -2546,6 +2729,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_display_startup_mode(
+    DisplayStartupMode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_display_widget(DisplayWidget self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.kind, serializer);
@@ -2580,6 +2772,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_u_32(self.width, serializer);
     sse_encode_opt_box_autoadd_u_32(self.height, serializer);
     sse_encode_display_margins(self.margin, serializer);
+    sse_encode_opt_box_autoadd_display_decorations(
+      self.decorations,
+      serializer,
+    );
+    sse_encode_opt_box_autoadd_f_64(self.opacity, serializer);
+    sse_encode_opt_box_autoadd_display_startup_mode(
+      self.startupMode,
+      serializer,
+    );
   }
 
   @protected
@@ -2637,6 +2838,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.axis, serializer);
     sse_encode_f_64(self.value, serializer);
+  }
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt32(self);
   }
 
   @protected
@@ -2868,6 +3075,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_display_decorations(
+    DisplayDecorations? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_display_decorations(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_display_frame(
     DisplayFrame? self,
     SseSerializer serializer,
@@ -2877,6 +3097,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_display_frame(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_display_startup_mode(
+    DisplayStartupMode? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_display_startup_mode(self, serializer);
     }
   }
 
@@ -2903,6 +3136,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_display_window_options(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_f_64(self, serializer);
     }
   }
 
@@ -2994,12 +3237,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_usize(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
-  }
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putInt32(self);
   }
 }
 

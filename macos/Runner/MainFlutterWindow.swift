@@ -8,6 +8,47 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
   private var webviews: [Int64: WKWebView] = [:]
   private(set) var isCleanupComplete = false
   private var closeRequested = false
+  private var startupModePending = false
+
+  override var canBecomeKey: Bool { true }
+  override var canBecomeMain: Bool { true }
+
+  func configureInitialWindow(_ args: [String: Any]) {
+    let current = contentRect(forFrameRect: frame).size
+    if args["decorations"] as? String == "none" {
+      styleMask.remove(.titled)
+    } else {
+      styleMask.insert(.titled)
+    }
+    if let opacity = (args["opacity"] as? NSNumber)?.doubleValue,
+       opacity.isFinite, (0...1).contains(opacity) {
+      alphaValue = CGFloat(opacity)
+    }
+    let width = (args["width"] as? NSNumber)?.doubleValue ?? current.width
+    let height = (args["height"] as? NSNumber)?.doubleValue ?? current.height
+    if width.isFinite && height.isFinite && width > 0 && height > 0 {
+      setContentSize(NSSize(width: width, height: height))
+    }
+    switch args["startup_mode"] as? String ?? "windowed" {
+    case "maximized":
+      if !isZoomed { zoom(nil) }
+    case "fullscreen":
+      if !styleMask.contains(.fullScreen) {
+        startupModePending = true
+        collectionBehavior.insert(.fullScreenPrimary)
+        toggleFullScreen(nil)
+      }
+    default: break
+    }
+  }
+
+  func windowDidEnterFullScreen(_ notification: Notification) {
+    startupModePending = false
+  }
+
+  func windowDidFailToEnterFullScreen(_ window: NSWindow) {
+    startupModePending = false
+  }
 
   override func awakeFromNib() {
     let controller = FlutterViewController()
@@ -23,12 +64,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
       let args = call.arguments as? [String: Any] ?? [:]
       switch call.method {
       case "configure_window":
-        let current = self.contentRect(forFrameRect: self.frame).size
-        let width = (args["width"] as? NSNumber)?.doubleValue ?? current.width
-        let height = (args["height"] as? NSNumber)?.doubleValue ?? current.height
-        if width.isFinite && height.isFinite && width > 0 && height > 0 {
-          self.setContentSize(NSSize(width: width, height: height))
-        }
+        self.configureInitialWindow(args)
       case "configure_grid":
         let cw = args["cell_width"] as? Double ?? 0
         let ch = args["cell_height"] as? Double ?? 0
@@ -38,7 +74,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
         let minRows = max(1, args["min_rows"] as? Int ?? 1)
         self.contentResizeIncrements = NSSize(width: cw, height: ch)
         self.contentMinSize = NSSize(width: baseWidth + cw, height: baseHeight + Double(minRows) * ch)
-        if !self.isZoomed && !self.styleMask.contains(.fullScreen) {
+        if !self.startupModePending && !self.isZoomed && !self.styleMask.contains(.fullScreen) {
           let current = self.contentRect(forFrameRect: self.frame).size
           let snapped = NSSize(width: baseWidth + max(1, floor((current.width - baseWidth) / cw)) * cw,
                                height: baseHeight + max(Double(minRows), floor((current.height - baseHeight) / ch)) * ch)

@@ -113,6 +113,10 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
       _channel.invokeMethod('configure_window', {
         if (options.width != null) 'width': options.width,
         if (options.height != null) 'height': options.height,
+        'decorations': (options.decorations ?? DisplayDecorations.full).name,
+        'opacity': options.opacity ?? 1.0,
+        'startup_mode':
+            (options.startupMode ?? DisplayStartupMode.windowed).name,
       });
 
   @override

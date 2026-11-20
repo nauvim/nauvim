@@ -134,6 +134,91 @@ fn parses_initial_size_and_independent_nonnegative_margins() {
 }
 
 #[test]
+fn parses_window_appearance_and_startup_modes() {
+    for window in ["{}", "{decorations=nil,opacity=nil,startup_mode=nil}"] {
+        let options = parse(&format!("{{window={window}}}"))
+            .unwrap()
+            .window
+            .unwrap();
+        assert!(options.decorations.is_none());
+        assert!(options.opacity.is_none());
+        assert!(options.startup_mode.is_none());
+    }
+
+    for (decorations, expected) in [("full", true), ("none", false)] {
+        for mode in ["windowed", "maximized", "fullscreen"] {
+            let options = parse(&format!(
+                "{{window={{width=960,height=640,margin={{left=8}},decorations='{decorations}',opacity=0.75,startup_mode='{mode}'}}}}"
+            )).unwrap().window.unwrap();
+            assert_eq!(
+                matches!(options.decorations, Some(DisplayDecorations::Full)),
+                expected
+            );
+            assert!(options.decorations.is_some());
+            assert_eq!(options.opacity, Some(0.75));
+            let selected = match options.startup_mode.unwrap() {
+                DisplayStartupMode::Windowed => "windowed",
+                DisplayStartupMode::Maximized => "maximized",
+                DisplayStartupMode::Fullscreen => "fullscreen",
+            };
+            assert_eq!(selected, mode);
+            assert_eq!(
+                (options.width, options.height, options.margin.left),
+                (Some(960), Some(640), 8)
+            );
+        }
+    }
+    for (value, expected) in [("0", 0.0), ("1", 1.0), ("0.0", 0.0), ("1.0", 1.0)] {
+        let options = parse(&format!("{{window={{opacity={value}}}}}")).unwrap();
+        assert_eq!(options.window.unwrap().opacity, Some(expected));
+    }
+}
+
+#[test]
+fn rejects_invalid_window_appearance_and_startup_values() {
+    for (field, values) in [
+        (
+            "decorations",
+            ["'borderless'", "'FULL'", "true", "0", "{}", "''"],
+        ),
+        (
+            "startup_mode",
+            ["'normal'", "'MAXIMIZED'", "false", "1", "{}", "''"],
+        ),
+        (
+            "opacity",
+            ["-0.01", "1.01", "0/0", "math.huge", "'0.5'", "false"],
+        ),
+    ] {
+        for value in values {
+            let e = parse(&format!("{{window={{{field}={value}}}}}"))
+                .err()
+                .unwrap();
+            assert!(e.to_string().contains(field), "{field}={value}: {e}");
+        }
+    }
+}
+
+#[test]
+fn invalid_window_options_follow_complete_configuration_fallback() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("init.lua");
+    std::fs::write(&path, format!(
+        "return {{hosts={{chosen={{}}}},ui_opts={{['{UI_ID}']={{fonts='Ignored',window={{opacity=2}}}}}}}}"
+    )).unwrap();
+    let (config, options) = Config::load(Some(&path), UI_ID, UiOptions::parse).unwrap();
+    assert_eq!(config.hosts().count(), 0);
+    assert!(options.fonts.is_empty());
+    assert!(options.window.is_none());
+    assert!(
+        config
+            .diagnostics()
+            .iter()
+            .any(|e| e.contains("window.opacity"))
+    );
+}
+
+#[test]
 fn rejects_cycles_and_non_data_values_without_recursion() {
     let info = info(Path::new("/tmp/nauvim-ui-options/init.lua"));
     for options in [

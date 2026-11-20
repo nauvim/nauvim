@@ -52,6 +52,9 @@ return {
             window = {
                 width = 1920,
                 height = 1080,
+                decorations = "full",
+                opacity = 1.0,
+                startup_mode = "windowed",
                 margin = { top = 0, bottom = 0, left = 8, right = 8 },
             },
         },
@@ -80,6 +83,9 @@ UiOpts = {
     window: {
         width: positive integer | nil,
         height: positive integer | nil,
+        decorations: "full" | "none" | nil,
+        opacity: number in [0, 1] | nil,
+        startup_mode: "windowed" | "maximized" | "fullscreen" | nil,
         margin: {
             top: nonnegative integer | nil,
             bottom: nonnegative integer | nil,
@@ -94,18 +100,46 @@ A font string is shorthand for `{ family = "..." }`. Omitted font sizes use
 15 logical pixels. An omitted or empty font list uses the system monospace
 font at that size. See the [OpenType selection appendix](#appendix-opentype-font-selection)
 for the exact meaning of `family`, `subfamily`, and `path`.
-Numeric options are Lua integers within the unsigned 32-bit range; dimensions
-and font sizes must be positive, while margins can be zero.
+Dimensions, font sizes, and margins are Lua integers within the unsigned 32-bit
+range. Dimensions and font sizes must be positive; margins can be zero.
 
 All dimensions use **logical pixels**: Flutter logical pixels, GTK logical
 coordinates on Linux, and AppKit points on macOS. The display scale converts
 these to physical pixels. Font size specifies the em size in the same unit.
 Window width and height are the initial client-area size, including Nauvim's
 toolbar and margins, and excluding operating-system window decorations.
-An omitted dimension keeps the platform's initial size. These settings apply
-once at startup; later user resizing is retained. Margins default to zero and
-surround the editor grid and its command row. Cell resize increments can adjust
-the requested size to fit whole cells; window-manager constraints still apply.
+An omitted dimension keeps the platform's initial size. Margins default to zero
+and surround the editor grid and its command row. Cell resize increments can
+adjust the requested size to fit whole cells; window-manager constraints still
+apply.
+
+`window.opacity` accepts finite Lua integers or numbers from 0 (invisible) to 1
+(opaque). It defaults to 1 and affects the whole window:
+backgrounds, text, cursors, controls, and native HTTP previews. It is not a
+background-only transparency setting. Native decorations follow platform
+compositing policy. Linux requires
+[compositor support](https://docs.gtk.org/gtk3/method.Widget.set_opacity.html);
+an unsupported opacity request can leave the window opaque. Opacity does not
+change input handling.
+
+`decorations` defaults to `"full"`, with the native title bar and controls.
+`"none"` requests a borderless window; Nauvim does not add replacement title-bar
+drag or resize handles. Use the window manager's controls or shortcuts as needed.
+Linux decoration and startup-mode requests are subject to
+[window-manager policy](https://docs.gtk.org/gtk3/method.Window.set_decorated.html).
+
+`startup_mode` defaults to `"windowed"`. `"maximized"` requests the platform's
+maximized state (native zoom on macOS); `"fullscreen"` requests native fullscreen.
+Width and height set the windowed content size before the startup-mode request.
+Margins apply in every mode. Cell-size snapping does not resize a maximized or
+fullscreen window. Snapping also waits for the initial mode transition; on Linux
+it resumes after a bounded wait if the window manager does not confirm the mode.
+
+All window options apply once after configuration loads. Editing `init.lua`
+requires restarting Nauvim; later user resizing and mode changes are retained.
+Window geometry is not restored from storage, so there is no restored-state
+precedence. Unknown option names, unsupported values, and invalid types follow
+the complete-configuration fallback described below.
 
 Configuration is evaluated in client-side Lua 5.4. Its sibling `lua/` directory
 is searched for configuration modules. Lua loading errors and invalid selected
