@@ -87,7 +87,11 @@ class _EditorViewportRegionState extends State<EditorViewportRegion> {
       _scheduled = false;
       if (!mounted) return;
       if (_windowGrid case final grid?) {
-        widget.controller.updateWindowGrid(grid, _windowSize!);
+        widget.controller.updateWindowGrid(
+          grid,
+          _windowSize!,
+          font: _measuredFont,
+        );
       }
       final box = _region.currentContext?.findRenderObject();
       final pending = _pending;

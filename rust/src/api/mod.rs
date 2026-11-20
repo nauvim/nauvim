@@ -6,8 +6,9 @@ pub use application::{Application, create_application};
 pub(crate) mod display;
 pub use display::{
     DisplayCell, DisplayChunk, DisplayCompletion, DisplayCursor, DisplayDecorations, DisplayEvent,
-    DisplayFont, DisplayFrame, DisplayGrid, DisplayHighlight, DisplayMargins, DisplayRow,
-    DisplayStartupMode, DisplayWidget, DisplayWindow, DisplayWindowOptions, UiUpdate,
+    DisplayFont, DisplayFrame, DisplayGrid, DisplayHighlight, DisplayLength, DisplayLengthUnit,
+    DisplayMargins, DisplayRow, DisplayStartupMode, DisplayWidget, DisplayWindow,
+    DisplayWindowOptions, UiUpdate,
 };
 
 pub(crate) mod fonts;

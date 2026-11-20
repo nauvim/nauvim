@@ -70,6 +70,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DisplayFrame dco_decode_box_autoadd_display_frame(dynamic raw);
 
   @protected
+  DisplayLength dco_decode_box_autoadd_display_length(dynamic raw);
+
+  @protected
   DisplayStartupMode dco_decode_box_autoadd_display_startup_mode(dynamic raw);
 
   @protected
@@ -115,6 +118,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DisplayHighlight dco_decode_display_highlight(dynamic raw);
+
+  @protected
+  DisplayLength dco_decode_display_length(dynamic raw);
+
+  @protected
+  DisplayLengthUnit dco_decode_display_length_unit(dynamic raw);
 
   @protected
   DisplayMargins dco_decode_display_margins(dynamic raw);
@@ -227,6 +236,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DisplayFrame? dco_decode_opt_box_autoadd_display_frame(dynamic raw);
 
   @protected
+  DisplayLength? dco_decode_opt_box_autoadd_display_length(dynamic raw);
+
+  @protected
   DisplayStartupMode? dco_decode_opt_box_autoadd_display_startup_mode(
     dynamic raw,
   );
@@ -323,6 +335,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DisplayLength sse_decode_box_autoadd_display_length(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DisplayStartupMode sse_decode_box_autoadd_display_startup_mode(
     SseDeserializer deserializer,
   );
@@ -374,6 +391,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DisplayHighlight sse_decode_display_highlight(SseDeserializer deserializer);
+
+  @protected
+  DisplayLength sse_decode_display_length(SseDeserializer deserializer);
+
+  @protected
+  DisplayLengthUnit sse_decode_display_length_unit(
+    SseDeserializer deserializer,
+  );
 
   @protected
   DisplayMargins sse_decode_display_margins(SseDeserializer deserializer);
@@ -510,6 +535,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DisplayLength? sse_decode_opt_box_autoadd_display_length(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DisplayStartupMode? sse_decode_opt_box_autoadd_display_startup_mode(
     SseDeserializer deserializer,
   );
@@ -622,6 +652,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_display_length(
+    DisplayLength self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_display_startup_mode(
     DisplayStartupMode self,
     SseSerializer serializer,
@@ -681,6 +717,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_display_highlight(
     DisplayHighlight self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_display_length(DisplayLength self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_display_length_unit(
+    DisplayLengthUnit self,
     SseSerializer serializer,
   );
 
@@ -858,6 +903,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_display_frame(
     DisplayFrame? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_display_length(
+    DisplayLength? self,
     SseSerializer serializer,
   );
 

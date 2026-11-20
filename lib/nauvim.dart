@@ -7,3 +7,4 @@ export 'src/headless/engine.dart';
 export 'src/headless/platform.dart';
 export 'src/headless/protocol.dart';
 export 'src/headless/viewport.dart';
+export 'src/headless/window_geometry.dart';

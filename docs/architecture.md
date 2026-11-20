@@ -135,6 +135,14 @@ wrapped in a viewport region.
 It applies `controller.windowMargins` around its grid and reserved rows, and
 includes those margins in the native window's resize base. A custom viewport
 implementation must account for these margins itself.
+`DisplayWindowOptions` carries configured lengths with explicit units;
+`controller.windowMargins` exposes resolved `WindowMargins` in logical pixels.
+The platform receives `WindowOptions` with resolved dimensions and margins.
+Cell-relative options wait for the selected font's measured cells before the
+controller applies startup options and admits the first viewport for attachment.
+Report a matching-font viewport through `updateViewport()`, or supply that font
+to `updateWindowGrid()` even when the current region is too small for a viewport.
+The pixel-only path continues to configure the window before font discovery.
 Use `bottomRows` to reserve fixed rows for client controls, and `overlayBuilder`
 to place them beside the measured grid. An `EditorSurface` given that region's
 `viewport` reuses its measurements. The default design reserves one command row

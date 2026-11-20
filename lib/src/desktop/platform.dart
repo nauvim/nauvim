@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../headless/platform.dart';
 import '../headless/protocol.dart';
 import '../headless/viewport.dart';
+import '../headless/window_geometry.dart';
 import '../bridge/api/fonts.dart' as native_fonts;
 
 /// Desktop capabilities implemented by the Linux and macOS runners.
@@ -109,7 +110,7 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
   }
 
   @override
-  Future<void> configureInitialWindow(DisplayWindowOptions options) =>
+  Future<void> configureInitialWindow(WindowOptions options) =>
       _channel.invokeMethod('configure_window', {
         if (options.width != null) 'width': options.width,
         if (options.height != null) 'height': options.height,

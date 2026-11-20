@@ -44,6 +44,83 @@ DisplayFrame frame({
 
 void main() {
   testWidgets(
+    'resolves em geometry with measured line spacing and scaled cells',
+    (tester) async {
+      tester.view.devicePixelRatio = 2;
+      tester.view.physicalSize = const Size(1600, 1200);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final engine = FakeEngine();
+      final platform = FakePlatform();
+      final controller = NauvimController(engine: engine, platform: platform);
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+        await engine.events.close();
+      });
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: EditorViewportRegion(
+            controller: controller,
+            bottomRows: 1,
+            metrics: const EditorMetricsStyle(
+              lineHeight: 1.4,
+              cellHeightMultiplier: 1.25,
+            ),
+            builder: (_, viewport) => const SizedBox.expand(),
+          ),
+        ),
+      );
+      const zero = DisplayLength(value: 0, unit: DisplayLengthUnit.px);
+      engine.emit(
+        const UiUpdate(
+          kind: 'ready',
+          windowOptions: DisplayWindowOptions(
+            width: DisplayLength(value: 100, unit: DisplayLengthUnit.em),
+            height: DisplayLength(value: 40, unit: DisplayLengthUnit.em),
+            margin: DisplayMargins(
+              top: DisplayLength(value: 0.5, unit: DisplayLengthUnit.em),
+              bottom: DisplayLength(value: 1, unit: DisplayLengthUnit.em),
+              left: DisplayLength(value: 0.5, unit: DisplayLengthUnit.em),
+              right: zero,
+            ),
+          ),
+          fonts: [DisplayFont(family: 'monospace', size: 15)],
+          hosts: [],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final viewport = controller.viewport!;
+      expect((viewport.cellWidth, viewport.cellHeight), (9, 26.5));
+      final initial = platform.initialWindows.single;
+      expect((initial.width, initial.height), (900, 1060));
+      expect(
+        (
+          initial.margin.top,
+          initial.margin.bottom,
+          initial.margin.left,
+          initial.margin.right,
+        ),
+        (13, 27, 5, 0),
+      );
+      expect(
+        (
+          platform.windowGrids.last.baseWidth,
+          platform.windowGrids.last.baseHeight,
+        ),
+        (5, 40),
+      );
+      expect(viewport.origin.dx, 5);
+      expect(
+        viewport.origin.dy + viewport.size.height + viewport.cellHeight,
+        600 - 27,
+      );
+      expect(engine.starts, hasLength(1));
+    },
+  );
+
+  testWidgets(
     'includes window margins in the grid base and retains them on resize',
     (tester) async {
       final engine = FakeEngine();
@@ -68,9 +145,14 @@ void main() {
         const UiUpdate(
           kind: 'ready',
           windowOptions: DisplayWindowOptions(
-            width: 960,
-            height: 640,
-            margin: DisplayMargins(top: 3, bottom: 5, left: 7, right: 11),
+            width: DisplayLength(value: 960, unit: DisplayLengthUnit.px),
+            height: DisplayLength(value: 640, unit: DisplayLengthUnit.px),
+            margin: DisplayMargins(
+              top: DisplayLength(value: 3, unit: DisplayLengthUnit.px),
+              bottom: DisplayLength(value: 5, unit: DisplayLengthUnit.px),
+              left: DisplayLength(value: 7, unit: DisplayLengthUnit.px),
+              right: DisplayLength(value: 11, unit: DisplayLengthUnit.px),
+            ),
           ),
           fonts: [DisplayFont(family: 'monospace', size: 15)],
           hosts: [],
