@@ -1,6 +1,6 @@
 use super::selection::named;
 use super::*;
-use crate::api::fonts::{FontRange, resolve_fonts};
+use crate::api::fonts::FontRange;
 
 use skrifa::raw::{FontRef, types::NameId};
 
@@ -13,6 +13,10 @@ const DATA: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../test/fixtures/grid_test.ttf"
 ));
+
+fn resolve_fonts(requests: Vec<FontRequest>, candidates: Vec<FontCandidate>) -> FontResolution {
+    resolve_with_cache(&requests, &candidates, None)
+}
 
 fn request() -> FontRequest {
     FontRequest {
@@ -384,4 +388,288 @@ fn reserves_generic_names_only_for_installed_searches() {
     );
     assert_eq!(result.fonts.len(), 1);
     assert!(resolve_data(generic(), DATA).fonts.is_empty());
+}
+
+fn assert_same_prepared_font(lhs: &ResolvedFont, rhs: &ResolvedFont) {
+    assert_eq!(lhs.data, rhs.data);
+    assert_eq!(lhs.info.ascent, rhs.info.ascent);
+    assert_eq!(lhs.info.descent, rhs.info.descent);
+    assert_eq!(lhs.info.line_gap, rhs.info.line_gap);
+    assert_eq!(lhs.info.advance, rhs.info.advance);
+    assert_eq!(lhs.info.coverage, rhs.info.coverage);
+    assert_eq!(
+        lhs.variations
+            .iter()
+            .map(|axis| (axis.axis.as_str(), axis.value))
+            .collect::<Vec<_>>(),
+        rhs.variations
+            .iter()
+            .map(|axis| (axis.axis.as_str(), axis.value))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn persists_prepared_collections_and_variations_across_resolutions() {
+    let directory = tempfile::tempdir().unwrap();
+    let database = directory.path().join("fonts.sqlite3");
+    let path = directory.path().join("font.ttc");
+    let data = collection(&named_font("Other", "Regular"), &variable_font(b"wght"));
+    fs::write(&path, &data).unwrap();
+    let requested = FontRequest {
+        path: Some(path.to_str().unwrap().into()),
+        ..request()
+    };
+    let first = resolve_with_cache(&[requested], &[], Some(Cache::open(&database).unwrap()));
+    assert!(first.diagnostics.is_empty(), "{:?}", first.diagnostics);
+    let expected = &first.fonts[0];
+    assert!(!expected.data.starts_with(b"ttcf"));
+    assert_eq!(expected.variations[0].value, 650.0);
+
+    let mut cache = Cache::open(&database).unwrap();
+    let restored = cache.get(&Key::new(&data, 1), 7).unwrap().unwrap();
+    assert_eq!(restored.request, 7);
+    assert_same_prepared_font(&restored, expected);
+    drop(cache);
+
+    let next = resolve_with_cache(
+        &[
+            FontRequest {
+                path: Some(
+                    directory
+                        .path()
+                        .join("missing.ttf")
+                        .to_str()
+                        .unwrap()
+                        .into(),
+                ),
+                ..request()
+            },
+            FontRequest {
+                path: Some(path.to_str().unwrap().into()),
+                ..request()
+            },
+        ],
+        &[],
+        Some(Cache::open(&database).unwrap()),
+    );
+    assert_eq!(next.diagnostics.len(), 1);
+    assert_eq!(next.fonts.len(), 1);
+    assert_eq!(next.fonts[0].request, 1);
+    assert_same_prepared_font(&next.fonts[0], expected);
+}
+
+#[test]
+fn cache_tracks_replaced_sources_and_does_not_hide_missing_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let database = directory.path().join("fonts.sqlite3");
+    let path = directory.path().join("font.ttf");
+    let first = named_font("NauvimGridTest", "Medium1");
+    let second = named_font("NauvimGridTest", "Medium2");
+    assert_eq!(first.len(), second.len());
+
+    let resolve = || {
+        resolve_with_cache(
+            &[FontRequest {
+                path: Some(path.to_str().unwrap().into()),
+                ..request()
+            }],
+            &[],
+            Some(Cache::open(&database).unwrap()),
+        )
+    };
+    fs::write(&path, &first).unwrap();
+    assert_eq!(resolve().fonts[0].data, first);
+    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+    fs::write(&path, &second).unwrap();
+    fs::File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_modified(modified)
+        .unwrap();
+    assert_eq!(resolve().fonts[0].data, second);
+
+    fs::remove_file(&path).unwrap();
+    let missing = resolve();
+    assert!(missing.fonts.is_empty());
+    assert_eq!(missing.diagnostics.len(), 1);
+    assert!(missing.diagnostics[0].contains("Read font"));
+}
+
+#[test]
+fn cached_fonts_follow_current_native_candidate_order() {
+    let directory = tempfile::tempdir().unwrap();
+    let database = directory.path().join("fonts.sqlite3");
+    let first = directory.path().join("first.ttf");
+    let second = directory.path().join("second.ttf");
+    let first_data = named_font("NauvimGridTest", "Regular");
+    let second_data = named_font("NauvimGridTest", "Medium");
+    fs::write(&first, &first_data).unwrap();
+    fs::write(&second, &second_data).unwrap();
+    let candidate = |path: &Path| FontCandidate {
+        request: 0,
+        path: path.to_str().unwrap().into(),
+        index: 0,
+        postscript_name: None,
+    };
+    for (paths, expected) in [
+        ([&first, &second], &first_data),
+        ([&second, &first], &second_data),
+        ([&first, &second], &first_data),
+    ] {
+        let result = resolve_with_cache(
+            &[request()],
+            &paths.map(|path| candidate(path)),
+            Some(Cache::open(&database).unwrap()),
+        );
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        assert_eq!(&result.fonts[0].data, expected);
+    }
+}
+
+#[test]
+fn locked_cache_falls_back_to_source_with_one_diagnostic() {
+    let directory = tempfile::tempdir().unwrap();
+    let database = directory.path().join("fonts.sqlite3");
+    let path = directory.path().join("font.ttf");
+    fs::write(&path, DATA).unwrap();
+    let cache = Cache::open(&database).unwrap();
+    let blocker = rusqlite::Connection::open(&database).unwrap();
+    blocker.execute_batch("BEGIN EXCLUSIVE").unwrap();
+
+    let result = resolve_with_cache(
+        &[
+            FontRequest {
+                path: Some(path.to_str().unwrap().into()),
+                ..request()
+            },
+            FontRequest {
+                path: Some(path.to_str().unwrap().into()),
+                ..request()
+            },
+        ],
+        &[],
+        Some(cache),
+    );
+    assert_eq!(result.fonts.len(), 2);
+    assert_eq!(result.fonts[0].data, DATA);
+    assert_eq!(result.fonts[1].data, DATA);
+    assert_eq!(result.diagnostics.len(), 1);
+    assert!(result.diagnostics[0].starts_with("Read font cache:"));
+    assert!(result.diagnostics[0].contains(database.to_str().unwrap()));
+    blocker.execute_batch("ROLLBACK").unwrap();
+}
+
+#[test]
+fn unavailable_cache_does_not_prevent_font_resolution() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("font.ttf");
+    fs::write(&path, DATA).unwrap();
+    let database = directory.path().join("not-a-directory/fonts.sqlite3");
+    fs::write(directory.path().join("not-a-directory"), b"occupied").unwrap();
+    let cache = Cache::open(&database);
+    assert!(cache.is_err());
+
+    let result = resolve_with_storage(
+        &[FontRequest {
+            path: Some(path.to_str().unwrap().into()),
+            ..request()
+        }],
+        &[],
+        cache,
+    );
+    assert_eq!(result.fonts.len(), 1);
+    assert_eq!(result.fonts[0].data, DATA);
+    assert_eq!(result.diagnostics.len(), 1);
+    assert!(result.diagnostics[0].starts_with("Open font cache:"));
+    assert!(result.diagnostics[0].contains(database.to_str().unwrap()));
+}
+
+#[test]
+fn cache_write_failure_keeps_prepared_fonts_available() {
+    let directory = tempfile::tempdir().unwrap();
+    let database = directory.path().join("fonts.sqlite3");
+    let path = directory.path().join("font.ttf");
+    fs::write(&path, DATA).unwrap();
+    let cache = Cache::open(&database).unwrap();
+    let blocker = rusqlite::Connection::open(&database).unwrap();
+    blocker
+        .execute_batch(
+            "CREATE TRIGGER reject_insert BEFORE INSERT ON fonts
+             BEGIN SELECT RAISE(FAIL, 'test cache write failure'); END;",
+        )
+        .unwrap();
+
+    let requests = [0, 1].map(|_| FontRequest {
+        path: Some(path.to_str().unwrap().into()),
+        ..request()
+    });
+    let result = resolve_with_cache(&requests, &[], Some(cache));
+    assert_eq!(result.fonts.len(), 2);
+    assert_eq!(result.fonts[0].data, DATA);
+    assert_eq!(result.fonts[1].data, DATA);
+    assert_eq!(result.diagnostics.len(), 1);
+    assert!(result.diagnostics[0].starts_with("Write font cache:"));
+    assert!(result.diagnostics[0].contains(database.to_str().unwrap()));
+    assert!(result.diagnostics[0].contains("test cache write failure"));
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn public_resolver_persists_across_processes_and_recovers_from_unreadable_storage() {
+    use std::env;
+    use std::process::Command;
+
+    if let Some(path) = env::var_os("NAUVIM_TEST_FONT_CACHE_SOURCE") {
+        let result = crate::api::fonts::resolve_fonts(
+            vec![FontRequest {
+                path: Some(path.into_string().unwrap()),
+                ..request()
+            }],
+            Vec::new(),
+        );
+        assert_eq!(result.fonts.len(), 1);
+        assert_eq!(result.fonts[0].data, DATA);
+        if env::var("NAUVIM_TEST_FONT_CACHE_FAILURE").unwrap() == "yes" {
+            assert_eq!(result.diagnostics.len(), 1);
+            assert!(result.diagnostics[0].starts_with("Open font cache:"));
+        } else {
+            assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        }
+        return;
+    }
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("font.ttf");
+    fs::write(&path, DATA).unwrap();
+    let run = |failure| {
+        let output = Command::new(env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "fonts::tests::public_resolver_persists_across_processes_and_recovers_from_unreadable_storage",
+                "--nocapture",
+            ])
+            .env("XDG_CACHE_HOME", directory.path())
+            .env("NAUVIM_TEST_FONT_CACHE_SOURCE", &path)
+            .env("NAUVIM_TEST_FONT_CACHE_FAILURE", failure)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "stdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    run("no");
+    let database = directory.path().join("nauvim/fonts.sqlite3");
+    let mut cache = Cache::open(&database).unwrap();
+    assert!(cache.get(&Key::new(DATA, 0), 0).unwrap().is_some());
+    drop(cache);
+
+    run("no");
+    fs::write(&database, b"not a SQLite database").unwrap();
+    run("yes");
+    assert_eq!(fs::read(&database).unwrap(), b"not a SQLite database");
 }

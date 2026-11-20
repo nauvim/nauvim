@@ -152,6 +152,12 @@ share its baseline. Normal window resizing uses cell increments. See
 [font and grid rendering](docs/fonts-and-grid.md) for metrics and window-manager
 constraints.
 
+Prepared fonts persist across launches in a SQLite cache. Source files and
+native font preferences are checked on every resolution. Cache failures appear
+as diagnostics while fonts continue loading from their source files. See
+[font cache storage and recovery](docs/persistence.md#location-and-recovery)
+for the location and clearing procedure.
+
 The detach button and Neovim's `:detach` return to the welcome page. Host exit or
 connection failure also returns there. Startup selection is not repeated after
 detachment. Closing the GUI or receiving SIGTERM waits for engine cleanup and

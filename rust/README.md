@@ -98,11 +98,15 @@ follow core's complete-default fallback. The [user README](../README.md#configur
 is the authoritative schema reference.
 
 Font processing is separate from the async engine. `source` owns file reads and
-a bounded one-file candidate cache. `selection` handles OpenType face/name and
+a bounded one-file candidate buffer. `selection` handles OpenType face/name and
 axis-default rules. `metrics` reads borrowed font tables. `sfnt` extracts collection
 faces with `write-fonts`, rebuilding offsets/checksums and omitting signatures
-that no longer authenticate the extracted binary. Standalone font buffers move
-into the bridge unchanged. Font discovery performs no per-cell I/O.
+that no longer authenticate the extracted binary. `cache` persists prepared faces
+in SQLite after source selection; it reuses metrics, coverage, variation defaults,
+and collection exports without retaining stale source decisions. On a cache miss,
+standalone font buffers move into the bridge unchanged. Font discovery performs
+no per-cell I/O. The [persistence design](../docs/persistence.md) defines storage
+scope, identity, schema evolution, retention, and recovery.
 
 The [OpenType appendix](../README.md#appendix-opentype-font-selection) defines
 selection behavior. [Font and grid rendering](../docs/fonts-and-grid.md) explains
