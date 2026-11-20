@@ -46,7 +46,7 @@ pub struct ResolvedFont {
     pub variations: Vec<FontVariation>,
 }
 
-/// Ordered usable fonts and diagnostics for selectors that could not resolve.
+/// Ordered usable fonts and diagnostics for font-resolution or cache failures.
 pub struct FontResolution {
     pub fonts: Vec<ResolvedFont>,
     pub diagnostics: Vec<String>,
@@ -62,6 +62,10 @@ pub struct FontResolution {
 /// indices. Failed selectors contribute diagnostics instead of faces. Explicit
 /// paths ignore native candidates. Source files are read without modification;
 /// selected collection faces become standalone SFNT buffers for Flutter.
+///
+/// Prepared faces persist in SQLite under the platform cache directory. Source
+/// bytes and native selection are checked on every call. Cache failures add
+/// diagnostics and leave source-based font preparation available.
 pub fn resolve_fonts(requests: Vec<FontRequest>, candidates: Vec<FontCandidate>) -> FontResolution {
     crate::fonts::resolve(&requests, &candidates)
 }
