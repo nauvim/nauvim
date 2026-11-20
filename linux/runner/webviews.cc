@@ -1,4 +1,5 @@
 #include "webviews.h"
+#include "window_options.h"
 #include <webkit2/webkit2.h>
 #include <fontconfig/fontconfig.h>
 #include <algorithm>
@@ -122,11 +123,16 @@ static int grid_increment(double cell) {
   return std::max(1, static_cast<int>(std::round(cell)));
 }
 static void configure_window(Windows* windows, FlValue* args) {
-  int width, height;
-  gtk_window_get_size(windows->main, &width, &height);
-  if (value(args, "width")) width = std::max(1, dimension(args, "width"));
-  if (value(args, "height")) height = std::max(1, dimension(args, "height"));
-  gtk_window_resize(windows->main, width, height);
+  WindowOptions options;
+  options.width = dimension(args, "width");
+  options.height = dimension(args, "height");
+  options.decorated = !g_str_equal(string(args, "decorations"), "none");
+  if (value(args, "opacity")) options.opacity = number(args, "opacity");
+  if (g_str_equal(string(args, "startup_mode"), "maximized"))
+    options.mode = WindowMode::maximized;
+  else if (g_str_equal(string(args, "startup_mode"), "fullscreen"))
+    options.mode = WindowMode::fullscreen;
+  nauvim_configure_window(windows->main, options);
 }
 static void configure_grid(Windows* windows, FlValue* args) {
   const double cw = number(args, "cell_width");
@@ -146,7 +152,7 @@ static void configure_grid(Windows* windows, FlValue* args) {
   gtk_window_set_geometry_hints(windows->main, nullptr, &geometry,
       static_cast<GdkWindowHints>(GDK_HINT_BASE_SIZE | GDK_HINT_MIN_SIZE | GDK_HINT_RESIZE_INC));
   GdkWindow* window = gtk_widget_get_window(GTK_WIDGET(windows->main));
-  if (!window || (gdk_window_get_state(window) &
+  if (nauvim_window_mode_pending(windows->main) || !window || (gdk_window_get_state(window) &
       (GDK_WINDOW_STATE_MAXIMIZED | GDK_WINDOW_STATE_FULLSCREEN | GDK_WINDOW_STATE_TILED))) return;
   int width, height;
   gtk_window_get_size(windows->main, &width, &height);

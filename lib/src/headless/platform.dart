@@ -22,7 +22,7 @@ abstract interface class NauvimPlatform {
   void setEventHandler(Future<void> Function(NauvimPlatformEvent)? handler);
   Future<EditorFont> resolveFonts(List<DisplayFont> fonts);
 
-  /// Sets the initial client-area size in logical pixels, preserving omitted axes.
+  /// Applies startup appearance, mode, and size, preserving omitted size axes.
   Future<void> configureInitialWindow(DisplayWindowOptions options);
   Future<void> configureWindowGrid(WindowGrid grid);
   Future<void> setTitle(String title);

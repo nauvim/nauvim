@@ -64,7 +64,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DisplayCursor dco_decode_box_autoadd_display_cursor(dynamic raw);
 
   @protected
+  DisplayDecorations dco_decode_box_autoadd_display_decorations(dynamic raw);
+
+  @protected
   DisplayFrame dco_decode_box_autoadd_display_frame(dynamic raw);
+
+  @protected
+  DisplayStartupMode dco_decode_box_autoadd_display_startup_mode(dynamic raw);
 
   @protected
   DisplayWindow dco_decode_box_autoadd_display_window(dynamic raw);
@@ -73,6 +79,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DisplayWindowOptions dco_decode_box_autoadd_display_window_options(
     dynamic raw,
   );
+
+  @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw);
 
   @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
@@ -88,6 +97,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DisplayCursor dco_decode_display_cursor(dynamic raw);
+
+  @protected
+  DisplayDecorations dco_decode_display_decorations(dynamic raw);
 
   @protected
   DisplayEvent dco_decode_display_event(dynamic raw);
@@ -109,6 +121,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DisplayRow dco_decode_display_row(dynamic raw);
+
+  @protected
+  DisplayStartupMode dco_decode_display_startup_mode(dynamic raw);
 
   @protected
   DisplayWidget dco_decode_display_widget(dynamic raw);
@@ -139,6 +154,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FontVariation dco_decode_font_variation(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
@@ -201,7 +219,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DisplayCursor? dco_decode_opt_box_autoadd_display_cursor(dynamic raw);
 
   @protected
+  DisplayDecorations? dco_decode_opt_box_autoadd_display_decorations(
+    dynamic raw,
+  );
+
+  @protected
   DisplayFrame? dco_decode_opt_box_autoadd_display_frame(dynamic raw);
+
+  @protected
+  DisplayStartupMode? dco_decode_opt_box_autoadd_display_startup_mode(
+    dynamic raw,
+  );
 
   @protected
   DisplayWindow? dco_decode_opt_box_autoadd_display_window(dynamic raw);
@@ -210,6 +238,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DisplayWindowOptions? dco_decode_opt_box_autoadd_display_window_options(
     dynamic raw,
   );
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
   @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
@@ -282,7 +313,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DisplayDecorations sse_decode_box_autoadd_display_decorations(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DisplayFrame sse_decode_box_autoadd_display_frame(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DisplayStartupMode sse_decode_box_autoadd_display_startup_mode(
     SseDeserializer deserializer,
   );
 
@@ -295,6 +336,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DisplayWindowOptions sse_decode_box_autoadd_display_window_options(
     SseDeserializer deserializer,
   );
+
+  @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
@@ -310,6 +354,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DisplayCursor sse_decode_display_cursor(SseDeserializer deserializer);
+
+  @protected
+  DisplayDecorations sse_decode_display_decorations(
+    SseDeserializer deserializer,
+  );
 
   @protected
   DisplayEvent sse_decode_display_event(SseDeserializer deserializer);
@@ -331,6 +380,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DisplayRow sse_decode_display_row(SseDeserializer deserializer);
+
+  @protected
+  DisplayStartupMode sse_decode_display_startup_mode(
+    SseDeserializer deserializer,
+  );
 
   @protected
   DisplayWidget sse_decode_display_widget(SseDeserializer deserializer);
@@ -363,6 +417,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FontVariation sse_decode_font_variation(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
@@ -443,7 +500,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DisplayDecorations? sse_decode_opt_box_autoadd_display_decorations(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DisplayFrame? sse_decode_opt_box_autoadd_display_frame(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DisplayStartupMode? sse_decode_opt_box_autoadd_display_startup_mode(
     SseDeserializer deserializer,
   );
 
@@ -456,6 +523,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DisplayWindowOptions? sse_decode_opt_box_autoadd_display_window_options(
     SseDeserializer deserializer,
   );
+
+  @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
@@ -490,9 +560,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
-
-  @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -543,8 +610,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_display_decorations(
+    DisplayDecorations self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_display_frame(
     DisplayFrame self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_display_startup_mode(
+    DisplayStartupMode self,
     SseSerializer serializer,
   );
 
@@ -559,6 +638,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     DisplayWindowOptions self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
@@ -577,6 +659,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_display_cursor(DisplayCursor self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_display_decorations(
+    DisplayDecorations self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_display_event(DisplayEvent self, SseSerializer serializer);
@@ -604,6 +692,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_display_row(DisplayRow self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_display_startup_mode(
+    DisplayStartupMode self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_display_widget(DisplayWidget self, SseSerializer serializer);
@@ -640,6 +734,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_font_variation(FontVariation self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
@@ -753,8 +850,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_display_decorations(
+    DisplayDecorations? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_display_frame(
     DisplayFrame? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_display_startup_mode(
+    DisplayStartupMode? self,
     SseSerializer serializer,
   );
 
@@ -769,6 +878,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     DisplayWindowOptions? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
@@ -805,9 +917,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
 }
 
 // Section: wire_class

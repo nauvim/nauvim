@@ -21,12 +21,29 @@ pub struct DisplayFont {
     pub path: Option<String>,
 }
 
-/// Initial client-area dimensions and editor margins in logical pixels.
+/// Startup appearance, mode, client-area dimensions, and logical-pixel margins.
 #[derive(Default)]
 pub struct DisplayWindowOptions {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub margin: DisplayMargins,
+    pub decorations: Option<DisplayDecorations>,
+    /// Whole-window opacity, including text, controls, and native previews.
+    pub opacity: Option<f64>,
+    pub startup_mode: Option<DisplayStartupMode>,
+}
+
+/// Native window decorations requested at startup; omission selects full.
+pub enum DisplayDecorations {
+    Full,
+    None,
+}
+
+/// Initial native window state; omission selects windowed.
+pub enum DisplayStartupMode {
+    Windowed,
+    Maximized,
+    Fullscreen,
 }
 
 /// Nonnegative logical-pixel margins around the editor and command row.

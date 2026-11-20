@@ -1148,6 +1148,18 @@ impl SseDecode for crate::api::display::DisplayCursor {
     }
 }
 
+impl SseDecode for crate::api::display::DisplayDecorations {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::display::DisplayDecorations::Full,
+            1 => crate::api::display::DisplayDecorations::None,
+            _ => unreachable!("Invalid variant for DisplayDecorations: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::display::DisplayEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1298,6 +1310,19 @@ impl SseDecode for crate::api::display::DisplayRow {
     }
 }
 
+impl SseDecode for crate::api::display::DisplayStartupMode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::display::DisplayStartupMode::Windowed,
+            1 => crate::api::display::DisplayStartupMode::Maximized,
+            2 => crate::api::display::DisplayStartupMode::Fullscreen,
+            _ => unreachable!("Invalid variant for DisplayStartupMode: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::display::DisplayWidget {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1353,10 +1378,18 @@ impl SseDecode for crate::api::display::DisplayWindowOptions {
         let mut var_width = <Option<u32>>::sse_decode(deserializer);
         let mut var_height = <Option<u32>>::sse_decode(deserializer);
         let mut var_margin = <crate::api::display::DisplayMargins>::sse_decode(deserializer);
+        let mut var_decorations =
+            <Option<crate::api::display::DisplayDecorations>>::sse_decode(deserializer);
+        let mut var_opacity = <Option<f64>>::sse_decode(deserializer);
+        let mut var_startupMode =
+            <Option<crate::api::display::DisplayStartupMode>>::sse_decode(deserializer);
         return crate::api::display::DisplayWindowOptions {
             width: var_width,
             height: var_height,
             margin: var_margin,
+            decorations: var_decorations,
+            opacity: var_opacity,
+            startup_mode: var_startupMode,
         };
     }
 }
@@ -1449,6 +1482,13 @@ impl SseDecode for crate::api::fonts::FontVariation {
             axis: var_axis,
             value: var_value,
         };
+    }
+}
+
+impl SseDecode for i32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_i32::<NativeEndian>().unwrap()
     }
 }
 
@@ -1697,11 +1737,37 @@ impl SseDecode for Option<crate::api::display::DisplayCursor> {
     }
 }
 
+impl SseDecode for Option<crate::api::display::DisplayDecorations> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::display::DisplayDecorations>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::display::DisplayFrame> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::display::DisplayFrame>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::display::DisplayStartupMode> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::display::DisplayStartupMode>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -1730,6 +1796,17 @@ impl SseDecode for Option<crate::api::display::DisplayWindowOptions> {
             return Some(<crate::api::display::DisplayWindowOptions>::sse_decode(
                 deserializer,
             ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<f64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<f64>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -1844,13 +1921,6 @@ impl SseDecode for usize {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_u64::<NativeEndian>().unwrap() as _
-    }
-}
-
-impl SseDecode for i32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        deserializer.cursor.read_i32::<NativeEndian>().unwrap()
     }
 }
 
@@ -2075,6 +2145,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::display::DisplayCursor>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::display::DisplayDecorations {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Full => 0.into_dart(),
+            Self::None => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::display::DisplayDecorations
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::display::DisplayDecorations>
+    for crate::api::display::DisplayDecorations
+{
+    fn into_into_dart(self) -> crate::api::display::DisplayDecorations {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::display::DisplayEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -2254,6 +2345,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::display::DisplayRow>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::display::DisplayStartupMode {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Windowed => 0.into_dart(),
+            Self::Maximized => 1.into_dart(),
+            Self::Fullscreen => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::display::DisplayStartupMode
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::display::DisplayStartupMode>
+    for crate::api::display::DisplayStartupMode
+{
+    fn into_into_dart(self) -> crate::api::display::DisplayStartupMode {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::display::DisplayWidget {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -2314,6 +2427,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::display::DisplayWindowOptions
             self.width.into_into_dart().into_dart(),
             self.height.into_into_dart().into_dart(),
             self.margin.into_into_dart().into_dart(),
+            self.decorations.into_into_dart().into_dart(),
+            self.opacity.into_into_dart().into_dart(),
+            self.startup_mode.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2588,6 +2704,22 @@ impl SseEncode for crate::api::display::DisplayCursor {
     }
 }
 
+impl SseEncode for crate::api::display::DisplayDecorations {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::display::DisplayDecorations::Full => 0,
+                crate::api::display::DisplayDecorations::None => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::display::DisplayEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2676,6 +2808,23 @@ impl SseEncode for crate::api::display::DisplayRow {
     }
 }
 
+impl SseEncode for crate::api::display::DisplayStartupMode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::display::DisplayStartupMode::Windowed => 0,
+                crate::api::display::DisplayStartupMode::Maximized => 1,
+                crate::api::display::DisplayStartupMode::Fullscreen => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::display::DisplayWidget {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2713,6 +2862,12 @@ impl SseEncode for crate::api::display::DisplayWindowOptions {
         <Option<u32>>::sse_encode(self.width, serializer);
         <Option<u32>>::sse_encode(self.height, serializer);
         <crate::api::display::DisplayMargins>::sse_encode(self.margin, serializer);
+        <Option<crate::api::display::DisplayDecorations>>::sse_encode(self.decorations, serializer);
+        <Option<f64>>::sse_encode(self.opacity, serializer);
+        <Option<crate::api::display::DisplayStartupMode>>::sse_encode(
+            self.startup_mode,
+            serializer,
+        );
     }
 }
 
@@ -2774,6 +2929,13 @@ impl SseEncode for crate::api::fonts::FontVariation {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.axis, serializer);
         <f64>::sse_encode(self.value, serializer);
+    }
+}
+
+impl SseEncode for i32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_i32::<NativeEndian>(self).unwrap();
     }
 }
 
@@ -2974,12 +3136,32 @@ impl SseEncode for Option<crate::api::display::DisplayCursor> {
     }
 }
 
+impl SseEncode for Option<crate::api::display::DisplayDecorations> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::display::DisplayDecorations>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::display::DisplayFrame> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::display::DisplayFrame>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::display::DisplayStartupMode> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::display::DisplayStartupMode>::sse_encode(value, serializer);
         }
     }
 }
@@ -3000,6 +3182,16 @@ impl SseEncode for Option<crate::api::display::DisplayWindowOptions> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::display::DisplayWindowOptions>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<f64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <f64>::sse_encode(value, serializer);
         }
     }
 }
@@ -3094,13 +3286,6 @@ impl SseEncode for usize {
             .cursor
             .write_u64::<NativeEndian>(self as _)
             .unwrap();
-    }
-}
-
-impl SseEncode for i32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        serializer.cursor.write_i32::<NativeEndian>(self).unwrap();
     }
 }
 

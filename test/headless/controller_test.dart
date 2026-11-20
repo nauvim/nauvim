@@ -194,6 +194,9 @@ void main() {
         width: 960,
         height: 640,
         margin: margins,
+        decorations: DisplayDecorations.none,
+        opacity: 0.8,
+        startupMode: DisplayStartupMode.fullscreen,
       );
       platform.windowGate = Completer();
       engine.events.add(const Update(kind: 'ready', windowOptions: options));
