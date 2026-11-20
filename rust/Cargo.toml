@@ -1,0 +1,26 @@
+[package]
+name = "nauvim-flutter"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+name = "nauvim_flutter"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+nauvim-core = "0.2"
+nvim-rpc-ui = "0.1"
+flutter_rust_bridge = "=2.13.0"
+tokio-util = { version = "0.7", features = ["rt"] }
+tokio = { version = "1", features = ["rt", "sync", "signal", "macros"] }
+skrifa = { version = "0.50", default-features = false, features = ["std"] }
+write-fonts = { version = "0.55", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
