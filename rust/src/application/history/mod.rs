@@ -1,7 +1,5 @@
 //! Persists the last destination independently of configuration and host sessions.
 
-use crate::api::display::DisplayDestination;
-
 use rusqlite::{Connection, OptionalExtension as _, TransactionBehavior};
 
 use std::fmt;
@@ -47,6 +45,21 @@ impl From<rusqlite::Error> for Error {
 }
 
 pub(super) struct History(Connection);
+
+#[derive(Debug, PartialEq)]
+pub(super) enum Destination {
+    Local,
+    Alias(String),
+}
+
+impl Destination {
+    pub(super) fn into_alias(self) -> Option<String> {
+        match self {
+            Self::Local => None,
+            Self::Alias(alias) => Some(alias),
+        }
+    }
+}
 
 impl History {
     pub(super) fn system() -> Result<Self, Error> {
@@ -98,31 +111,30 @@ impl History {
         Ok(Self(conn))
     }
 
-    pub(super) fn load(&self) -> Result<Option<DisplayDestination>, Error> {
-        let destination = self
+    pub(super) fn load(&self) -> Result<Option<Destination>, Error> {
+        let alias: Option<Option<String>> = self
             .0
             .query_row("SELECT alias FROM selection WHERE id = 1", [], |row| {
-                Ok(DisplayDestination { alias: row.get(0)? })
+                row.get(0)
             })
             .optional()?;
-        if let Some(alias) = destination
-            .as_ref()
-            .and_then(|destination| destination.alias.as_deref())
-            && (alias.is_empty() || alias.contains('\0'))
-        {
-            return Err(Error::Invalid(
+
+        match alias {
+            None => Ok(None),
+            Some(None) => Ok(Some(Destination::Local)),
+            Some(Some(alias)) if alias.is_empty() || alias.contains('\0') => Err(Error::Invalid(
                 "stored host alias must be nonempty and contain no NUL",
-            ));
+            )),
+            Some(Some(alias)) => Ok(Some(Destination::Alias(alias))),
         }
-        Ok(destination)
     }
 
     pub(super) fn save(&self, alias: Option<&str>) -> Result<(), Error> {
-        self.0.execute(
+        let mut stmt = self.0.prepare_cached(
             "INSERT INTO selection (id, alias) VALUES (1, ?1)
              ON CONFLICT (id) DO UPDATE SET alias = excluded.alias",
-            [alias],
         )?;
+        stmt.execute([alias])?;
         Ok(())
     }
 }

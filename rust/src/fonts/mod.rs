@@ -10,10 +10,8 @@ mod selection;
 mod sfnt;
 mod source;
 
-use selection::face;
-use source::{explicit, installed};
-
-use skrifa::raw::FileRef;
+use selection::read_face;
+use source::{Candidates, Selected, explicit, installed};
 
 use std::fmt;
 use std::io;
@@ -78,6 +76,7 @@ fn resolve_with_cache(
         return result;
     }
 
+    let mut candidates = Candidates::new(candidates, requests);
     for (idx, request) in requests.iter().enumerate() {
         let Ok(idx) = u32::try_from(idx) else {
             result
@@ -88,20 +87,15 @@ fn resolve_with_cache(
         let selected = if let Some(path) = &request.path {
             explicit(request, Path::new(path))
         } else {
-            installed(
-                request,
-                candidates
-                    .iter()
-                    .filter(|candidate| candidate.request == idx),
-            )
+            installed(request, candidates.for_request(idx))
         };
-        let selected = selected.and_then(|(data, index)| {
+        let selected = selected.and_then(|Selected { data, index }| {
             let Some(storage) = &mut cache else {
                 return export(idx, data, index);
             };
             let key = Key::new(&data, index);
-            match storage.get(&key, idx) {
-                Ok(Some(font)) => return Ok(font),
+            match storage.get(&key, &data) {
+                Ok(Some(font)) => return Ok(font.into_font(idx, data)),
                 Ok(None) => (),
                 Err(e) => {
                     result.diagnostics.push(format!("Read font cache: {e}"));
@@ -128,17 +122,17 @@ fn resolve_with_cache(
 }
 
 fn export(request: u32, data: Vec<u8>, index: u32) -> Result<ResolvedFont, Error> {
-    let font = face(&data, index)?;
+    let font = read_face(&data, index)?;
     let info = metrics::inspect(&font)?;
     let variations = selection::variations(&font)?;
-    let standalone = if matches!(FileRef::new(&data), Ok(FileRef::Collection(_))) {
-        Some(sfnt::extract(&font)?)
+    let data = if font.ttc_index().is_some() {
+        sfnt::extract(&font)?
     } else {
-        None
+        data
     };
     Ok(ResolvedFont {
         request,
-        data: standalone.unwrap_or(data),
+        data,
         info,
         variations,
     })

@@ -408,7 +408,7 @@ async fn live_orders_input_reuses_hosts_and_follows_plugin_switches() {
     assert_eq!(first.evaluate("getline(1)"), "α<Esc>");
     stale_permit.send(QueuedInput {
         epoch: stale_stamp,
-        input: Input::Keys("iSTALE<Esc>".into()),
+        input: Input::Host(HostInput::Keys("iSTALE<Esc>".into())),
     });
     app.input("A!<Esc>".into()).await.unwrap();
     timeout(Duration::from_secs(3), async {
@@ -489,7 +489,8 @@ async fn cancels_a_blocked_input_sender_when_its_attachment_changes() {
         Err(mpsc::error::TryRecvError::Empty)
     ));
     app.input("new-input".into()).await.unwrap();
-    let Some(Input::Keys(keys)) = input.recv().await.unwrap().into_current() else {
+    let Some(Input::Host(HostInput::Keys(keys))) = input.recv().await.unwrap().into_current()
+    else {
         panic!("Expected current-attachment keys");
     };
     assert_eq!(keys, "new-input");

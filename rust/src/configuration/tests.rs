@@ -1,5 +1,9 @@
 use super::*;
 
+use crate::api::display::{
+    DisplayDecorations, DisplayLength, DisplayLengthUnit, DisplayStartupMode,
+};
+
 use nauvim_core::{Config, HostInfo, ProjectDirs};
 
 fn px(value: u32) -> DisplayLength {
@@ -70,6 +74,15 @@ fn accepts_font_forms_and_retains_order_and_exact_names() {
         list.fonts.iter().map(|font| font.size).collect::<Vec<_>>(),
         [15.0, 24.0]
     );
+    let list =
+        parse("{fonts={[3]={family='Third'},[1]={family='First'},[2]={family='Second'}}}").unwrap();
+    assert_eq!(
+        list.fonts
+            .iter()
+            .map(|font| font.family.as_str())
+            .collect::<Vec<_>>(),
+        ["First", "Second", "Third"]
+    );
     assert!(parse("{fonts={}}").unwrap().fonts.is_empty());
 }
 
@@ -88,6 +101,7 @@ fn validates_font_structure_and_scalar_types() {
         "{fonts={{size=15}}}",
         "{fonts={'First'}}",
         "{fonts={[1]={family='First'},[3]={family='Third'}}}",
+        "{fonts={[1]={family='First'},[2147483647]={family='Last'}}}",
         "{fonts={[0]={family='First'}}}",
         "{fonts={family='First',unknown=1}}",
         "{fonts=string.char(0xff)}",
@@ -367,6 +381,38 @@ fn follows_core_ui_selection_and_default_fallback() {
             .iter()
             .any(|error| error.contains("Font.size"))
     );
+}
+
+#[test]
+fn validates_unselected_ui_data_and_preserves_embedded_feff() {
+    let info = info(Path::new("/tmp/nauvim-ui-options/init.lua"));
+
+    for (value, diagnostic) in [
+        ("string.char(0xff)", "must be valid UTF-8"),
+        (
+            "'x'..string.char(0)",
+            "must not begin with U+FEFF or contain NUL",
+        ),
+        (
+            "utf8.char(0xfeff)..'x'",
+            "must not begin with U+FEFF or contain NUL",
+        ),
+        ("{[2]='x'}", "contiguous indices starting at 1"),
+    ] {
+        let source = format!(
+            "return {{ui_opts={{['{UI_ID}']={{fonts='Selected'}},unused={{options={value}}}}}}}"
+        );
+        let error = Config::evaluate(&source, info.clone(), UI_ID, UiOptions::parse)
+            .err()
+            .unwrap();
+        assert!(error.to_string().contains(diagnostic), "{value}: {error}");
+    }
+
+    let source = format!(
+        "return {{ui_opts={{['{UI_ID}']={{fonts='A'..utf8.char(0xfeff)..'B'}},unused={{unknown=''}}}}}}"
+    );
+    let (_, options) = Config::evaluate(&source, info, UI_ID, UiOptions::parse).unwrap();
+    assert_eq!(options.fonts[0].family, "A\u{feff}B");
 }
 
 #[test]

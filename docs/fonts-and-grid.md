@@ -9,13 +9,13 @@ not modify `cmdheight` or install editing key mappings.
 Linux supplies installed-font candidates with Fontconfig; macOS uses CoreText
 through the native runner. [Skrifa](https://github.com/googlefonts/fontations/tree/main/skrifa),
 part of [Oxidize](https://github.com/googlefonts/oxidize), selects faces using
-OpenType typographic names. The [README appendix](../README.md#appendix-opentype-font-selection)
-defines name matching, explicit files, collection faces, and variable-font
+OpenType typographic names. The [font settings](configuration.md#fonts)
+define name matching, explicit files, collection faces, and variable-font
 default instances.
 
 `EditorFont` preserves configuration order and each face's size. Skrifa reads
-Unicode coverage and line metrics once during font discovery. Adjacent code
-points are stored as compact coverage ranges. Grid glyph selection uses these
+Unicode coverage and line metrics when preparing a face. Adjacent code points
+are stored as compact coverage ranges. Grid glyph selection uses these
 ranges; it does not open font files or call Rust for each cell. Each selected
 face is loaded into Flutter under a private family alias; collection faces are
 extracted into standalone OpenType data. Default variation coordinates accompany
@@ -70,7 +70,8 @@ messages appear or disappear. It does not alter `cmdheight`.
 Initial dimensions and margins come from the frontend's selected UI opts. Integer
 and `px` values use logical pixels; `em` values resolve at startup using the
 measured cell width or height for the corresponding axis. See the
-[UI option reference](../README.md#ui-options) for syntax and rounding rules.
+[window settings](configuration.md#window) for accepted values and defaults.
+Flutter rounds cell-relative lengths to the nearest logical pixel at startup.
 Native resize increments use the cell dimensions, with toolbar,
 margins and other chrome as the base size. The runner snaps ordinary window sizes
 to those increments.

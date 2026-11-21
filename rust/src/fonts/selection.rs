@@ -6,21 +6,39 @@ use skrifa::Tag;
 use skrifa::raw::{FileRef, FontRef, TableProvider as _, model::name::Names, types::NameId};
 
 use std::iter;
+use std::ops::Range;
+use std::str;
 
-pub(super) fn generic(family: &str) -> bool {
-    matches!(family, "monospace" | "sans-serif" | "serif")
+pub(super) fn parse(data: &[u8]) -> Result<FileRef<'_>, Error> {
+    FileRef::new(data).map_err(|_| Error::Invalid("invalid OpenType SFNT or collection"))
 }
 
-pub(super) fn count(data: &[u8]) -> Result<u32, Error> {
-    match FileRef::new(data).map_err(|_| Error::Invalid("invalid OpenType SFNT or collection"))? {
-        FileRef::Font(_) => Ok(1),
-        FileRef::Collection(collection) => Ok(collection.len()),
+pub(super) fn indices(file: &FileRef<'_>) -> Range<u32> {
+    0..match file {
+        FileRef::Font(_) => 1,
+        FileRef::Collection(collection) => collection.len(),
     }
 }
 
-pub(super) fn face(data: &[u8], index: u32) -> Result<FontRef<'_>, Error> {
+pub(super) fn face<'a>(file: &FileRef<'a>, index: u32) -> Result<FontRef<'a>, Error> {
+    let font = match file {
+        FileRef::Collection(collection) => collection.get(index).ok(),
+        FileRef::Font(font) if index == 0 => Some(font.clone()),
+        FileRef::Font(_) => None,
+    }
+    .ok_or(Error::Invalid("invalid OpenType face index or data"))?;
+
+    validate_face(font)
+}
+
+pub(super) fn read_face(data: &[u8], index: u32) -> Result<FontRef<'_>, Error> {
     let font = FontRef::from_index(data, index)
         .map_err(|_| Error::Invalid("invalid OpenType face index or data"))?;
+
+    validate_face(font)
+}
+
+fn validate_face(font: FontRef<'_>) -> Result<FontRef<'_>, Error> {
     if !matches!(
         font.table_directory().sfnt_version(),
         0x0001_0000 | 0x4f54_544f
@@ -30,32 +48,67 @@ pub(super) fn face(data: &[u8], index: u32) -> Result<FontRef<'_>, Error> {
     Ok(font)
 }
 
-pub(super) fn named(font: &FontRef<'_>, id: NameId, expected: &str) -> bool {
-    Names::from_sfnt(font).get(id).is_some_and(|name| {
+pub(super) fn named(names: Names<'_>, id: NameId, expected: &str) -> bool {
+    names.get(id).is_some_and(|name| {
         name.iter()
             .any(|localized| localized.name().chars().eq(expected.chars()))
     })
 }
 
-pub(super) fn matches(request: &FontRequest, font: &FontRef<'_>, generic: bool) -> bool {
-    (generic || named(font, NameId::TYPOGRAPHIC_FAMILY_NAME, &request.family))
-        && request
-            .subfamily
-            .as_ref()
-            .is_none_or(|name| named(font, NameId::TYPOGRAPHIC_SUBFAMILY_NAME, name))
+pub(super) struct Matcher<'a> {
+    family: Option<&'a str>,
+    subfamily: Option<&'a str>,
 }
 
-pub(super) fn candidate_face(data: &[u8], candidate: &FontCandidate) -> Result<u32, Error> {
+impl<'a> Matcher<'a> {
+    pub(super) fn explicit(request: &'a FontRequest) -> Self {
+        Self {
+            family: Some(request.family.as_str()),
+            subfamily: request.subfamily.as_deref(),
+        }
+    }
+
+    pub(super) fn installed(request: &'a FontRequest) -> Self {
+        let mut names = Self::explicit(request);
+        if matches!(
+            request.family.as_str(),
+            "monospace" | "sans-serif" | "serif"
+        ) {
+            names.family = None;
+        }
+        names
+    }
+
+    pub(super) fn matches(&self, font: &FontRef<'_>) -> bool {
+        if self.family.is_none() && self.subfamily.is_none() {
+            return true;
+        }
+
+        let names = Names::from_sfnt(font);
+        self.family
+            .is_none_or(|name| named(names, NameId::TYPOGRAPHIC_FAMILY_NAME, name))
+            && self
+                .subfamily
+                .is_none_or(|name| named(names, NameId::TYPOGRAPHIC_SUBFAMILY_NAME, name))
+    }
+}
+
+pub(super) fn candidate_face<'a>(
+    data: &'a [u8],
+    candidate: &FontCandidate,
+) -> Result<(u32, FontRef<'a>), Error> {
     let index = candidate.index & 0xffff;
     let Some(expected) = &candidate.postscript_name else {
-        return Ok(index);
+        return read_face(data, index).map(|font| (index, font));
     };
-    for index in iter::once(index).chain((0..count(data)?).filter(|other| *other != index)) {
-        let Ok(font) = face(data, index) else {
+    let file = parse(data)?;
+    for index in iter::once(index).chain(indices(&file).filter(|other| *other != index)) {
+        let Ok(font) = face(&file, index) else {
             continue;
         };
-        if named(&font, NameId::POSTSCRIPT_NAME, expected) {
-            return Ok(index);
+        let names = Names::from_sfnt(&font);
+        if named(names, NameId::POSTSCRIPT_NAME, expected) {
+            return Ok((index, font));
         }
         // CoreText can return a named instance's PostScript name. It identifies
         // the parent face here; export still pins that face to axis defaults.
@@ -65,9 +118,9 @@ pub(super) fn candidate_face(data: &[u8], candidate: &FontCandidate) -> Result<u
             for instance in instances.iter().flatten() {
                 if instance
                     .post_script_name_id
-                    .is_some_and(|id| named(&font, id, expected))
+                    .is_some_and(|id| named(names, id, expected))
                 {
-                    return Ok(index);
+                    return Ok((index, font));
                 }
             }
         }
@@ -78,29 +131,29 @@ pub(super) fn candidate_face(data: &[u8], candidate: &FontCandidate) -> Result<u
 }
 
 pub(super) fn variations(font: &FontRef<'_>) -> Result<Vec<FontVariation>, Error> {
-    Ok(match font.fvar() {
-        Ok(fvar) => fvar
-            .axes()
-            .map_err(|_| Error::Invalid("invalid fvar axes"))?
-            .iter()
-            .map(|axis| {
-                let tag = axis.axis_tag();
-                let value = axis.default_value().to_f64();
-                if tag.validate().is_err()
-                    || !value.is_finite()
-                    || axis.min_value() > axis.default_value()
-                    || axis.default_value() > axis.max_value()
-                {
-                    return Err(Error::Invalid("invalid fvar axis tag or default value"));
-                }
-                let axis = String::from_utf8(tag.to_be_bytes().into())
-                    .map_err(|_| Error::Invalid("invalid fvar axis tag"))?;
-                Ok(FontVariation { axis, value })
-            })
-            .collect::<Result<Vec<_>, _>>()?,
+    let fvar = match font.fvar() {
+        Ok(fvar) => fvar,
         Err(_) if font.table_data(Tag::new(b"fvar")).is_some() => {
             return Err(Error::Invalid("invalid fvar table"));
         }
-        Err(_) => Vec::new(),
-    })
+        Err(_) => return Ok(Vec::new()),
+    };
+    let axes = fvar
+        .axes()
+        .map_err(|_| Error::Invalid("invalid fvar axes"))?;
+    let mut variations = Vec::with_capacity(axes.len());
+    for axis in axes {
+        let tag = axis.axis_tag();
+        let default = axis.default_value();
+        if tag.validate().is_err() || axis.min_value() > default || default > axis.max_value() {
+            return Err(Error::Invalid("invalid fvar axis tag or default value"));
+        }
+        let tag = tag.to_be_bytes();
+        let axis = str::from_utf8(&tag).map_err(|_| Error::Invalid("invalid fvar axis tag"))?;
+        variations.push(FontVariation {
+            axis: axis.to_owned(),
+            value: default.to_f64(),
+        });
+    }
+    Ok(variations)
 }

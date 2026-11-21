@@ -1,4 +1,3 @@
-use super::grids::placement;
 use super::widgets::cmdline_chunks;
 use super::*;
 use crate::api::display::DisplayFrame;
@@ -298,6 +297,61 @@ fn drops_removed_grids_and_sends_complete_rows_after_reset() {
 }
 
 #[test]
+fn sends_new_and_resized_rows_and_removals_in_grid_order() {
+    let mut state = State {
+        grids: Arc::new(BTreeMap::from([
+            (GridId(1), grid(&["a"])),
+            (GridId(2), grid(&["b"])),
+            (GridId(4), grid(&["d"])),
+            (GridId(6), grid(&["f"])),
+            (GridId(8), grid(&["h"])),
+        ])),
+        ..State::default()
+    };
+    let mut presenter = Presenter::new();
+    presenter.frame(frame(Arc::new(state.clone())));
+
+    let grids = Arc::make_mut(&mut state.grids);
+    grids.remove(&GridId(1));
+    grids.remove(&GridId(4));
+    grids.remove(&GridId(8));
+    grids.insert(GridId(3), grid(&["c"]));
+    let resized = Arc::make_mut(grids.get_mut(&GridId(6)).unwrap());
+    resized.height = 2;
+    resized.rows.extend(grid(&["g"]).rows.iter().cloned());
+
+    let update = presenter.frame(frame(Arc::new(state)));
+    assert_eq!(update.removed_grids, [1, 4, 8]);
+    assert_eq!(
+        update
+            .rows
+            .iter()
+            .map(|r| (r.grid, r.row, r.cells[0].text.as_str()))
+            .collect::<Vec<_>>(),
+        [(3, 0, "c"), (6, 0, "f"), (6, 1, "g")]
+    );
+}
+
+#[test]
+fn repaints_options_and_refreshes_widgets_when_highlight_groups_change() {
+    let mut state = State::default();
+    let mut presenter = Presenter::new();
+    presenter.frame(frame(Arc::new(state.clone())));
+
+    Arc::make_mut(&mut state.options).insert(Arc::from("termguicolors"), Value::Bool(true));
+    let update = presenter.frame(frame(Arc::new(state.clone())));
+    assert!(update.full);
+    assert!(update.highlights.is_empty());
+    assert!(update.widgets.is_none());
+
+    Arc::make_mut(&mut state.highlight_groups).insert(Arc::from("Pmenu"), HighlightId(1));
+    let update = presenter.frame(frame(Arc::new(state)));
+    assert!(!update.full);
+    assert!(update.highlights.is_empty());
+    assert!(update.widgets.unwrap().is_empty());
+}
+
+#[test]
 fn preserves_repeated_events_in_receive_order() {
     let state = Arc::new(State::default());
     let mut source = frame(Arc::clone(&state));
@@ -400,6 +454,39 @@ fn commandline_positions_include_prefix_and_count_utf8_bytes() {
             .collect::<String>(),
         ":é>  界^éz"
     );
+}
+
+#[test]
+fn anchors_commandline_cursor_and_popup_when_prefix_exceeds_capacity() {
+    let command = Cmdline {
+        indent: usize::MAX,
+        ..cmdline()
+    };
+    let state = State {
+        cmdlines: Arc::new(BTreeMap::from([(1, Arc::new(command))])),
+        popupmenu: Some(Arc::new(Popupmenu {
+            anchor: PopupAnchor::Cmdline { byte_offset: 6 },
+            selected: None,
+            items: Vec::new(),
+        })),
+        ..State::default()
+    };
+
+    let update = Presenter::new().frame(frame(Arc::new(state)));
+    let widgets = update.widgets.unwrap();
+    let command = widgets.iter().find(|w| w.kind == "cmdline").unwrap();
+    let popup = widgets.iter().find(|w| w.kind == "cmdline_popup").unwrap();
+
+    assert_eq!(
+        command
+            .chunks
+            .iter()
+            .map(|c| (c.text.as_str(), c.highlight))
+            .collect::<Vec<_>>(),
+        [("", 0), ("界", 3), ("aéz", 4)]
+    );
+    assert_eq!(command.selected, 3);
+    assert_eq!(popup.col, 6.);
 }
 
 #[test]
@@ -553,13 +640,14 @@ fn resolves_floating_anchors_and_hides_cyclic_placements() {
         ])),
         ..State::default()
     };
-    assert_eq!(
-        placement(&state, GridId(3), state.grids.len(), &BTreeMap::new()),
-        Some((6.5, 9.5, 50))
-    );
     let mut presenter = Presenter::new();
     let update = presenter.frame(frame(Arc::new(state.clone())));
-    assert_eq!(update.grids.iter().find(|g| g.id == 3).unwrap().order, 9);
+    let floating = update.grids.iter().find(|g| g.id == 3).unwrap();
+    assert_eq!(
+        (floating.row, floating.col, floating.zindex),
+        (6.5, 9.5, 50)
+    );
+    assert_eq!(floating.order, 9);
     let GridPlacementKind::Floating { anchor_grid, .. } = &mut Arc::make_mut(&mut state.placements)
         .get_mut(&GridId(3))
         .unwrap()

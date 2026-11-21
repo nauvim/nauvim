@@ -10,6 +10,22 @@ fn font() -> ResolvedFont {
 }
 
 #[test]
+fn reuses_standalone_source_bytes_on_a_cache_hit() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut cache = Cache::open(directory.path().join("fonts.sqlite3")).unwrap();
+    let key = Key::new(DATA, 0);
+    cache.put(&key, &font()).unwrap();
+
+    let data = DATA.to_vec();
+    let buffer = data.as_ptr();
+    let hit = cache.get(&key, &data).unwrap().unwrap().into_font(7, data);
+
+    assert_eq!(hit.request, 7);
+    assert_eq!(hit.data, DATA);
+    assert_eq!(hit.data.as_ptr(), buffer);
+}
+
+#[test]
 fn preserves_foreign_future_and_unversioned_databases() {
     for (application, version) in [
         (APPLICATION_ID, SCHEMA_VERSION + 1),
@@ -29,7 +45,10 @@ fn preserves_foreign_future_and_unversioned_databases() {
         drop(conn);
 
         let before = fs::read(&path).unwrap();
-        assert!(Cache::open(&path).is_err(), "{application}, {version}");
+        assert!(
+            Cache::open(path.clone()).is_err(),
+            "{application}, {version}"
+        );
         assert_eq!(fs::read(&path).unwrap(), before, "{application}, {version}");
     }
 }
@@ -39,7 +58,7 @@ fn preserves_corrupt_databases_and_rejects_incomplete_owned_schemas() {
     let directory = tempfile::tempdir().unwrap();
     let corrupt = directory.path().join("corrupt.sqlite3");
     fs::write(&corrupt, b"not a SQLite database").unwrap();
-    assert!(Cache::open(&corrupt).is_err());
+    assert!(Cache::open(corrupt.clone()).is_err());
     assert_eq!(fs::read(&corrupt).unwrap(), b"not a SQLite database");
 
     let incomplete = directory.path().join("incomplete.sqlite3");
@@ -50,14 +69,14 @@ fn preserves_corrupt_databases_and_rejects_incomplete_owned_schemas() {
         .unwrap();
     drop(conn);
     let before = fs::read(&incomplete).unwrap();
-    assert!(Cache::open(&incomplete).is_err());
+    assert!(Cache::open(incomplete.clone()).is_err());
     assert_eq!(fs::read(&incomplete).unwrap(), before);
 }
 
 #[test]
 fn deletes_damaged_payloads_and_rejects_invalid_decoded_values() {
     let directory = tempfile::tempdir().unwrap();
-    let mut cache = Cache::open(&directory.path().join("fonts.sqlite3")).unwrap();
+    let mut cache = Cache::open(directory.path().join("fonts.sqlite3")).unwrap();
     let key = Key::new(DATA, 0);
     let font = font();
 
@@ -127,7 +146,7 @@ fn deletes_damaged_payloads_and_rejects_invalid_decoded_values() {
             )
             .unwrap();
 
-        assert!(cache.get(&key, 0).unwrap().is_none(), "{damage}");
+        assert!(cache.get(&key, DATA).unwrap().is_none(), "{damage}");
         assert_eq!(
             cache
                 .conn
@@ -142,18 +161,18 @@ fn deletes_damaged_payloads_and_rejects_invalid_decoded_values() {
 #[test]
 fn evicts_the_least_recently_used_entry_at_the_count_limit() {
     let directory = tempfile::tempdir().unwrap();
-    let mut cache = Cache::open(&directory.path().join("fonts.sqlite3")).unwrap();
+    let mut cache = Cache::open(directory.path().join("fonts.sqlite3")).unwrap();
     let font = font();
     let key = |idx: i64| Key::new(&idx.to_le_bytes(), 0);
     for idx in 0..MAX_ENTRIES {
         cache.put(&key(idx), &font).unwrap();
     }
-    assert!(cache.get(&key(0), 0).unwrap().is_some());
+    assert!(cache.get(&key(0), DATA).unwrap().is_some());
     cache.put(&key(MAX_ENTRIES), &font).unwrap();
 
-    assert!(cache.get(&key(0), 0).unwrap().is_some());
-    assert!(cache.get(&key(1), 0).unwrap().is_none());
-    assert!(cache.get(&key(MAX_ENTRIES), 0).unwrap().is_some());
+    assert!(cache.get(&key(0), DATA).unwrap().is_some());
+    assert!(cache.get(&key(1), DATA).unwrap().is_none());
+    assert!(cache.get(&key(MAX_ENTRIES), DATA).unwrap().is_some());
     assert_eq!(
         cache
             .conn
@@ -166,7 +185,7 @@ fn evicts_the_least_recently_used_entry_at_the_count_limit() {
 #[test]
 fn enforces_the_payload_budget_when_inserting_a_font() {
     let directory = tempfile::tempdir().unwrap();
-    let mut cache = Cache::open(&directory.path().join("fonts.sqlite3")).unwrap();
+    let mut cache = Cache::open(directory.path().join("fonts.sqlite3")).unwrap();
     let older = Key::new(b"older", 0);
     let newer = Key::new(b"newer", 0);
     for (key, used) in [(&older, 1), (&newer, 2)] {
@@ -209,13 +228,13 @@ fn enforces_the_payload_budget_when_inserting_a_font() {
 #[test]
 fn skips_oversized_faces_without_evicting_existing_entries() {
     let directory = tempfile::tempdir().unwrap();
-    let mut cache = Cache::open(&directory.path().join("fonts.sqlite3")).unwrap();
+    let mut cache = Cache::open(directory.path().join("fonts.sqlite3")).unwrap();
     let existing = Key::new(DATA, 0);
     let mut font = font();
     cache.put(&existing, &font).unwrap();
     font.data = vec![0; MAX_BYTES + 1];
     let oversized = Key::new(b"oversized", 0);
     cache.put(&oversized, &font).unwrap();
-    assert!(cache.get(&oversized, 0).unwrap().is_none());
-    assert!(cache.get(&existing, 0).unwrap().is_some());
+    assert!(cache.get(&oversized, DATA).unwrap().is_none());
+    assert!(cache.get(&existing, DATA).unwrap().is_some());
 }

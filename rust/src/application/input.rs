@@ -1,6 +1,6 @@
 use super::updates::{Updates, message};
 
-use nauvim_core::Engine;
+use nauvim_core::{Client, Engine};
 use nvim_rpc_ui::{Buffer, Tabpage};
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
@@ -9,12 +9,16 @@ use std::future::{Future, pending};
 use std::pin::Pin;
 
 pub(super) enum Input {
-    Keys(String),
     Paste,
+    Host(HostInput),
+}
+
+pub(super) enum HostInput {
+    Keys(String),
     Focus(bool),
     Popup(i64),
-    Tab(i64),
-    Buffer(i64),
+    Tab(Tabpage),
+    Buffer(Buffer),
 }
 
 pub(super) struct QueuedInput {
@@ -28,30 +32,35 @@ impl QueuedInput {
     }
 }
 
-pub(super) fn start_input(
+pub(super) fn start_input<'a>(
     engine: &Engine,
     input: Input,
-    updates: Updates,
-) -> Option<impl Future<Output = ()> + use<>> {
-    let client = engine.client();
-    let paste = matches!(input, Input::Paste).then(|| engine.paste());
-    if client.is_none() && paste.is_none() {
-        return None;
+    updates: &'a Updates,
+) -> Option<impl Future<Output = ()> + use<'a>> {
+    enum Request<P> {
+        Paste(P),
+        Host(Client, HostInput),
     }
+
+    let request = match input {
+        Input::Paste => Request::Paste(engine.paste()),
+        Input::Host(input) => Request::Host(engine.client()?, input),
+    };
     Some(async move {
-        if let Some(paste) = paste {
-            // Core reports paste errors through EngineEvent::Error.
-            let _ = paste.await;
-            return;
-        }
-        let Some(client) = client else { return };
+        let (client, input) = match request {
+            Request::Paste(paste) => {
+                // Core reports paste errors through EngineEvent::Error.
+                let _ = paste.await;
+                return;
+            }
+            Request::Host(client, input) => (client, input),
+        };
         let result = match input {
-            Input::Keys(keys) => client.input(&keys).await,
-            Input::Focus(focused) => client.focus(focused).await,
-            Input::Popup(index) => client.select_popupmenu_item(index, true, true).await,
-            Input::Tab(tabpage) => client.set_current_tabpage(Tabpage(tabpage)).await,
-            Input::Buffer(buffer) => client.set_current_buffer(Buffer(buffer)).await,
-            Input::Paste => return,
+            HostInput::Keys(keys) => client.input(&keys).await,
+            HostInput::Focus(focused) => client.focus(focused).await,
+            HostInput::Popup(index) => client.select_popupmenu_item(index, true, true).await,
+            HostInput::Tab(tabpage) => client.set_current_tabpage(tabpage).await,
+            HostInput::Buffer(buffer) => client.set_current_buffer(buffer).await,
         };
         if let Err(e) = result {
             let _ = updates.send(message("error", Some(e.to_string()))).await;

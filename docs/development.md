@@ -1,5 +1,11 @@
 # Develop and validate Nauvim
 
+## Run a debug build
+
+Set up the platform prerequisites in the [build guide](building.md). Run
+`tool/run.sh -d linux` or `tool/run.sh -d macos` from the repository root.
+Restart the script after Rust changes to rebuild the debug library.
+
 ## Rust and Flutter checks
 
 Run these commands from the repository root:
@@ -34,9 +40,9 @@ The tests also check that window geometry, floating-window configuration, saved
 views, selected editor options, and multigrid support survive recovery. They
 remain opt-in because they start real Neovim processes; the terminal test also
 requires `/bin/sh`. All live workflows can be run together with
-`-- --include-ignored`. See
-[reattachment troubleshooting](troubleshooting.md#blank-buffers-after-reattachment)
-for the Neovim protocol defects that require initialization recovery.
+`-- --include-ignored`. The
+[attachment design](../rust/README.md#runtime-and-attachment-ownership)
+describes the Neovim issues behind these cases.
 
 ## Native runner checks
 

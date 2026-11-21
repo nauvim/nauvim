@@ -1667,9 +1667,9 @@ dependencies = [
 
 [[package]]
 name = "nauvim-core"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fafb04aa745e5016fc5b6ff98f76921b71071a7060d21ec5767e687a3c5d445a"
+checksum = "7b2754c44afbb6ac72ca2e58b63aace426c0153b2ec19d50e7ad1d16054312fa"
 dependencies = [
  "bytes",
  "directories",

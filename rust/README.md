@@ -68,6 +68,10 @@ Neovim's anchor and stacking metadata; hidden floats stay hidden. Intermediate
 frames stay offscreen while their ordered events are retained. Recovery adds
 no per-key RPC calls or tasks.
 
+Neovim tracks [missing window positions](https://github.com/neovim/neovim/issues/19559)
+and [missing buffer contents](https://github.com/neovim/neovim/issues/30583)
+separately.
+
 ## Snapshot projection
 
 `display::Presenter` retains the previous `Arc<State>`. Grid and row identity
@@ -91,28 +95,44 @@ command-line data use UTF-8 byte offsets; Flutter converts those to UTF-16.
 
 ## Configuration and fonts
 
-Core selects UI opts using `com.naughie.nauvim.flutter` or `use_ui_opts`.
-`configuration` validates only the frontend's schema, then resolves relative
-font paths against the loaded configuration's canonical directory. Schema errors
-follow core's complete-default fallback. The [user README](../README.md#configuration-and-connections)
-is the authoritative schema reference.
-Geometry values retain their pixel/cell units across the bridge. Flutter resolves
-them using measured editor cells; Rust does not estimate geometry from font size.
+Core validates the shared option types across all UI dictionaries and selects
+one using `com.naughie.nauvim.flutter` or `use_ui_opts`. The frontend's
+`configuration` module validates the selected options and resolves relative
+font paths against the loaded configuration's canonical directory. Core applies
+the complete defaults when its validation or the frontend's schema parser
+fails. Flutter resolves window geometry from measured editor cells. See the
+[configuration reference](../docs/configuration.md#ui-options) for option syntax
+and defaults.
 
 Font processing is separate from the async engine. `source` owns file reads and
 a bounded one-file candidate buffer. `selection` handles OpenType face/name and
 axis-default rules. `metrics` reads borrowed font tables. `sfnt` extracts collection
 faces with `write-fonts`, rebuilding offsets/checksums and omitting signatures
 that no longer authenticate the extracted binary. `cache` persists prepared faces
-in SQLite after source selection; it reuses metrics, coverage, variation defaults,
-and collection exports without retaining stale source decisions. On a cache miss,
-standalone font buffers move into the bridge unchanged. Font discovery performs
-no per-cell I/O. The [persistence design](../docs/persistence.md) defines storage
-scope, identity, schema evolution, retention, and recovery.
+in SQLite after source selection. It reuses metrics, coverage, variation defaults,
+and collection exports. Standalone font buffers move into the bridge.
+[Font and grid rendering](../docs/fonts-and-grid.md) explains how Flutter turns
+these metrics into cells and baselines.
 
-The [OpenType appendix](../README.md#appendix-opentype-font-selection) defines
-selection behavior. [Font and grid rendering](../docs/fonts-and-grid.md) explains
-how Flutter turns these metrics into cells and baselines.
+## Persistent data
+
+`application/history` commits the last requested destination before starting
+a connection. Its single selection row distinguishes a null alias for the
+default local host from a named alias. An empty table indicates no saved
+destination. A storage failure leaves host connections available.
+
+`fonts/cache` keys prepared faces by source content, selected face index, platform,
+architecture, and font-processing revision. Advance that revision when changes
+affect prepared output. Reads verify the payload checksum and decoded values.
+Each write and its evictions form one transaction. The cache keeps up to 128
+entries and 64 MiB of payload, evicting the least recently used. That limit
+applies to payload, while SQLite manages the database file and journal.
+
+Both stores use bundled SQLite with a 25 ms busy timeout. Their application IDs
+are `0x4e415553` for host selection and `0x4e415546` for the font cache. Each
+checks its schema version with `user_version` and preserves foreign or
+unsupported databases. The [saved data guide](../docs/persistence.md) lists paths
+and reset instructions.
 
 ## Tests and generated code
 

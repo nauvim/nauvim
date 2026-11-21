@@ -21,9 +21,7 @@ fn restores_named_manual_and_default_destinations_after_reopening() {
         let history = History::open(&path).unwrap();
         assert_eq!(
             history.load().unwrap(),
-            Some(DisplayDestination {
-                alias: alias.map(str::to_owned)
-            }),
+            Some(alias.map_or(Destination::Local, |s| Destination::Alias(s.into()))),
         );
         let rows: i64 = history
             .0
@@ -71,8 +69,8 @@ fn reports_locked_storage_and_retains_the_previous_selection() {
     assert!(history.save(None).is_err());
     drop(tx);
     assert_eq!(
-        history.load().unwrap().unwrap().alias.as_deref(),
-        Some("local")
+        history.load().unwrap(),
+        Some(Destination::Alias("local".into()))
     );
 }
 
@@ -120,9 +118,7 @@ fn persists_without_process_cleanup() {
         );
         assert_eq!(
             History::open(&path).unwrap().load().unwrap(),
-            Some(DisplayDestination {
-                alias: alias.map(str::to_owned)
-            }),
+            Some(alias.map_or(Destination::Local, |s| Destination::Alias(s.into()))),
         );
     }
 }

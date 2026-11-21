@@ -31,11 +31,13 @@ fn normalizes_separators_capitals_and_modifier_order() {
         ("ß", "ß", 0),
         ("Shift-Tab", "tab", 2),
         ("Ctrl-F24", "f24", 1),
+        ("Ctrl-F-2_4", "f24", 1),
         ("Ctrl-Page_Down", "pagedown", 1),
         ("CTRL_ARROW_UP", "arrowup", 1),
         ("PgDn", "pagedown", 0),
         ("Down", "arrowdown", 0),
         ("NumpadEnter", "numpadenter", 0),
+        ("Num_Pad-Enter", "numpadenter", 0),
     ] {
         assert_eq!(chord(source).unwrap(), (key.into(), modifiers), "{source}");
     }
@@ -56,7 +58,9 @@ fn normalizes_separators_capitals_and_modifier_order() {
         "Shist-c",
         "hello",
         "F0",
+        "F01",
         "F25",
+        "NumpadEnterr",
         "\0",
         "Ctrl-éé",
     ] {

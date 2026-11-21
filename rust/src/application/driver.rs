@@ -5,7 +5,9 @@ use crate::display::Presenter;
 use super::Command;
 use super::attachment::{self, Attachment};
 use super::history::History;
-use super::input::{Input, QueuedInput, completed, reset_input, start_input, stop_input};
+use super::input::{
+    HostInput, Input, QueuedInput, completed, reset_input, start_input, stop_input,
+};
 use super::size::GridSize;
 use super::updates::{Updates, close_window, message, open_window};
 
@@ -57,7 +59,9 @@ pub(super) async fn run(
         kind: "ready".into(),
         hosts: config.hosts().map(str::to_owned).collect(),
         default_host: config.default_host().map(str::to_owned),
-        destination,
+        destination: destination.map(|destination| DisplayDestination {
+            alias: destination.into_alias(),
+        }),
         key_bindings: options.key_bindings,
         fonts: options.fonts,
         window_options: options.window,
@@ -222,7 +226,7 @@ pub(super) async fn run(
             operation = input.recv(), if task.is_none() && attachment.accepts_input() => {
                 let Some(operation) = operation else { break };
                 if let Some(operation) = operation.into_current() {
-                    if !matches!(operation, Input::Focus(_))
+                    if !matches!(operation, Input::Host(HostInput::Focus(_)))
                         && let Some(frame) = presenter.dismiss_messages()
                     {
                         let _ = updates.send(UiUpdate {
@@ -231,7 +235,7 @@ pub(super) async fn run(
                             ..UiUpdate::default()
                         }).await;
                     }
-                    task.set(start_input(&engine, operation, updates.clone()));
+                    task.set(start_input(&engine, operation, &updates));
                 }
             }
         }

@@ -5,7 +5,6 @@ use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-#[derive(Clone)]
 pub(super) struct Updates {
     pub(super) sender: mpsc::Sender<UiUpdate>,
     pub(super) stop: CancellationToken,

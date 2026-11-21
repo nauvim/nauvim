@@ -1,17 +1,15 @@
 //! Validates the selected UI dictionary and resolves configuration-relative paths.
 
-use crate::api::display::{
-    DisplayDecorations, DisplayFont, DisplayLength, DisplayLengthUnit, DisplayMargins,
-    DisplayStartupMode, DisplayWindowOptions,
-};
+use crate::api::display::{DisplayFont, DisplayWindowOptions};
 use crate::api::keys::KeyBindings;
 
+mod fonts;
 mod key_bindings;
+mod window;
 
 use nauvim_core::{Config, Error, UiConfig, UiTable, UiValue};
 
 use std::path::Path;
-use std::str;
 
 const UI_ID: &str = "com.naughie.nauvim.flutter";
 
@@ -30,205 +28,15 @@ impl UiOptions {
             "UI options",
         )?;
         Ok(Self {
-            fonts: fonts(&config)?,
-            window: window(&config)?,
+            fonts: fonts::parse(&config)?,
+            window: window::parse(&config)?,
             key_bindings: key_bindings::parse(&config)?,
         })
     }
 
     fn resolve_paths(&mut self, config_file: Option<&Path>) -> Result<(), Error> {
-        for font in &mut self.fonts {
-            let Some(path) = &mut font.path else { continue };
-            if Path::new(path).is_absolute() {
-                continue;
-            }
-            let root = config_file.and_then(Path::parent).ok_or_else(|| {
-                invalid("Relative font paths require the configuration file's directory")
-            })?;
-            *path = root
-                .join(&*path)
-                .into_os_string()
-                .into_string()
-                .map_err(|_| invalid("The resolved font path must be valid UTF-8"))?;
-        }
-        Ok(())
+        fonts::resolve_paths(&mut self.fonts, config_file)
     }
-}
-
-fn fonts(config: &UiConfig) -> Result<Vec<DisplayFont>, Error> {
-    Ok(match config.get("fonts") {
-        None | Some(UiValue::Nil) => Vec::new(),
-        Some(UiValue::String(bytes)) => vec![DisplayFont {
-            family: text(bytes, "fonts")?.to_owned(),
-            subfamily: None,
-            size: 15.0,
-            path: None,
-        }],
-        Some(value) => {
-            let fonts_table = table(config, value, "fonts")?;
-            if fonts_table.get("family").is_some() {
-                vec![font(fonts_table)?]
-            } else {
-                let mut entries = fonts_table
-                    .entries()
-                    .map(|(key, value)| {
-                        let UiValue::Integer(index) = key else {
-                            return Err(invalid(
-                                "fonts must be a Font or a dense list of Font tables",
-                            ));
-                        };
-                        let index = usize::try_from(*index)
-                            .ok()
-                            .filter(|index| *index > 0)
-                            .ok_or_else(|| {
-                                invalid("fonts list indices must be positive integers")
-                            })?;
-                        Ok((index, value))
-                    })
-                    .collect::<Result<Vec<_>, Error>>()?;
-                entries.sort_unstable_by_key(|(index, _)| *index);
-                let mut fonts = Vec::new();
-                fonts
-                    .try_reserve_exact(entries.len())
-                    .map_err(|e| invalid(format!("Allocate configured fonts: {e}")))?;
-
-                for (expected, (index, value)) in entries.into_iter().enumerate() {
-                    if index.checked_sub(1) != Some(expected) {
-                        return Err(invalid(
-                            "fonts must be a dense list without missing indices",
-                        ));
-                    }
-                    fonts.push(font(table(config, value, "fonts entry")?)?);
-                }
-                fonts
-            }
-        }
-    })
-}
-
-fn window(config: &UiConfig) -> Result<Option<DisplayWindowOptions>, Error> {
-    Ok(match config.get("window") {
-        None | Some(UiValue::Nil) => None,
-        Some(value) => {
-            let window = table(config, value, "window")?;
-            fields(
-                window,
-                &[
-                    "width",
-                    "height",
-                    "margin",
-                    "decorations",
-                    "opacity",
-                    "startup_mode",
-                ],
-                "window",
-            )?;
-            let margin = match window.get("margin") {
-                None | Some(UiValue::Nil) => DisplayMargins::default(),
-                Some(value) => {
-                    let margin = table(config, value, "window.margin")?;
-                    fields(margin, &["top", "bottom", "left", "right"], "window.margin")?;
-                    DisplayMargins {
-                        top: length(margin.get("top"), "window.margin.top", 0)?.unwrap_or_default(),
-                        bottom: length(margin.get("bottom"), "window.margin.bottom", 0)?
-                            .unwrap_or_default(),
-                        left: length(margin.get("left"), "window.margin.left", 0)?
-                            .unwrap_or_default(),
-                        right: length(margin.get("right"), "window.margin.right", 0)?
-                            .unwrap_or_default(),
-                    }
-                }
-            };
-            Some(DisplayWindowOptions {
-                width: length(window.get("width"), "window.width", 1)?,
-                height: length(window.get("height"), "window.height", 1)?,
-                margin,
-                decorations: match window.get("decorations") {
-                    None | Some(UiValue::Nil) => None,
-                    Some(UiValue::String(s)) if s == b"full" => Some(DisplayDecorations::Full),
-                    Some(UiValue::String(s)) if s == b"none" => Some(DisplayDecorations::None),
-                    _ => return Err(invalid("window.decorations must be 'full', 'none', or nil")),
-                },
-                opacity: opacity(window.get("opacity"))?,
-                startup_mode: match window.get("startup_mode") {
-                    None | Some(UiValue::Nil) => None,
-                    Some(UiValue::String(s)) if s == b"windowed" => {
-                        Some(DisplayStartupMode::Windowed)
-                    }
-                    Some(UiValue::String(s)) if s == b"maximized" => {
-                        Some(DisplayStartupMode::Maximized)
-                    }
-                    Some(UiValue::String(s)) if s == b"fullscreen" => {
-                        Some(DisplayStartupMode::Fullscreen)
-                    }
-                    _ => {
-                        return Err(invalid(
-                            "window.startup_mode must be 'windowed', 'maximized', 'fullscreen', or nil",
-                        ));
-                    }
-                },
-            })
-        }
-    })
-}
-
-fn length(value: Option<&UiValue>, field: &str, min: u32) -> Result<Option<DisplayLength>, Error> {
-    let invalid_length = || {
-        invalid(format!(
-            "{field} must be {} integer pixels, integer 'px', finite 'em', or nil",
-            if min == 0 { "nonnegative" } else { "positive" },
-        ))
-    };
-    let (value, unit) = match value {
-        None | Some(UiValue::Nil) => return Ok(None),
-        Some(UiValue::Integer(value)) => (
-            f64::from(u32::try_from(*value).map_err(|_| invalid_length())?),
-            DisplayLengthUnit::Px,
-        ),
-        Some(UiValue::String(bytes)) => {
-            let s = str::from_utf8(bytes).map_err(|_| invalid_length())?;
-            if let Some(s) = s.strip_suffix("px") {
-                if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
-                    return Err(invalid_length());
-                }
-                (
-                    f64::from(s.parse::<u32>().map_err(|_| invalid_length())?),
-                    DisplayLengthUnit::Px,
-                )
-            } else if let Some(s) = s.strip_suffix("em") {
-                (
-                    s.parse::<f64>().map_err(|_| invalid_length())?,
-                    DisplayLengthUnit::Em,
-                )
-            } else {
-                return Err(invalid_length());
-            }
-        }
-        _ => return Err(invalid_length()),
-    };
-    if !value.is_finite() || value < 0.0 || (min > 0 && value == 0.0) {
-        return Err(invalid_length());
-    }
-    Ok(Some(DisplayLength { value, unit }))
-}
-
-fn opacity(value: Option<&UiValue>) -> Result<Option<f64>, Error> {
-    let value = match value {
-        None | Some(UiValue::Nil) => return Ok(None),
-        Some(UiValue::Number(value)) => *value,
-        Some(UiValue::Integer(value)) => *value as f64,
-        _ => {
-            return Err(invalid(
-                "window.opacity must be a finite number in 0..=1 or nil",
-            ));
-        }
-    };
-    if !value.is_finite() || !(0.0..=1.0).contains(&value) {
-        return Err(invalid(
-            "window.opacity must be a finite number in 0..=1 or nil",
-        ));
-    }
-    Ok(Some(value))
 }
 
 pub(crate) fn load(path: Option<&Path>) -> Result<(Config, UiOptions), Error> {
@@ -258,8 +66,8 @@ fn table<'t>(config: &'t UiConfig, value: &UiValue, field: &str) -> Result<&'t U
 
 fn fields(table: &UiTable, names: &[&str], field: &str) -> Result<(), Error> {
     for (key, _) in table.entries() {
-        if let UiValue::String(bytes) = key
-            && names.iter().any(|name| name.as_bytes() == bytes)
+        if let UiValue::String(key) = key
+            && names.contains(&key.as_str())
         {
             continue;
         }
@@ -268,46 +76,11 @@ fn fields(table: &UiTable, names: &[&str], field: &str) -> Result<(), Error> {
     Ok(())
 }
 
-fn text<'t>(bytes: &'t [u8], field: &str) -> Result<&'t str, Error> {
-    let value =
-        str::from_utf8(bytes).map_err(|_| invalid(format!("{field} must be valid UTF-8")))?;
-    if value.is_empty() || value.contains('\0') {
-        return Err(invalid(format!(
-            "{field} must be non-empty and contain no NUL"
-        )));
+fn nonempty_text<'t>(value: &'t str, field: &str) -> Result<&'t str, Error> {
+    if value.is_empty() {
+        return Err(invalid(format!("{field} must be non-empty")));
     }
     Ok(value)
-}
-
-fn string(value: Option<&UiValue>, field: &str) -> Result<Option<String>, Error> {
-    match value {
-        None | Some(UiValue::Nil) => Ok(None),
-        Some(UiValue::String(bytes)) => Ok(Some(text(bytes, field)?.to_owned())),
-        _ => Err(invalid(format!("{field} must be a string or nil"))),
-    }
-}
-
-fn integer(value: Option<&UiValue>, field: &str, min: u32) -> Result<Option<u32>, Error> {
-    match value {
-        None | Some(UiValue::Nil) => Ok(None),
-        Some(UiValue::Integer(value)) => u32::try_from(*value)
-            .ok()
-            .filter(|value| *value >= min)
-            .map(Some)
-            .ok_or_else(|| invalid(format!("{field} must be an integer in {min}..=4294967295"))),
-        _ => Err(invalid(format!("{field} must be an integer or nil"))),
-    }
-}
-
-fn font(table: &UiTable) -> Result<DisplayFont, Error> {
-    fields(table, &["family", "subfamily", "size", "path"], "Font")?;
-    Ok(DisplayFont {
-        family: string(table.get("family"), "Font.family")?
-            .ok_or_else(|| invalid("Font.family is required"))?,
-        subfamily: string(table.get("subfamily"), "Font.subfamily")?,
-        size: f64::from(integer(table.get("size"), "Font.size", 1)?.unwrap_or(15)),
-        path: string(table.get("path"), "Font.path")?,
-    })
 }
 
 #[cfg(test)]

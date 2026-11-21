@@ -14,9 +14,10 @@ use size::GridSize;
 mod updates;
 
 use driver::run;
-use input::{Input, QueuedInput};
+use input::{HostInput, Input, QueuedInput};
 use updates::Updates;
 
+use nvim_rpc_ui::{Buffer, Tabpage};
 use tokio::sync::{Mutex, mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
@@ -133,7 +134,7 @@ impl Handle {
 
     /// Sends Neovim key notation; literal less-than characters use `<LT>`.
     pub(crate) async fn input(&self, keys: String) -> Result<(), Error> {
-        self.send_input(Input::Keys(keys)).await
+        self.send_input(Input::Host(HostInput::Keys(keys))).await
     }
 
     /// Pastes from the clipboard backend selected and authorized by core.
@@ -147,19 +148,22 @@ impl Handle {
     }
 
     pub(crate) async fn focus(&self, focused: bool) -> Result<(), Error> {
-        self.send_input(Input::Focus(focused)).await
+        self.send_input(Input::Host(HostInput::Focus(focused)))
+            .await
     }
 
     pub(crate) async fn select_popupmenu_item(&self, index: i64) -> Result<(), Error> {
-        self.send_input(Input::Popup(index)).await
+        self.send_input(Input::Host(HostInput::Popup(index))).await
     }
 
     pub(crate) async fn set_current_tabpage(&self, tabpage: i64) -> Result<(), Error> {
-        self.send_input(Input::Tab(tabpage)).await
+        self.send_input(Input::Host(HostInput::Tab(Tabpage(tabpage))))
+            .await
     }
 
     pub(crate) async fn set_current_buffer(&self, buffer: i64) -> Result<(), Error> {
-        self.send_input(Input::Buffer(buffer)).await
+        self.send_input(Input::Host(HostInput::Buffer(Buffer(buffer))))
+            .await
     }
 
     /// Waits for final cleanup while preserving the host Neovim.

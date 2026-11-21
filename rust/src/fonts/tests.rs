@@ -2,7 +2,7 @@ use super::selection::named;
 use super::*;
 use crate::api::fonts::FontRange;
 
-use skrifa::raw::{FontRef, types::NameId};
+use skrifa::raw::{FontRef, model::name::Names, types::NameId};
 
 use std::fs;
 
@@ -201,7 +201,11 @@ fn scans_explicit_collection_faces_and_exports_a_checksummed_standalone_font() {
     assert!(result.diagnostics.is_empty());
     let font = result.fonts.into_iter().next().unwrap();
     let parsed = FontRef::new(&font.data).unwrap();
-    assert!(named(&parsed, NameId::TYPOGRAPHIC_SUBFAMILY_NAME, "Medium"));
+    assert!(named(
+        Names::from_sfnt(&parsed),
+        NameId::TYPOGRAPHIC_SUBFAMILY_NAME,
+        "Medium"
+    ));
     assert_eq!(
         skrifa::raw::tables::compute_checksum(&font.data),
         0xb1b0_afba
@@ -223,54 +227,43 @@ fn preserves_candidate_order_and_font_request_indices() {
     )
     .unwrap();
     let path = path.to_str().unwrap();
-    let result = resolve_fonts(
-        vec![
-            request(),
-            FontRequest {
-                subfamily: Some("Regular".into()),
-                ..request()
-            },
-        ],
-        vec![
-            FontCandidate {
-                request: 0,
-                path: path.into(),
-                index: 1,
-                postscript_name: None,
-            },
-            FontCandidate {
-                request: 0,
-                path: path.into(),
-                index: 0,
-                postscript_name: None,
-            },
-            FontCandidate {
-                request: 1,
-                path: path.into(),
-                index: 0,
-                postscript_name: None,
-            },
-        ],
-    );
-    assert!(result.diagnostics.is_empty());
-    assert_eq!(
-        result
-            .fonts
-            .iter()
-            .map(|font| font.request)
-            .collect::<Vec<_>>(),
-        [0, 1]
-    );
-    assert!(named(
-        &FontRef::new(&result.fonts[0].data).unwrap(),
-        NameId::TYPOGRAPHIC_SUBFAMILY_NAME,
-        "Medium"
-    ));
-    assert!(named(
-        &FontRef::new(&result.fonts[1].data).unwrap(),
-        NameId::TYPOGRAPHIC_SUBFAMILY_NAME,
-        "Regular"
-    ));
+    for order in [[(0, 1), (0, 0), (1, 0)], [(0, 1), (1, 0), (0, 0)]] {
+        let result = resolve_fonts(
+            vec![
+                request(),
+                FontRequest {
+                    subfamily: Some("Regular".into()),
+                    ..request()
+                },
+            ],
+            order
+                .into_iter()
+                .map(|(request, index)| FontCandidate {
+                    request,
+                    path: path.into(),
+                    index,
+                    postscript_name: None,
+                })
+                .collect(),
+        );
+        assert!(result.diagnostics.is_empty());
+        assert_eq!(
+            result
+                .fonts
+                .iter()
+                .map(|font| font.request)
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
+        for (font, expected) in result.fonts.iter().zip(["Medium", "Regular"]) {
+            let font = FontRef::new(&font.data).unwrap();
+            assert!(named(
+                Names::from_sfnt(&font),
+                NameId::TYPOGRAPHIC_SUBFAMILY_NAME,
+                expected
+            ));
+        }
+    }
 }
 
 fn variable_font(tag: &[u8; 4]) -> Vec<u8> {
@@ -420,14 +413,22 @@ fn persists_prepared_collections_and_variations_across_resolutions() {
         path: Some(path.to_str().unwrap().into()),
         ..request()
     };
-    let first = resolve_with_cache(&[requested], &[], Some(Cache::open(&database).unwrap()));
+    let first = resolve_with_cache(
+        &[requested],
+        &[],
+        Some(Cache::open(database.clone()).unwrap()),
+    );
     assert!(first.diagnostics.is_empty(), "{:?}", first.diagnostics);
     let expected = &first.fonts[0];
     assert!(!expected.data.starts_with(b"ttcf"));
     assert_eq!(expected.variations[0].value, 650.0);
 
-    let mut cache = Cache::open(&database).unwrap();
-    let restored = cache.get(&Key::new(&data, 1), 7).unwrap().unwrap();
+    let cache = Cache::open(database.clone()).unwrap();
+    let restored = cache
+        .get(&Key::new(&data, 1), &data)
+        .unwrap()
+        .unwrap()
+        .into_font(7, data);
     assert_eq!(restored.request, 7);
     assert_same_prepared_font(&restored, expected);
     drop(cache);
@@ -451,7 +452,7 @@ fn persists_prepared_collections_and_variations_across_resolutions() {
             },
         ],
         &[],
-        Some(Cache::open(&database).unwrap()),
+        Some(Cache::open(database.clone()).unwrap()),
     );
     assert_eq!(next.diagnostics.len(), 1);
     assert_eq!(next.fonts.len(), 1);
@@ -475,7 +476,7 @@ fn cache_tracks_replaced_sources_and_does_not_hide_missing_files() {
                 ..request()
             }],
             &[],
-            Some(Cache::open(&database).unwrap()),
+            Some(Cache::open(database.clone()).unwrap()),
         )
     };
     fs::write(&path, &first).unwrap();
@@ -521,7 +522,7 @@ fn cached_fonts_follow_current_native_candidate_order() {
         let result = resolve_with_cache(
             &[request()],
             &paths.map(|path| candidate(path)),
-            Some(Cache::open(&database).unwrap()),
+            Some(Cache::open(database.clone()).unwrap()),
         );
         assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
         assert_eq!(&result.fonts[0].data, expected);
@@ -534,7 +535,7 @@ fn locked_cache_falls_back_to_source_with_one_diagnostic() {
     let database = directory.path().join("fonts.sqlite3");
     let path = directory.path().join("font.ttf");
     fs::write(&path, DATA).unwrap();
-    let cache = Cache::open(&database).unwrap();
+    let cache = Cache::open(database.clone()).unwrap();
     let blocker = rusqlite::Connection::open(&database).unwrap();
     blocker.execute_batch("BEGIN EXCLUSIVE").unwrap();
 
@@ -568,7 +569,7 @@ fn unavailable_cache_does_not_prevent_font_resolution() {
     fs::write(&path, DATA).unwrap();
     let database = directory.path().join("not-a-directory/fonts.sqlite3");
     fs::write(directory.path().join("not-a-directory"), b"occupied").unwrap();
-    let cache = Cache::open(&database);
+    let cache = Cache::open(database.clone());
     assert!(cache.is_err());
 
     let result = resolve_with_storage(
@@ -592,7 +593,7 @@ fn cache_write_failure_keeps_prepared_fonts_available() {
     let database = directory.path().join("fonts.sqlite3");
     let path = directory.path().join("font.ttf");
     fs::write(&path, DATA).unwrap();
-    let cache = Cache::open(&database).unwrap();
+    let cache = Cache::open(database.clone()).unwrap();
     let blocker = rusqlite::Connection::open(&database).unwrap();
     blocker
         .execute_batch(
@@ -664,8 +665,8 @@ fn public_resolver_persists_across_processes_and_recovers_from_unreadable_storag
     };
     run("no");
     let database = directory.path().join("nauvim/fonts.sqlite3");
-    let mut cache = Cache::open(&database).unwrap();
-    assert!(cache.get(&Key::new(DATA, 0), 0).unwrap().is_some());
+    let cache = Cache::open(database.clone()).unwrap();
+    assert!(cache.get(&Key::new(DATA, 0), DATA).unwrap().is_some());
     drop(cache);
 
     run("no");

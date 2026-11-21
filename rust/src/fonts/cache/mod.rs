@@ -1,6 +1,9 @@
 //! Stores rebuildable prepared faces without owning font discovery or selection.
 
-use crate::api::fonts::{FontInfo, FontRange, FontVariation, ResolvedFont};
+use crate::api::fonts::{FontInfo, FontVariation, ResolvedFont};
+
+mod payload;
+use payload::{Encoded, checksum};
 
 use rusqlite::types::ValueRef;
 use rusqlite::{Connection, OptionalExtension as _, Row, TransactionBehavior};
@@ -86,23 +89,46 @@ pub(super) struct Cache {
     path: PathBuf,
 }
 
+pub(super) struct CachedFace {
+    // Standalone files can reuse the identical source buffer. Extracted faces
+    // must carry their own bytes because the source remains a collection.
+    replacement: Option<Vec<u8>>,
+    info: FontInfo,
+    variations: Vec<FontVariation>,
+}
+
+impl CachedFace {
+    pub(super) fn into_font(self, request: u32, source: Vec<u8>) -> ResolvedFont {
+        ResolvedFont {
+            request,
+            data: self.replacement.unwrap_or(source),
+            info: self.info,
+            variations: self.variations,
+        }
+    }
+}
+
 impl Cache {
     pub(super) fn system() -> Result<Self, Error> {
-        let root = dirs::cache_dir().ok_or(Error {
+        let mut path = dirs::cache_dir().ok_or(Error {
             path: None,
             source: Failure::Invalid("platform cache directory is absent"),
         })?;
-        Self::open(&root.join("nauvim/fonts.sqlite3"))
+        path.push("nauvim/fonts.sqlite3");
+        Self::open(path)
     }
 
-    pub(super) fn open(path: &Path) -> Result<Self, Error> {
-        Self::open_inner(path).map_err(|source| Error {
-            path: Some(path.to_path_buf()),
-            source,
-        })
+    pub(super) fn open(path: PathBuf) -> Result<Self, Error> {
+        match Self::open_connection(&path) {
+            Ok(conn) => Ok(Self { conn, path }),
+            Err(source) => Err(Error {
+                path: Some(path),
+                source,
+            }),
+        }
     }
 
-    fn open_inner(path: &Path) -> Result<Self, Failure> {
+    fn open_connection(path: &Path) -> Result<Connection, Failure> {
         if let Some(parent) = path
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
@@ -148,41 +174,43 @@ impl Cache {
         }
         tx.commit()?;
 
-        Ok(Self {
-            conn,
-            path: path.to_path_buf(),
-        })
+        Ok(conn)
     }
 
-    pub(super) fn get(&mut self, key: &Key, request: u32) -> Result<Option<ResolvedFont>, Error> {
-        self.get_inner(key, request).map_err(|source| Error {
+    pub(super) fn get(&self, key: &Key, source: &[u8]) -> Result<Option<CachedFace>, Error> {
+        self.get_inner(key, source).map_err(|source| Error {
             path: Some(self.path.clone()),
             source,
         })
     }
 
-    fn get_inner(&mut self, key: &Key, request: u32) -> Result<Option<ResolvedFont>, Failure> {
+    fn get_inner(&self, key: &Key, source: &[u8]) -> Result<Option<CachedFace>, Failure> {
+        let key = [key.0.as_slice()];
         let stored = self
             .conn
-            .query_row(
+            .prepare_cached(
                 "SELECT data, metrics, coverage, variations, checksum FROM fonts WHERE key = ?1",
-                [key.0.as_slice()],
-                |row| Ok(Stored::read(row)?.and_then(|stored| stored.decode(request))),
-            )
+            )?
+            .query_row(key, |row| read_font(row, source))
             .optional()?;
-        let Some(stored) = stored else {
-            return Ok(None);
-        };
-        let Some(font) = stored else {
-            self.conn
-                .execute("DELETE FROM fonts WHERE key = ?1", [key.0.as_slice()])?;
-            return Ok(None);
-        };
-        self.conn.execute(
-            "UPDATE fonts SET used = (SELECT coalesce(max(used), 0) + 1 FROM fonts) WHERE key = ?1",
-            [key.0.as_slice()],
-        )?;
-        Ok(Some(font))
+        match stored {
+            None => Ok(None),
+            Some(None) => {
+                self.conn
+                    .prepare_cached("DELETE FROM fonts WHERE key = ?1")?
+                    .execute(key)?;
+                Ok(None)
+            }
+            Some(Some(font)) => {
+                self.conn
+                    .prepare_cached(
+                        "UPDATE fonts SET used = (SELECT coalesce(max(used), 0) + 1 FROM fonts)
+                         WHERE key = ?1",
+                    )?
+                    .execute(key)?;
+                Ok(Some(font))
+            }
+        }
     }
 
     pub(super) fn put(&mut self, key: &Key, font: &ResolvedFont) -> Result<(), Error> {
@@ -193,50 +221,30 @@ impl Cache {
     }
 
     fn put_inner(&mut self, key: &Key, font: &ResolvedFont) -> Result<(), Failure> {
-        if font.data.len() > MAX_BYTES {
+        let Some(encoded) = Encoded::new(font) else {
             return Ok(());
-        }
-        let metrics = [
-            font.info.ascent.to_le_bytes(),
-            font.info.descent.to_le_bytes(),
-            font.info.line_gap.to_le_bytes(),
-            font.info.advance.to_le_bytes(),
-        ];
-        let metrics = metrics.as_flattened();
-        let mut coverage = Vec::new();
-        for range in &font.info.coverage {
-            coverage.extend(range.first.to_le_bytes());
-            coverage.extend(range.last.to_le_bytes());
-        }
-        let mut variations = Vec::new();
-        for axis in &font.variations {
-            variations.extend(axis.axis.as_bytes());
-            variations.extend(axis.value.to_le_bytes());
-        }
-        let columns = [font.data.as_slice(), metrics, &coverage, &variations];
-        if payload_size(&columns).is_none_or(|size| size > MAX_BYTES) {
-            return Ok(());
-        }
+        };
+        let columns @ [data, metrics, coverage, variations] = encoded.columns();
         let checksum = checksum(&columns);
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        tx.execute(
+        tx.prepare_cached(
             "INSERT INTO fonts (key, data, metrics, coverage, variations, checksum, used)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, (SELECT coalesce(max(used), 0) + 1 FROM fonts))
              ON CONFLICT(key) DO UPDATE SET data = excluded.data, metrics = excluded.metrics,
                  coverage = excluded.coverage, variations = excluded.variations,
                  checksum = excluded.checksum, used = excluded.used",
-            (
-                key.0.as_slice(),
-                font.data.as_slice(),
-                metrics,
-                &coverage,
-                &variations,
-                checksum.as_slice(),
-            ),
-        )?;
-        tx.execute(
+        )?
+        .execute((
+            key.0.as_slice(),
+            data,
+            metrics,
+            coverage,
+            variations,
+            checksum.as_slice(),
+        ))?;
+        tx.prepare_cached(
             "DELETE FROM fonts WHERE key IN (
                  SELECT key FROM (
                      SELECT key,
@@ -246,145 +254,35 @@ impl Cache {
                      FROM fonts
                  ) WHERE rank > ?1 OR bytes > ?2
              )",
-            (MAX_ENTRIES, MAX_BYTES),
-        )?;
+        )?
+        .execute((MAX_ENTRIES, MAX_BYTES))?;
         tx.commit()?;
         Ok(())
     }
 }
 
-struct Stored<'a> {
-    data: &'a [u8],
-    metrics: &'a [u8],
-    coverage: &'a [u8],
-    variations: &'a [u8],
-    checksum: &'a [u8],
-}
-
-impl<'a> Stored<'a> {
-    fn read(row: &'a Row<'_>) -> rusqlite::Result<Option<Self>> {
-        let (
-            ValueRef::Blob(data),
-            ValueRef::Blob(metrics),
-            ValueRef::Blob(coverage),
-            ValueRef::Blob(variations),
-            ValueRef::Blob(checksum),
-        ) = (
-            row.get_ref(0)?,
-            row.get_ref(1)?,
-            row.get_ref(2)?,
-            row.get_ref(3)?,
-            row.get_ref(4)?,
-        )
-        else {
-            return Ok(None);
-        };
-        if payload_size(&[data, metrics, coverage, variations]).is_none_or(|size| size > MAX_BYTES)
-            || checksum.len() != 32
-        {
-            return Ok(None);
-        }
-        Ok(Some(Self {
-            data,
-            metrics,
-            coverage,
-            variations,
-            checksum,
-        }))
-    }
-
-    fn decode(self, request: u32) -> Option<ResolvedFont> {
-        if checksum(&[self.data, self.metrics, self.coverage, self.variations]).as_slice()
-            != self.checksum
-        {
-            return None;
-        }
-        let mut metrics = self.metrics;
-        let ascent = number(&mut metrics)?;
-        let descent = number(&mut metrics)?;
-        let line_gap = number(&mut metrics)?;
-        let advance = number(&mut metrics)?;
-        let height = ascent + descent;
-        if !metrics.is_empty()
-            || ascent < 0.0
-            || descent < 0.0
-            || line_gap < 0.0
-            || advance <= 0.0
-            || !height.is_finite()
-            || height <= 0.0
-        {
-            return None;
-        }
-        let (ranges, tail) = self.coverage.as_chunks::<8>();
-        if !tail.is_empty() {
-            return None;
-        }
-        let mut coverage: Vec<FontRange> = Vec::new();
-        for range in ranges {
-            let (first, last) = range.split_at_checked(4)?;
-            let first = u32::from_le_bytes(first.try_into().ok()?);
-            let last = u32::from_le_bytes(last.try_into().ok()?);
-            if first > last
-                || last > 0x10ffff
-                || coverage
-                    .last()
-                    .is_some_and(|previous| previous.last >= first)
-            {
-                return None;
-            }
-            coverage.push(FontRange { first, last });
-        }
-        let (axes, tail) = self.variations.as_chunks::<12>();
-        if !tail.is_empty() {
-            return None;
-        }
-        let mut variations = Vec::new();
-        for axis in axes {
-            let (tag, mut value) = axis.split_at_checked(4)?;
-            if !tag.iter().all(|byte| (b' '..=b'~').contains(byte)) {
-                return None;
-            }
-            let axis = String::from_utf8(tag.to_owned()).ok()?;
-            variations.push(FontVariation {
-                axis,
-                value: number(&mut value)?,
-            });
-        }
-        Some(ResolvedFont {
-            request,
-            data: self.data.to_owned(),
-            info: FontInfo {
-                ascent,
-                descent,
-                line_gap,
-                advance,
-                coverage,
-            },
-            variations,
-        })
-    }
-}
-
-fn number(bytes: &mut &[u8]) -> Option<f64> {
-    let (value, rest) = bytes.split_at_checked(8)?;
-    let value = f64::from_le_bytes(value.try_into().ok()?);
-    *bytes = rest;
-    value.is_finite().then_some(value)
-}
-
-fn payload_size(columns: &[&[u8]]) -> Option<usize> {
-    columns
-        .iter()
-        .try_fold(0usize, |size, column| size.checked_add(column.len()))
-}
-
-fn checksum(columns: &[&[u8]]) -> [u8; 32] {
-    let mut hash = Sha256::new();
-    for column in columns {
-        hash.update(column.len().to_le_bytes());
-        hash.update(column);
-    }
-    hash.finalize().into()
+fn read_font(row: &Row<'_>, source: &[u8]) -> rusqlite::Result<Option<CachedFace>> {
+    let (
+        ValueRef::Blob(data),
+        ValueRef::Blob(metrics),
+        ValueRef::Blob(coverage),
+        ValueRef::Blob(variations),
+        ValueRef::Blob(checksum),
+    ) = (
+        row.get_ref(0)?,
+        row.get_ref(1)?,
+        row.get_ref(2)?,
+        row.get_ref(3)?,
+        row.get_ref(4)?,
+    )
+    else {
+        return Ok(None);
+    };
+    Ok(CachedFace::decode(
+        [data, metrics, coverage, variations],
+        checksum,
+        source,
+    ))
 }
 
 #[cfg(test)]
