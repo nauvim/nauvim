@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'editor_model.dart';
 import 'engine.dart';
+import 'key_bindings.dart';
 import 'platform.dart';
 import 'previews.dart';
 import 'protocol.dart';
@@ -64,6 +65,7 @@ final class NauvimController extends ChangeNotifier {
   SessionPhase _phase = SessionPhase.welcome;
   String _destination = '';
   List<String> _hosts = const [];
+  NauvimKeyBindings _keyBindings = NauvimKeyBindings();
   final _diagnostics = <String>[];
   String? _connectionError;
   List<String> _errors = const [];
@@ -76,6 +78,7 @@ final class NauvimController extends ChangeNotifier {
   bool get hasEngine => _engine != null;
   String get destination => _destination;
   List<String> get hosts => _hosts;
+  NauvimKeyBindings get keyBindings => _keyBindings;
   EditorFont get font => _font;
   EditorViewport? get viewport => _viewport;
   WindowMargins? get windowMargins => _windowMargins;
@@ -123,6 +126,8 @@ final class NauvimController extends ChangeNotifier {
         await close();
       case PlatformFailure(:final message):
         reportError(message);
+      case PreviewCloseRequested(:final handle):
+        _previews.clear(handle);
     }
   }
 
@@ -240,6 +245,10 @@ final class NauvimController extends ChangeNotifier {
       case 'ready':
         if (closing) return;
         _hosts = List.unmodifiable(update.hosts);
+        _keyBindings = NauvimKeyBindings(update.keyBindings);
+        _previews.keyBindings = _keyBindings
+            .bindings(KeyContext.webview)
+            .toList();
         if (!_started) _destination = update.destination?.alias ?? '';
         _changed();
         unawaited(_configureFonts(update.fonts, update.windowOptions));

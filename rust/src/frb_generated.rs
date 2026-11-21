@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1236008271;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1512071196;
 
 // Section: executor
 
@@ -1022,6 +1022,38 @@ fn wire__crate__api__display__display_window_options_default_impl(
         },
     )
 }
+fn wire__crate__api__keys__key_bindings_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "key_bindings_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Ok::<_, ()>(crate::api::keys::KeyBindings::default())?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__fonts__resolve_fonts_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1595,6 +1627,56 @@ impl SseDecode for i64 {
     }
 }
 
+impl SseDecode for crate::api::keys::KeyAction {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::keys::KeyAction::SelectNext,
+            1 => crate::api::keys::KeyAction::SelectPrevious,
+            2 => crate::api::keys::KeyAction::Activate,
+            3 => crate::api::keys::KeyAction::Back,
+            4 => crate::api::keys::KeyAction::Quit,
+            5 => crate::api::keys::KeyAction::Copy,
+            6 => crate::api::keys::KeyAction::Paste,
+            7 => crate::api::keys::KeyAction::Reload,
+            8 => crate::api::keys::KeyAction::GoBack,
+            9 => crate::api::keys::KeyAction::GoForward,
+            10 => crate::api::keys::KeyAction::Close,
+            11 => crate::api::keys::KeyAction::FocusEditor,
+            _ => unreachable!("Invalid variant for KeyAction: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::keys::KeyBinding {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_key = <String>::sse_decode(deserializer);
+        let mut var_modifiers = <u8>::sse_decode(deserializer);
+        let mut var_action = <Option<crate::api::keys::KeyAction>>::sse_decode(deserializer);
+        return crate::api::keys::KeyBinding {
+            key: var_key,
+            modifiers: var_modifiers,
+            action: var_action,
+        };
+    }
+}
+
+impl SseDecode for crate::api::keys::KeyBindings {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_welcome = <Vec<crate::api::keys::KeyBinding>>::sse_decode(deserializer);
+        let mut var_clipboard = <Vec<crate::api::keys::KeyBinding>>::sse_decode(deserializer);
+        let mut var_webview = <Vec<crate::api::keys::KeyBinding>>::sse_decode(deserializer);
+        return crate::api::keys::KeyBindings {
+            welcome: var_welcome,
+            clipboard: var_clipboard,
+            webview: var_webview,
+        };
+    }
+}
+
 impl SseDecode for Vec<i64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1785,6 +1867,18 @@ impl SseDecode for Vec<crate::api::fonts::FontVariation> {
     }
 }
 
+impl SseDecode for Vec<crate::api::keys::KeyBinding> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::keys::KeyBinding>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1935,6 +2029,28 @@ impl SseDecode for Option<f64> {
     }
 }
 
+impl SseDecode for Option<crate::api::keys::KeyAction> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::keys::KeyAction>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::keys::KeyBindings> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::keys::KeyBindings>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<u32> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2019,6 +2135,7 @@ impl SseDecode for crate::api::display::UiUpdate {
         let mut var_defaultHost = <Option<String>>::sse_decode(deserializer);
         let mut var_destination =
             <Option<crate::api::display::DisplayDestination>>::sse_decode(deserializer);
+        let mut var_keyBindings = <Option<crate::api::keys::KeyBindings>>::sse_decode(deserializer);
         let mut var_fonts = <Vec<crate::api::display::DisplayFont>>::sse_decode(deserializer);
         let mut var_windowOptions =
             <Option<crate::api::display::DisplayWindowOptions>>::sse_decode(deserializer);
@@ -2030,6 +2147,7 @@ impl SseDecode for crate::api::display::UiUpdate {
             hosts: var_hosts,
             default_host: var_defaultHost,
             destination: var_destination,
+            key_bindings: var_keyBindings,
             fonts: var_fonts,
             window_options: var_windowOptions,
             window: var_window,
@@ -2157,8 +2275,9 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__fonts__resolve_fonts_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__display__ui_update_default_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__keys__key_bindings_default_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__fonts__resolve_fonts_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__display__ui_update_default_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2768,6 +2887,72 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::fonts::FontVariation>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::keys::KeyAction {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::SelectNext => 0.into_dart(),
+            Self::SelectPrevious => 1.into_dart(),
+            Self::Activate => 2.into_dart(),
+            Self::Back => 3.into_dart(),
+            Self::Quit => 4.into_dart(),
+            Self::Copy => 5.into_dart(),
+            Self::Paste => 6.into_dart(),
+            Self::Reload => 7.into_dart(),
+            Self::GoBack => 8.into_dart(),
+            Self::GoForward => 9.into_dart(),
+            Self::Close => 10.into_dart(),
+            Self::FocusEditor => 11.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::keys::KeyAction {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::keys::KeyAction>
+    for crate::api::keys::KeyAction
+{
+    fn into_into_dart(self) -> crate::api::keys::KeyAction {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::keys::KeyBinding {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.key.into_into_dart().into_dart(),
+            self.modifiers.into_into_dart().into_dart(),
+            self.action.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::keys::KeyBinding {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::keys::KeyBinding>
+    for crate::api::keys::KeyBinding
+{
+    fn into_into_dart(self) -> crate::api::keys::KeyBinding {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::keys::KeyBindings {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.welcome.into_into_dart().into_dart(),
+            self.clipboard.into_into_dart().into_dart(),
+            self.webview.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::keys::KeyBindings {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::keys::KeyBindings>
+    for crate::api::keys::KeyBindings
+{
+    fn into_into_dart(self) -> crate::api::keys::KeyBindings {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::fonts::ResolvedFont {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -2800,6 +2985,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::display::UiUpdate {
             self.hosts.into_into_dart().into_dart(),
             self.default_host.into_into_dart().into_dart(),
             self.destination.into_into_dart().into_dart(),
+            self.key_bindings.into_into_dart().into_dart(),
             self.fonts.into_into_dart().into_dart(),
             self.window_options.into_into_dart().into_dart(),
             self.window.into_into_dart().into_dart(),
@@ -3174,6 +3360,50 @@ impl SseEncode for i64 {
     }
 }
 
+impl SseEncode for crate::api::keys::KeyAction {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::keys::KeyAction::SelectNext => 0,
+                crate::api::keys::KeyAction::SelectPrevious => 1,
+                crate::api::keys::KeyAction::Activate => 2,
+                crate::api::keys::KeyAction::Back => 3,
+                crate::api::keys::KeyAction::Quit => 4,
+                crate::api::keys::KeyAction::Copy => 5,
+                crate::api::keys::KeyAction::Paste => 6,
+                crate::api::keys::KeyAction::Reload => 7,
+                crate::api::keys::KeyAction::GoBack => 8,
+                crate::api::keys::KeyAction::GoForward => 9,
+                crate::api::keys::KeyAction::Close => 10,
+                crate::api::keys::KeyAction::FocusEditor => 11,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::keys::KeyBinding {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.key, serializer);
+        <u8>::sse_encode(self.modifiers, serializer);
+        <Option<crate::api::keys::KeyAction>>::sse_encode(self.action, serializer);
+    }
+}
+
+impl SseEncode for crate::api::keys::KeyBindings {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::keys::KeyBinding>>::sse_encode(self.welcome, serializer);
+        <Vec<crate::api::keys::KeyBinding>>::sse_encode(self.clipboard, serializer);
+        <Vec<crate::api::keys::KeyBinding>>::sse_encode(self.webview, serializer);
+    }
+}
+
 impl SseEncode for Vec<i64> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3324,6 +3554,16 @@ impl SseEncode for Vec<crate::api::fonts::FontVariation> {
     }
 }
 
+impl SseEncode for Vec<crate::api::keys::KeyBinding> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::keys::KeyBinding>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3444,6 +3684,26 @@ impl SseEncode for Option<f64> {
     }
 }
 
+impl SseEncode for Option<crate::api::keys::KeyAction> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::keys::KeyAction>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::keys::KeyBindings> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::keys::KeyBindings>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<u32> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3514,6 +3774,7 @@ impl SseEncode for crate::api::display::UiUpdate {
         <Vec<String>>::sse_encode(self.hosts, serializer);
         <Option<String>>::sse_encode(self.default_host, serializer);
         <Option<crate::api::display::DisplayDestination>>::sse_encode(self.destination, serializer);
+        <Option<crate::api::keys::KeyBindings>>::sse_encode(self.key_bindings, serializer);
         <Vec<crate::api::display::DisplayFont>>::sse_encode(self.fonts, serializer);
         <Option<crate::api::display::DisplayWindowOptions>>::sse_encode(
             self.window_options,

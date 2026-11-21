@@ -29,6 +29,8 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
                   await handler(const WindowCloseRequested());
                 case 'window_error':
                   await handler(PlatformFailure(call.arguments.toString()));
+                case 'close_webview_requested':
+                  await handler(PreviewCloseRequested(call.arguments as int));
               }
             },
     );
@@ -142,15 +144,27 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
       Clipboard.setData(ClipboardData(text: text));
 
   @override
-  Future<void> openPreview(DisplayWindow window, Rect rectangle) =>
-      _channel.invokeMethod('open_webview', {
-        'handle': window.handle,
-        'url': window.url,
-        'x': rectangle.left,
-        'y': rectangle.top,
-        'width': rectangle.width,
-        'height': rectangle.height,
-      });
+  Future<void> openPreview(
+    DisplayWindow window,
+    Rect rectangle, {
+    List<KeyBinding> keyBindings = const [],
+  }) => _channel.invokeMethod('open_webview', {
+    'handle': window.handle,
+    'url': window.url,
+    'x': rectangle.left,
+    'y': rectangle.top,
+    'width': rectangle.width,
+    'height': rectangle.height,
+    'key_bindings': [
+      for (final binding in keyBindings)
+        if (binding.action case final action?)
+          {
+            'key': binding.key,
+            'modifiers': binding.modifiers,
+            'action': action.name,
+          },
+    ],
+  });
 
   @override
   Future<void> closePreview(int handle) =>

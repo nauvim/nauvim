@@ -3,9 +3,29 @@ import CoreText
 import FlutterMacOS
 import WebKit
 
+private struct PreviewKeyBinding {
+  let key: String
+  let modifiers: Int
+  let action: String
+}
+
+private class PreviewWebView: WKWebView {
+  var handleKey: ((NSEvent) -> Bool)?
+
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    if handleKey?(event) == true { return true }
+    return super.performKeyEquivalent(with: event)
+  }
+
+  override func keyDown(with event: NSEvent) {
+    if handleKey?(event) != true { super.keyDown(with: event) }
+  }
+}
+
 class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
   private var channel: FlutterMethodChannel?
   private var webviews: [Int64: WKWebView] = [:]
+  private var keyBindings: [PreviewKeyBinding] = []
   private(set) var isCleanupComplete = false
   private var closeRequested = false
   private var startupModePending = false
@@ -126,6 +146,12 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
         return
       case "title": self.title = args["title"] as? String ?? "Nauvim"
       case "open_webview":
+        self.keyBindings = (args["key_bindings"] as? [[String: Any]] ?? []).compactMap { binding in
+          guard let key = binding["key"] as? String,
+                let modifiers = binding["modifiers"] as? Int,
+                let action = binding["action"] as? String else { return nil }
+          return PreviewKeyBinding(key: key, modifiers: modifiers, action: action)
+        }
         guard let handle = args["handle"] as? Int64,
               let urlString = args["url"] as? String,
               let url = URL(string: urlString), ["http", "https"].contains(url.scheme ?? "") else {
@@ -134,7 +160,12 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
         let view: WKWebView
         if let existing = self.webviews[handle] { view = existing }
         else {
-          view = WKWebView(frame: .zero)
+          let preview = PreviewWebView(frame: .zero)
+          preview.handleKey = { [weak self, weak preview, weak controller] event in
+            guard let self = self, let preview = preview, let controller = controller else { return false }
+            return self.previewKey(event, view: preview, handle: handle, editor: controller.view)
+          }
+          view = preview
           view.navigationDelegate = self
           self.webviews[handle] = view
           controller.view.addSubview(view)
@@ -163,6 +194,65 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     guard !isCleanupComplete && !closeRequested else { return }
     closeRequested = true
     channel?.invokeMethod("close_requested", arguments: nil)
+  }
+
+  private func previewKey(_ event: NSEvent, view: WKWebView, handle: Int64, editor: NSView) -> Bool {
+    guard !keyBindings.isEmpty,
+          let focused = firstResponder as? NSView,
+          focused === view || focused.isDescendant(of: view),
+          var text = event.charactersIgnoringModifiers else { return false }
+    for flags in [NSEvent.ModifierFlags(), .shift] {
+      if let clue = event.characters(byApplyingModifiers: flags),
+         clue.unicodeScalars.count == 1, let c = clue.unicodeScalars.first,
+         (48...57).contains(c.value) || (65...90).contains(c.value) || (97...122).contains(c.value) {
+        text = clue
+        break
+      }
+    }
+    let key: String
+    switch text {
+    case "\u{1b}": key = "escape"
+    case "\r", "\n": key = event.keyCode == 76 ? "numpadenter" : "enter"
+    case "\t", "\u{19}": key = "tab"
+    case "\u{7f}": key = "backspace"
+    case "\u{f728}": key = "delete"
+    case "\u{f727}": key = "insert"
+    case "\u{f700}": key = "arrowup"
+    case "\u{f701}": key = "arrowdown"
+    case "\u{f702}": key = "arrowleft"
+    case "\u{f703}": key = "arrowright"
+    case "\u{f729}": key = "home"
+    case "\u{f72b}": key = "end"
+    case "\u{f72c}": key = "pageup"
+    case "\u{f72d}": key = "pagedown"
+    default:
+      if text.unicodeScalars.count == 1, let scalar = text.unicodeScalars.first,
+         (0xf704...0xf71b).contains(scalar.value) {
+        key = "f\(scalar.value - 0xf704 + 1)"
+      } else {
+        let upper = text.uppercased()
+        key = String(upper.map { c in
+          c.asciiValue.map { (65...90).contains($0) } == true ? Character(c.lowercased()) : c
+        })
+      }
+    }
+    let flags = event.modifierFlags
+    let modifiers = (flags.contains(.control) ? 1 : 0) |
+                    (flags.contains(.shift) ? 2 : 0) |
+                    (flags.contains(.option) ? 4 : 0) |
+                    (flags.contains(.command) ? 8 : 0)
+    guard let binding = keyBindings.first(where: { $0.key == key && $0.modifiers == modifiers }) else { return false }
+    switch binding.action {
+    case "reload": view.reload()
+    case "goBack": view.goBack()
+    case "goForward": view.goForward()
+    case "focusEditor": makeFirstResponder(editor)
+    case "close":
+      channel?.invokeMethod("close_webview_requested", arguments: handle)
+      makeFirstResponder(editor)
+    default: return false
+    }
+    return true
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {

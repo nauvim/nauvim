@@ -1,5 +1,34 @@
 import 'package:flutter/services.dart';
 
+import '../headless/key_bindings.dart';
+import '../headless/protocol.dart';
+
+/// Resolves one logical key with the exact pressed modifier set.
+KeyAction? boundKey(
+  NauvimKeyBindings bindings,
+  KeyContext context,
+  KeyEvent event,
+) {
+  if (event is! KeyDownEvent && event is! KeyRepeatEvent) return null;
+  final keyboard = HardwareKeyboard.instance;
+  final key = event.logicalKey;
+  if (_modifiers.contains(key)) return null;
+  final label = key == LogicalKeyboardKey.space
+      ? ' '
+      : key.keyLabel.replaceAll(' ', '');
+  // Flutter supplies uppercase Unicode labels. Canonical ASCII names and
+  // letters use lowercase, without losing the remaining Unicode label.
+  final name = label.codeUnits.any((c) => c > 127)
+      ? label
+      : label.toLowerCase();
+  final modifiers =
+      (keyboard.isControlPressed ? 1 : 0) |
+      (keyboard.isShiftPressed ? 2 : 0) |
+      (keyboard.isAltPressed ? 4 : 0) |
+      (keyboard.isMetaPressed ? 8 : 0);
+  return bindings.lookup(context, name, modifiers);
+}
+
 final _names = <LogicalKeyboardKey, String>{
   LogicalKeyboardKey.escape: 'Esc',
   LogicalKeyboardKey.enter: 'CR',

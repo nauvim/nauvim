@@ -1,4 +1,5 @@
 // Reuse bridge frame DTOs without copying individual cells.
+export '../bridge/api/keys.dart' show KeyAction, KeyBinding, KeyBindings;
 export '../bridge/api/display.dart'
     show
         DisplayCell,

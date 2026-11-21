@@ -82,6 +82,7 @@ Length = integer | "<integer>px" | "<number>em"
 
 UiOpts = {
     fonts: string | Font | list[Font] | nil,
+    key_bindings: table | nil,
     window: {
         width: positive Length | nil,
         height: positive Length | nil,
@@ -196,10 +197,46 @@ another host alias; Enter connects and Escape returns to the menu while keeping
 the draft. In text entry, `hjkl` types normally. Escape also cancels a pending
 connection. In the menu, `q` closes Nauvim and terminates its process.
 
+### Key bindings
+
+Add `key_bindings` to the selected UI options in `nauvim/init.lua`. Omitted
+bindings keep their defaults. Each context maps a key chord to an action;
+`false` removes that chord's default binding:
+
+```lua
+return {
+    hosts = { work = {} },
+    ui_opts = {
+        ["com.naughie.nauvim.flutter"] = {
+            key_bindings = {
+                welcome = {
+                    ["j"] = false,
+                    ["Ctrl+N"] = "select_next",
+                    ["Ctrl+Q"] = "quit",
+                },
+                clipboard = {
+                    ["Alt+C"] = "copy",
+                    ["Alt+V"] = "paste",
+                },
+                webview = {
+                    ["Escape"] = "focus_editor",
+                    ["Ctrl+R"] = "reload",
+                },
+            },
+        },
+    },
+}
+```
+
+Key names and ASCII letters are case-insensitive; Shift is always explicit.
+`Ctrl+Shift+C`, `control+shift+c`, and `Shift+Ctrl+C` name the same chord.
+See the [key binding reference](docs/key-bindings.md) for actions, aliases,
+defaults, and context rules. Restart Nauvim after changing the configuration.
+
 ## Editing and lifecycle
 
 Editing keys go to Neovim and use its mappings. Nauvim handles only the
-platform copy and paste shortcuts.
+configured copy and paste shortcuts.
 Paste with Ctrl+Shift+V on Linux or Command+V on
 macOS; the engine reads the client clipboard and uses Neovim's paste interface.
 Drag text within a grid and copy with Ctrl+Shift+C or Command+C. Selection stays

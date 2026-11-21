@@ -1,5 +1,7 @@
 //! Serializable display and startup data shared with Flutter.
 
+use super::keys::KeyBindings;
+
 /// A typed bridge update. Frame rows contain only changes since the preceding update.
 #[derive(Default)]
 pub struct UiUpdate {
@@ -10,6 +12,7 @@ pub struct UiUpdate {
     pub default_host: Option<String>,
     /// The remembered or connecting destination, independent of its display label.
     pub destination: Option<DisplayDestination>,
+    pub key_bindings: Option<KeyBindings>,
     pub fonts: Vec<DisplayFont>,
     pub window_options: Option<DisplayWindowOptions>,
     pub window: Option<DisplayWindow>,

@@ -34,7 +34,10 @@ void main() {
           );
         } else if (uri.contains('bridge/')) {
           expect(file.uri.pathSegments.last, 'protocol.dart');
-          expect(uri, '../bridge/api/display.dart');
+          expect([
+            '../bridge/api/display.dart',
+            '../bridge/api/keys.dart',
+          ], contains(uri));
         } else {
           final resolved = file.absolute.uri.resolve(uri);
           expect(

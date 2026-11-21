@@ -69,7 +69,8 @@ desktop with Neovim v0.12.6:
 python3 tool/smoke.py --nvim /absolute/path/to/nvim
 ```
 
-It uses isolated configuration, sockets, and temporary directories. It checks
+It uses isolated configuration, sockets, and temporary directories. It loads
+custom welcome, clipboard, and webview bindings through the real bridge and checks
 attachment, structured completion updates, native HTTP preview access,
 detachment, SIGTERM cleanup, and reuse of the same surviving host process.
 It stops its test-owned hosts afterward.

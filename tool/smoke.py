@@ -46,7 +46,15 @@ def main():
             f"socket={json.dumps(str(socket))}}}"
             for name, socket in sockets.items()
         )
-        config.write_text(f"return {{default_host='first',hosts={{{hosts}}}}}")
+        config.write_text(f"return {{default_host='first',hosts={{{hosts}}}," + """
+            ui_opts = { ["com.naughie.nauvim.flutter"] = {
+                key_bindings = {
+                    welcome = { ["Ctrl+Q"] = "quit" },
+                    clipboard = { ["Alt+V"] = "paste" },
+                    webview = { ["F5"] = "reload", ["Escape"] = "focus_editor" },
+                },
+            }},
+        }""")
         env = dict(os.environ)
         env["NVIM_LOG_FILE"] = str(root / "nvim.log")
         for key in ("XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR"):

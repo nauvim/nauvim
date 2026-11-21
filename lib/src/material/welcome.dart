@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../nauvim.dart';
+import '../../nauvim_widgets.dart' show boundKey;
 import 'theme.dart';
 
 class NauvimWelcome extends StatefulWidget {
@@ -155,18 +156,16 @@ class _NauvimWelcomeState extends State<NauvimWelcome> {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
-    final key = event.logicalKey;
-    final keyboard = HardwareKeyboard.instance;
-    final plain =
-        !keyboard.isControlPressed &&
-        !keyboard.isAltPressed &&
-        !keyboard.isMetaPressed &&
-        !keyboard.isShiftPressed;
-    if (!_typing && key == LogicalKeyboardKey.keyQ && plain) {
+    final action = boundKey(
+      widget.controller.keyBindings,
+      KeyContext.welcome,
+      event,
+    );
+    if (!_typing && action == KeyAction.quit) {
       if (event is KeyDownEvent) unawaited(widget.controller.close());
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.escape) {
+    if (action == KeyAction.back) {
       if (widget.controller.connecting) {
         if (event is KeyDownEvent) unawaited(widget.controller.detach());
         return KeyEventResult.handled;
@@ -176,40 +175,28 @@ class _NauvimWelcomeState extends State<NauvimWelcome> {
         return KeyEventResult.handled;
       }
     }
-    final enter =
-        key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.numpadEnter;
-    if (_typing) return KeyEventResult.ignored;
+    if (_typing) {
+      if (action == KeyAction.activate) {
+        if (event is KeyDownEvent) _connectHost();
+        return KeyEventResult.handled;
+      }
+      // Single-line text input must not submit through an unbound Enter.
+      if (event.logicalKey == LogicalKeyboardKey.enter ||
+          event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
     if (!_available) return KeyEventResult.ignored;
-    if (enter) {
+    if (action == KeyAction.activate) {
       if (event is KeyDownEvent) _activate(_selectedIndex);
       return KeyEventResult.handled;
     }
-    final control =
-        keyboard.isControlPressed &&
-        !keyboard.isAltPressed &&
-        !keyboard.isMetaPressed &&
-        !keyboard.isShiftPressed;
-    int? delta;
-    if (plain) {
-      if (key == LogicalKeyboardKey.keyJ ||
-          key == LogicalKeyboardKey.arrowDown) {
-        delta = 1;
-      } else if (key == LogicalKeyboardKey.keyK ||
-          key == LogicalKeyboardKey.arrowUp) {
-        delta = -1;
-      }
-    }
-    if (control &&
-        (key == LogicalKeyboardKey.keyN || key == LogicalKeyboardKey.keyP)) {
-      delta = key == LogicalKeyboardKey.keyN ? 1 : -1;
-    }
-    if (key == LogicalKeyboardKey.tab &&
-        !keyboard.isControlPressed &&
-        !keyboard.isAltPressed &&
-        !keyboard.isMetaPressed) {
-      delta = keyboard.isShiftPressed ? -1 : 1;
-    }
+    final delta = switch (action) {
+      KeyAction.selectNext => 1,
+      KeyAction.selectPrevious => -1,
+      _ => null,
+    };
     if (delta == null) return KeyEventResult.ignored;
     _move(delta);
     return KeyEventResult.handled;
@@ -311,7 +298,16 @@ class _NauvimWelcomeState extends State<NauvimWelcome> {
                       border: OutlineInputBorder(),
                     ),
                     onEditingComplete: () {},
-                    onSubmitted: (_) => _connectHost(),
+                    onSubmitted: (_) {
+                      if (controller.keyBindings.lookup(
+                            KeyContext.welcome,
+                            'enter',
+                            0,
+                          ) ==
+                          KeyAction.activate) {
+                        _connectHost();
+                      }
+                    },
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -342,7 +338,9 @@ class _NauvimWelcomeState extends State<NauvimWelcome> {
                   ),
                 const SizedBox(height: 8),
                 Text(
-                  _typing ? 'Enter: connect · Esc: back to destinations' : 'j/k or ↑/↓: move · Enter: select · q: quit · Esc: cancel',
+                  _typing
+                      ? '${controller.keyBindings.hint(KeyContext.welcome, KeyAction.activate)}: connect · ${controller.keyBindings.hint(KeyContext.welcome, KeyAction.back)}: back to destinations'
+                      : '${controller.keyBindings.hint(KeyContext.welcome, KeyAction.selectNext)}: next · ${controller.keyBindings.hint(KeyContext.welcome, KeyAction.selectPrevious)}: previous · ${controller.keyBindings.hint(KeyContext.welcome, KeyAction.activate)}: select · ${controller.keyBindings.hint(KeyContext.welcome, KeyAction.quit)}: quit · ${controller.keyBindings.hint(KeyContext.welcome, KeyAction.back)}: cancel',
                   style: TextStyle(color: onSurface.withValues(alpha: 0.6)),
                 ),
                 const SizedBox(height: 20),

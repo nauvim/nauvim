@@ -98,8 +98,11 @@ class TestPlatform implements NauvimPlatform {
   @override
   Future<void> writeClipboard(String text) => native.writeClipboard(text);
   @override
-  Future<void> openPreview(DisplayWindow window, Rect rectangle) =>
-      native.openPreview(window, rectangle);
+  Future<void> openPreview(
+    DisplayWindow window,
+    Rect rectangle, {
+    List<KeyBinding> keyBindings = const [],
+  }) => native.openPreview(window, rectangle, keyBindings: keyBindings);
   @override
   Future<void> closePreview(int handle) => native.closePreview(handle);
   @override

@@ -30,7 +30,7 @@ fn info(path: &Path) -> HostInfo {
     }
 }
 
-fn parse(options: &str) -> Result<UiOptions, Error> {
+pub(super) fn parse(options: &str) -> Result<UiOptions, Error> {
     let info = info(Path::new("/tmp/nauvim-ui-options/init.lua"));
     Config::evaluate(
         &format!("return {{ui_opts={{['{UI_ID}']={options}}}}}"),

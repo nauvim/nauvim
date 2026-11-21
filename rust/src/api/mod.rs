@@ -16,3 +16,6 @@ pub use fonts::{
     FontCandidate, FontInfo, FontRange, FontRequest, FontResolution, FontVariation, ResolvedFont,
     resolve_fonts,
 };
+
+pub(crate) mod keys;
+pub use keys::{KeyAction, KeyBinding, KeyBindings};
