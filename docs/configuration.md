@@ -105,8 +105,9 @@ increments. Margins apply in all modes.
 ### Key bindings
 
 Use `key_bindings` to override specific shortcuts on the welcome page, in
-the editor, or in a web preview. See the
-[complete Linux defaults and key binding reference](key-bindings.md#linux-defaults).
+the editor, or in a web preview. The key binding guide lists the
+[Linux defaults](key-bindings.md#linux-defaults) and explains
+[how to name a remapped key](key-bindings.md#choose-a-chord-for-a-remapped-key).
 
 ## Configuration fallback
 
