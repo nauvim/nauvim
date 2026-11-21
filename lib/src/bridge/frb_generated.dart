@@ -6,6 +6,7 @@
 import 'api/application.dart';
 import 'api/display.dart';
 import 'api/fonts.dart';
+import 'api/keys.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -69,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1236008271;
+  int get rustContentHash => -1512071196;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -156,6 +157,8 @@ abstract class RustLibApi extends BaseApi {
   Future<DisplayWidget> crateApiDisplayDisplayWidgetDefault();
 
   Future<DisplayWindowOptions> crateApiDisplayDisplayWindowOptionsDefault();
+
+  Future<KeyBindings> crateApiKeysKeyBindingsDefault();
 
   Future<FontResolution> crateApiFontsResolveFonts({
     required List<FontRequest> requests,
@@ -850,6 +853,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<KeyBindings> crateApiKeysKeyBindingsDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 20,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_key_bindings,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiKeysKeyBindingsDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiKeysKeyBindingsDefaultConstMeta =>
+      const TaskConstMeta(debugName: "key_bindings_default", argNames: []);
+
+  @override
   Future<FontResolution> crateApiFontsResolveFonts({
     required List<FontRequest> requests,
     required List<FontCandidate> candidates,
@@ -863,7 +893,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -892,7 +922,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 22,
             port: port_,
           );
         },
@@ -1031,6 +1061,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   double dco_decode_box_autoadd_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
+  }
+
+  @protected
+  KeyAction dco_decode_box_autoadd_key_action(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_key_action(raw);
+  }
+
+  @protected
+  KeyBindings dco_decode_box_autoadd_key_bindings(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_key_bindings(raw);
   }
 
   @protected
@@ -1396,6 +1438,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  KeyAction dco_decode_key_action(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return KeyAction.values[raw as int];
+  }
+
+  @protected
+  KeyBinding dco_decode_key_binding(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return KeyBinding(
+      key: dco_decode_String(arr[0]),
+      modifiers: dco_decode_u_8(arr[1]),
+      action: dco_decode_opt_box_autoadd_key_action(arr[2]),
+    );
+  }
+
+  @protected
+  KeyBindings dco_decode_key_bindings(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return KeyBindings(
+      welcome: dco_decode_list_key_binding(arr[0]),
+      clipboard: dco_decode_list_key_binding(arr[1]),
+      webview: dco_decode_list_key_binding(arr[2]),
+    );
+  }
+
+  @protected
   List<int> dco_decode_list_CastedPrimitive_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_CastedPrimitive_i_64).toList();
@@ -1486,6 +1560,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<KeyBinding> dco_decode_list_key_binding(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_key_binding).toList();
+  }
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
@@ -1570,6 +1650,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  KeyAction? dco_decode_opt_box_autoadd_key_action(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_key_action(raw);
+  }
+
+  @protected
+  KeyBindings? dco_decode_opt_box_autoadd_key_bindings(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_key_bindings(raw);
+  }
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_32(raw);
@@ -1623,8 +1715,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiUpdate dco_decode_ui_update(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return UiUpdate(
       kind: dco_decode_String(arr[0]),
       frame: dco_decode_opt_box_autoadd_display_frame(arr[1]),
@@ -1632,9 +1724,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hosts: dco_decode_list_String(arr[3]),
       defaultHost: dco_decode_opt_String(arr[4]),
       destination: dco_decode_opt_box_autoadd_display_destination(arr[5]),
-      fonts: dco_decode_list_display_font(arr[6]),
-      windowOptions: dco_decode_opt_box_autoadd_display_window_options(arr[7]),
-      window: dco_decode_opt_box_autoadd_display_window(arr[8]),
+      keyBindings: dco_decode_opt_box_autoadd_key_bindings(arr[6]),
+      fonts: dco_decode_list_display_font(arr[7]),
+      windowOptions: dco_decode_opt_box_autoadd_display_window_options(arr[8]),
+      window: dco_decode_opt_box_autoadd_display_window(arr[9]),
     );
   }
 
@@ -1789,6 +1882,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_f_64(deserializer));
+  }
+
+  @protected
+  KeyAction sse_decode_box_autoadd_key_action(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_key_action(deserializer));
+  }
+
+  @protected
+  KeyBindings sse_decode_box_autoadd_key_bindings(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_key_bindings(deserializer));
   }
 
   @protected
@@ -2184,6 +2291,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  KeyAction sse_decode_key_action(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return KeyAction.values[inner];
+  }
+
+  @protected
+  KeyBinding sse_decode_key_binding(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_key = sse_decode_String(deserializer);
+    var var_modifiers = sse_decode_u_8(deserializer);
+    var var_action = sse_decode_opt_box_autoadd_key_action(deserializer);
+    return KeyBinding(
+      key: var_key,
+      modifiers: var_modifiers,
+      action: var_action,
+    );
+  }
+
+  @protected
+  KeyBindings sse_decode_key_bindings(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_welcome = sse_decode_list_key_binding(deserializer);
+    var var_clipboard = sse_decode_list_key_binding(deserializer);
+    var var_webview = sse_decode_list_key_binding(deserializer);
+    return KeyBindings(
+      welcome: var_welcome,
+      clipboard: var_clipboard,
+      webview: var_webview,
+    );
+  }
+
+  @protected
   List<int> sse_decode_list_CastedPrimitive_i_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -2378,6 +2518,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<KeyBinding> sse_decode_list_key_binding(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <KeyBinding>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_key_binding(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -2525,6 +2677,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  KeyAction? sse_decode_opt_box_autoadd_key_action(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_key_action(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  KeyBindings? sse_decode_opt_box_autoadd_key_bindings(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_key_bindings(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -2605,6 +2783,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_destination = sse_decode_opt_box_autoadd_display_destination(
       deserializer,
     );
+    var var_keyBindings = sse_decode_opt_box_autoadd_key_bindings(deserializer);
     var var_fonts = sse_decode_list_display_font(deserializer);
     var var_windowOptions = sse_decode_opt_box_autoadd_display_window_options(
       deserializer,
@@ -2617,6 +2796,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hosts: var_hosts,
       defaultHost: var_defaultHost,
       destination: var_destination,
+      keyBindings: var_keyBindings,
       fonts: var_fonts,
       windowOptions: var_windowOptions,
       window: var_window,
@@ -2793,6 +2973,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_f_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_key_action(
+    KeyAction self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_key_action(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_key_bindings(
+    KeyBindings self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_key_bindings(self, serializer);
   }
 
   @protected
@@ -3083,6 +3281,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_key_action(KeyAction self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_key_binding(KeyBinding self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.key, serializer);
+    sse_encode_u_8(self.modifiers, serializer);
+    sse_encode_opt_box_autoadd_key_action(self.action, serializer);
+  }
+
+  @protected
+  void sse_encode_key_bindings(KeyBindings self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_key_binding(self.welcome, serializer);
+    sse_encode_list_key_binding(self.clipboard, serializer);
+    sse_encode_list_key_binding(self.webview, serializer);
+  }
+
+  @protected
   void sse_encode_list_CastedPrimitive_i_64(
     List<int> self,
     SseSerializer serializer,
@@ -3260,6 +3480,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_key_binding(
+    List<KeyBinding> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_key_binding(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
@@ -3406,6 +3638,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_key_action(
+    KeyAction? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_key_action(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_key_bindings(
+    KeyBindings? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_key_bindings(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -3480,6 +3738,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       self.destination,
       serializer,
     );
+    sse_encode_opt_box_autoadd_key_bindings(self.keyBindings, serializer);
     sse_encode_list_display_font(self.fonts, serializer);
     sse_encode_opt_box_autoadd_display_window_options(
       self.windowOptions,

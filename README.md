@@ -82,6 +82,7 @@ Length = integer | "<integer>px" | "<number>em"
 
 UiOpts = {
     fonts: string | Font | list[Font] | nil,
+    key_bindings: table | nil,
     window: {
         width: positive Length | nil,
         height: positive Length | nil,
@@ -190,19 +191,57 @@ This selection does not change the automatic startup rules above. See
 [host selection storage](docs/persistence.md#host-selection) for its location
 and recovery.
 
-Use `j` to move down and `k` to move up, then Enter to select. Up/Down, Tab/Shift+Tab,
-and Ctrl+N/Ctrl+P also move between choices. Select **Type yourself** to enter
+Use `j` to move down and `k` to move up, then Enter to select. Up/Down, Tab/Shift-Tab,
+and Ctrl-n/Ctrl-p also move between choices. Select **Type yourself** to enter
 another host alias; Enter connects and Escape returns to the menu while keeping
 the draft. In text entry, `hjkl` types normally. Escape also cancels a pending
 connection. In the menu, `q` closes Nauvim and terminates its process.
 
+### Key bindings
+
+Add `key_bindings` to the selected UI options in `nauvim/init.lua`. Omitted
+bindings keep their defaults. Each context maps a key chord to an action;
+`false` removes that chord's default binding:
+
+```lua
+return {
+    hosts = { work = {} },
+    ui_opts = {
+        ["com.naughie.nauvim.flutter"] = {
+            key_bindings = {
+                welcome = {
+                    ["j"] = false,
+                    ["Ctrl-n"] = "select_next",
+                    ["Ctrl-q"] = "quit",
+                },
+                clipboard = {
+                    ["Alt-c"] = "copy",
+                    ["Alt_v"] = "paste",
+                },
+                webview = {
+                    ["Escape"] = "focus_editor",
+                    ["Ctrl-r"] = "reload",
+                },
+            },
+        },
+    },
+}
+```
+
+Join modifiers with hyphens or underscores: `Ctrl-Shift-c`, `control_shift_c`,
+and `Ctrl-C` name the same chord. Capital letter keys imply Shift: `J` means
+`Shift-j`, while `j` remains unmodified. Modifier and named-key spellings are
+case-insensitive. Plus signs are not modifier separators.
+See the [key binding reference](docs/key-bindings.md) for actions, aliases,
+defaults, and context rules. Restart Nauvim after changing the configuration.
+
 ## Editing and lifecycle
 
 Editing keys go to Neovim and use its mappings. Nauvim handles only the
-platform copy and paste shortcuts.
-Paste with Ctrl+Shift+V on Linux or Command+V on
+configured copy and paste shortcuts.
+Paste with Ctrl-Shift-v on Linux or Command-v on
 macOS; the engine reads the client clipboard and uses Neovim's paste interface.
-Drag text within a grid and copy with Ctrl+Shift+C or Command+C. Selection stays
+Drag text within a grid and copy with Ctrl-Shift-c or Command-c. Selection stays
 within that grid. Mouse actions operate GUI controls and never send Neovim mouse
 input. Native IME composition is not implemented.
 

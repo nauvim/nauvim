@@ -108,7 +108,11 @@ final class Platform implements NauvimPlatform {
   @override
   Future<void> writeClipboard(String text) async => calls.add(('copy', text));
   @override
-  Future<void> openPreview(DisplayWindow window, Rect rectangle) async {
+  Future<void> openPreview(
+    DisplayWindow window,
+    Rect rectangle, {
+    List<KeyBinding> keyBindings = const [],
+  }) async {
     calls.add(('open', (window.handle, rectangle)));
     await previewGate?.future;
   }
@@ -551,6 +555,25 @@ void main() {
       ('clear', 47),
     ]);
   });
+
+  test(
+    'closes a native preview without recreating it on viewport updates',
+    () async {
+      engine.events.add(Update(kind: 'frame', frame: frame()));
+      controller.updateViewport(viewport(controller));
+      engine.events.add(const Update(kind: 'open_webview', window: preview));
+      await settle();
+      await platform.handler!(const PreviewCloseRequested(47));
+      await settle();
+      expect(platform.calls.last, ('clear', 47));
+      final count = platform.calls.length;
+      controller.updateViewport(
+        viewport(controller, origin: const Offset(14, 50)),
+      );
+      await settle();
+      expect(platform.calls, hasLength(count));
+    },
+  );
 
   test('keeps a pending clear harmless and cleans late presentation completions on detach', () async {
     engine.events.add(const Update(kind: 'open_webview', window: preview));

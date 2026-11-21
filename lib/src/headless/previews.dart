@@ -19,6 +19,7 @@ final class Previews {
   final _operations = <int, Future<void>>{};
   EditorViewport? _viewport;
   bool _layoutReady = false;
+  List<KeyBinding> keyBindings = const [];
   int _attachment = 0;
 
   void invalidateLayout() => _layoutReady = false;
@@ -76,7 +77,11 @@ final class Previews {
             identical(_requests[window.handle], window) &&
             _rectangles.containsKey(window.handle);
         if (!owned() || _rectangles[window.handle] != rectangle) return;
-        await _platform.openPreview(window, rectangle);
+        await _platform.openPreview(
+          window,
+          rectangle,
+          keyBindings: keyBindings,
+        );
         if (owned()) {
           _created.add(window.handle);
         } else {

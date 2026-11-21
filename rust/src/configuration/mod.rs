@@ -4,6 +4,9 @@ use crate::api::display::{
     DisplayDecorations, DisplayFont, DisplayLength, DisplayLengthUnit, DisplayMargins,
     DisplayStartupMode, DisplayWindowOptions,
 };
+use crate::api::keys::KeyBindings;
+
+mod key_bindings;
 
 use nauvim_core::{Config, Error, UiConfig, UiTable, UiValue};
 
@@ -16,14 +19,20 @@ const UI_ID: &str = "com.naughie.nauvim.flutter";
 pub(crate) struct UiOptions {
     pub(crate) fonts: Vec<DisplayFont>,
     pub(crate) window: Option<DisplayWindowOptions>,
+    pub(crate) key_bindings: Option<KeyBindings>,
 }
 
 impl UiOptions {
     fn parse(config: UiConfig) -> Result<Self, Error> {
-        fields(config.root(), &["fonts", "window"], "UI options")?;
+        fields(
+            config.root(),
+            &["fonts", "window", "key_bindings"],
+            "UI options",
+        )?;
         Ok(Self {
             fonts: fonts(&config)?,
             window: window(&config)?,
+            key_bindings: key_bindings::parse(&config)?,
         })
     }
 

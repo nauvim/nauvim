@@ -4,6 +4,7 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'keys.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
@@ -621,6 +622,7 @@ class UiUpdate {
 
   /// The remembered or connecting destination, independent of its display label.
   final DisplayDestination? destination;
+  final KeyBindings? keyBindings;
   final List<DisplayFont> fonts;
   final DisplayWindowOptions? windowOptions;
   final DisplayWindow? window;
@@ -632,6 +634,7 @@ class UiUpdate {
     required this.hosts,
     this.defaultHost,
     this.destination,
+    this.keyBindings,
     required this.fonts,
     this.windowOptions,
     this.window,
@@ -648,6 +651,7 @@ class UiUpdate {
       hosts.hashCode ^
       defaultHost.hashCode ^
       destination.hashCode ^
+      keyBindings.hashCode ^
       fonts.hashCode ^
       windowOptions.hashCode ^
       window.hashCode;
@@ -663,6 +667,7 @@ class UiUpdate {
           hosts == other.hosts &&
           defaultHost == other.defaultHost &&
           destination == other.destination &&
+          keyBindings == other.keyBindings &&
           fonts == other.fonts &&
           windowOptions == other.windowOptions &&
           window == other.window;

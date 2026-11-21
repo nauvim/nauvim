@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../headless/controller.dart';
+import '../headless/key_bindings.dart';
+import '../headless/protocol.dart';
 import '../headless/viewport.dart';
 import 'editor_viewport.dart';
 import 'grid_renderer.dart';
@@ -68,23 +68,17 @@ class _EditorSurfaceState extends State<EditorSurface> {
     if (!controller.attached || controller.closing) {
       return KeyEventResult.ignored;
     }
-    final keyboard = HardwareKeyboard.instance;
-    final shortcut = defaultTargetPlatform == TargetPlatform.macOS
-        ? keyboard.isMetaPressed &&
-              !keyboard.isShiftPressed &&
-              !keyboard.isAltPressed &&
-              !keyboard.isControlPressed
-        : keyboard.isControlPressed &&
-              keyboard.isShiftPressed &&
-              !keyboard.isAltPressed &&
-              !keyboard.isMetaPressed;
-    if (shortcut && event.logicalKey == LogicalKeyboardKey.keyV) {
+    final action = boundKey(
+      controller.keyBindings,
+      KeyContext.clipboard,
+      event,
+    );
+    if (action == KeyAction.paste) {
       if (event is KeyDownEvent) unawaited(controller.paste());
       return KeyEventResult.handled;
     }
     if (event is KeyDownEvent &&
-        shortcut &&
-        event.logicalKey == LogicalKeyboardKey.keyC &&
+        action == KeyAction.copy &&
         controller.editor.selectionStart != null) {
       unawaited(controller.copySelection());
       return KeyEventResult.handled;

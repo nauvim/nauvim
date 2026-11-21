@@ -17,6 +17,11 @@ final class PlatformFailure extends NauvimPlatformEvent {
   final String message;
 }
 
+final class PreviewCloseRequested extends NauvimPlatformEvent {
+  const PreviewCloseRequested(this.handle);
+  final int handle;
+}
+
 /// Native capabilities used by application behavior, independently of its skin.
 abstract interface class NauvimPlatform {
   /// Replaces the application's event handler; null removes it on disposal.
@@ -34,7 +39,11 @@ abstract interface class NauvimPlatform {
   ///
   /// Completes after creation and placement dispatch, without awaiting URL
   /// navigation. Navigation failures arrive through [PlatformFailure].
-  Future<void> openPreview(DisplayWindow window, Rect rectangle);
+  Future<void> openPreview(
+    DisplayWindow window,
+    Rect rectangle, {
+    List<KeyBinding> keyBindings = const [],
+  });
   Future<void> closePreview(int handle);
 
   /// Requests native window closure after the controller has finalized work.

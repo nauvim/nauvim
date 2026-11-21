@@ -1,4 +1,5 @@
 #include "webviews.h"
+#include "key_bindings.h"
 #include "window_options.h"
 #include <webkit2/webkit2.h>
 #include <fontconfig/fontconfig.h>
@@ -14,7 +15,39 @@ struct Windows {
   FlMethodChannel* channel;
   GHashTable* views;
   bool closing;
+  FlView* flutter;
+  std::vector<KeyBinding> key_bindings;
 };
+static gboolean preview_key(GtkWidget* widget, GdkEventKey* event, gpointer data) {
+  auto* windows = static_cast<Windows*>(data);
+  if (windows->key_bindings.empty()) return FALSE;
+  auto state = static_cast<GdkModifierType>(event->state);
+  auto* keymap = gdk_keymap_get_for_display(gtk_widget_get_display(widget));
+  gdk_keymap_add_virtual_modifiers(keymap, &state);
+  guint base = 0, shifted = 0;
+  gdk_keymap_translate_keyboard_state(keymap, event->hardware_keycode,
+      static_cast<GdkModifierType>(0), event->group, &base, nullptr, nullptr, nullptr);
+  gdk_keymap_translate_keyboard_state(keymap, event->hardware_keycode,
+      GDK_SHIFT_MASK, event->group, &shifted, nullptr, nullptr, nullptr);
+  const auto* binding = nauvim_key_binding(windows->key_bindings,
+      nauvim_shortcut_keyval(event->keyval, base, shifted), state);
+  if (!binding) return FALSE;
+  auto* view = WEBKIT_WEB_VIEW(widget);
+  if (binding->action == PreviewAction::reload) webkit_web_view_reload(view);
+  else if (binding->action == PreviewAction::go_back) webkit_web_view_go_back(view);
+  else if (binding->action == PreviewAction::go_forward) webkit_web_view_go_forward(view);
+  else if (binding->action == PreviewAction::focus_editor) gtk_widget_grab_focus(GTK_WIDGET(windows->flutter));
+  else if (binding->action == PreviewAction::close) {
+    auto* handle = static_cast<gint64*>(g_object_get_data(G_OBJECT(widget), "nauvim-handle"));
+    if (handle) {
+      g_autoptr(FlValue) args = fl_value_new_int(*handle);
+      fl_method_channel_invoke_method(windows->channel, "close_webview_requested", args,
+                                     nullptr, nullptr, nullptr);
+    }
+    gtk_widget_grab_focus(GTK_WIDGET(windows->flutter));
+  } else return FALSE;
+  return TRUE;
+}
 static void report_error(Windows* windows, const char* message) {
   g_autoptr(FlValue) args = fl_value_new_string(message);
   fl_method_channel_invoke_method(windows->channel, "window_error", args,
@@ -199,12 +232,23 @@ static void call(FlMethodChannel*, FlMethodCall* call, gpointer data) {
   } else if (g_str_equal(name, "title")) {
     gtk_window_set_title(windows->main, string(args, "title"));
   } else if (g_str_equal(name, "open_webview")) {
+    windows->key_bindings.clear();
+    FlValue* bindings = value(args, "key_bindings");
+    if (bindings && fl_value_get_type(bindings) == FL_VALUE_TYPE_LIST) {
+      for (size_t i = 0; i < fl_value_get_length(bindings); ++i) {
+        FlValue* binding = fl_value_get_list_value(bindings, i);
+        windows->key_bindings.push_back({string(binding, "key"),
+            static_cast<unsigned>(integer(binding, "modifiers")), string(binding, "action")});
+      }
+    }
     gint64 handle = integer(args, "handle");
     GtkWidget* view = GTK_WIDGET(g_hash_table_lookup(windows->views, &handle));
     if (!view) {
       view = webkit_web_view_new();
       gint64* key = g_new(gint64, 1); *key = handle;
       g_hash_table_insert(windows->views, key, view);
+      g_object_set_data(G_OBJECT(view), "nauvim-handle", key);
+      g_signal_connect(view, "key-press-event", G_CALLBACK(preview_key), windows);
       gtk_widget_set_halign(view, GTK_ALIGN_START);
       gtk_widget_set_valign(view, GTK_ALIGN_START);
       gtk_overlay_add_overlay(windows->overlay, view);
@@ -248,7 +292,7 @@ void nauvim_register_windows(FlView* view, GtkWindow* window, GtkOverlay* overla
   FlMethodChannel* channel = fl_method_channel_new(fl_engine_get_binary_messenger(fl_view_get_engine(view)),
       "io.nauvim/window", FL_METHOD_CODEC(codec));
   auto* windows = new Windows { window, overlay, channel,
-      g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, nullptr), false };
+      g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, nullptr), false, view, {} };
   fl_method_channel_set_method_call_handler(channel, call, windows, nullptr);
   g_signal_connect(window, "delete-event", G_CALLBACK(closing), windows);
   g_object_set_data_full(G_OBJECT(window), "nauvim-windows", windows, destroy);

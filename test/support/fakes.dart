@@ -97,8 +97,11 @@ class FakePlatform implements NauvimPlatform {
   @override
   Future<void> writeClipboard(String text) async => clipboard.add(text);
   @override
-  Future<void> openPreview(DisplayWindow window, Rect rectangle) async =>
-      previews.add((window, rectangle));
+  Future<void> openPreview(
+    DisplayWindow window,
+    Rect rectangle, {
+    List<KeyBinding> keyBindings = const [],
+  }) async => previews.add((window, rectangle));
   @override
   Future<void> closePreview(int handle) async => closedPreviews.add(handle);
   @override

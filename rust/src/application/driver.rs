@@ -58,6 +58,7 @@ pub(super) async fn run(
         hosts: config.hosts().map(str::to_owned).collect(),
         default_host: config.default_host().map(str::to_owned),
         destination,
+        key_bindings: options.key_bindings,
         fonts: options.fonts,
         window_options: options.window,
         ..UiUpdate::default()

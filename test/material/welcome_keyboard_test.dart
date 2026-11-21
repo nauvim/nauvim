@@ -12,6 +12,7 @@ Future<({FakeEngine engine, NauvimController controller})> welcome(
   bool ready = true,
   List<String> hosts = const ['local', 'work'],
   FakePlatform? platform,
+  KeyBindings? keyBindings,
 }) async {
   debugDefaultTargetPlatformOverride = TargetPlatform.linux;
   final engine = FakeEngine();
@@ -27,7 +28,14 @@ Future<({FakeEngine engine, NauvimController controller})> welcome(
   });
   await tester.pumpWidget(NauvimMaterialApp(controller: controller));
   if (ready) {
-    engine.emit(UiUpdate(kind: 'ready', hosts: hosts, fonts: const []));
+    engine.emit(
+      UiUpdate(
+        kind: 'ready',
+        hosts: hosts,
+        fonts: const [],
+        keyBindings: keyBindings,
+      ),
+    );
   }
   await tester.pump();
   await tester.pump();
@@ -93,6 +101,116 @@ Future<void> manualEntry(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('keeps lowercase j navigation and handles capital J as Shift-j', (
+    tester,
+  ) async {
+    await welcome(
+      tester,
+      keyBindings: const KeyBindings(
+        welcome: [
+          KeyBinding(key: 'j', modifiers: 2, action: KeyAction.selectPrevious),
+        ],
+        clipboard: [],
+        webview: [],
+      ),
+    );
+    await key(tester, LogicalKeyboardKey.keyJ);
+    expect(selectedItem(tester), 'local');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyJ);
+    await tester.pump();
+    expect(selectedItem(tester), 'Default local host');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyJ);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.keyJ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyJ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(selectedItem(tester), 'work');
+  });
+
+  testWidgets(
+    'remaps menu commands, unbinds defaults, and retains other keys',
+    (tester) async {
+      final platform = FakePlatform();
+      final (:engine, :controller) = await welcome(
+        tester,
+        platform: platform,
+        keyBindings: const KeyBindings(
+          welcome: [
+            KeyBinding(
+              key: 'j',
+              modifiers: 0,
+              action: KeyAction.selectPrevious,
+            ),
+            KeyBinding(key: 'k', modifiers: 0),
+            KeyBinding(key: 'enter', modifiers: 0),
+            KeyBinding(key: 'escape', modifiers: 0),
+            KeyBinding(key: 'q', modifiers: 0),
+            KeyBinding(key: 'f2', modifiers: 0, action: KeyAction.activate),
+            KeyBinding(key: 'f3', modifiers: 0, action: KeyAction.back),
+            KeyBinding(key: 'q', modifiers: 1, action: KeyAction.quit),
+          ],
+          clipboard: [],
+          webview: [],
+        ),
+      );
+      await key(tester, LogicalKeyboardKey.keyJ);
+      expect(selectedItem(tester), 'Type yourself');
+      await key(tester, LogicalKeyboardKey.keyK);
+      expect(selectedItem(tester), 'Type yourself');
+      await key(tester, LogicalKeyboardKey.arrowUp);
+      expect(selectedItem(tester), 'work');
+      await key(tester, LogicalKeyboardKey.enter);
+      expect(engine.connections, isEmpty);
+      await key(tester, LogicalKeyboardKey.f2);
+      expect(engine.connections.single.$1, 'work');
+      await key(tester, LogicalKeyboardKey.escape);
+      expect(engine.detaches, 0);
+      await key(tester, LogicalKeyboardKey.f3);
+      expect(engine.detaches, 1);
+      await returnToWelcome(tester, engine);
+      await key(tester, LogicalKeyboardKey.keyQ);
+      expect(controller.closing, isFalse);
+      await controlKey(tester, LogicalKeyboardKey.keyQ);
+      await finishQuit(tester, platform);
+    },
+  );
+
+  testWidgets(
+    'uses configured accept and back keys while preserving host text input',
+    (tester) async {
+      final (:engine, :controller) = await welcome(
+        tester,
+        keyBindings: const KeyBindings(
+          welcome: [
+            KeyBinding(key: 'enter', modifiers: 0),
+            KeyBinding(key: 'escape', modifiers: 0),
+            KeyBinding(key: 'f2', modifiers: 0, action: KeyAction.activate),
+            KeyBinding(key: 'f3', modifiers: 0, action: KeyAction.back),
+            KeyBinding(key: 'x', modifiers: 0, action: KeyAction.selectNext),
+          ],
+          clipboard: [],
+          webview: [],
+        ),
+      );
+      await tester.tap(find.widgetWithText(ListTile, 'Type yourself'));
+      await tester.pump();
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyX), isFalse);
+      expect(await tester.sendKeyEvent(LogicalKeyboardKey.keyQ), isFalse);
+      tester.testTextInput.enterText('qx');
+      await key(tester, LogicalKeyboardKey.enter);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      expect(engine.connections, isEmpty);
+      expect(controller.closing, isFalse);
+      await key(tester, LogicalKeyboardKey.f3);
+      expect(find.byType(TextField), findsNothing);
+      await key(tester, LogicalKeyboardKey.f2);
+      expect(hostField(tester).controller!.text, 'qx');
+      await key(tester, LogicalKeyboardKey.f2);
+      expect(engine.connections.single.$1, 'qx');
+    },
+  );
+
   testWidgets('starts in selection mode and activates only when ready', (
     tester,
   ) async {
