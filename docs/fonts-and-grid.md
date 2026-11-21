@@ -67,8 +67,11 @@ dimension. The default design reserves exactly one additional cell row directly
 below it for command input and messages. This reservation stays constant when
 messages appear or disappear. It does not alter `cmdheight`.
 
-Initial dimensions and margins come from the frontend's selected UI opts in
-logical pixels. Native resize increments use the cell dimensions, with toolbar,
+Initial dimensions and margins come from the frontend's selected UI opts. Integer
+and `px` values use logical pixels; `em` values resolve at startup using the
+measured cell width or height for the corresponding axis. See the
+[UI option reference](../README.md#ui-options) for syntax and rounding rules.
+Native resize increments use the cell dimensions, with toolbar,
 margins and other chrome as the base size. The runner snaps ordinary window sizes
 to those increments.
 GTK requires integer logical increments; when a HiDPI cell occupies a fraction

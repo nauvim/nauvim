@@ -8,6 +8,7 @@ import 'package:nauvim_flutter/src/headless/engine.dart';
 import 'package:nauvim_flutter/src/headless/platform.dart';
 import 'package:nauvim_flutter/src/headless/protocol.dart';
 import 'package:nauvim_flutter/src/headless/viewport.dart';
+import 'package:nauvim_flutter/src/headless/window_geometry.dart';
 
 import '../support/fakes.dart' show fixtureFonts;
 
@@ -93,7 +94,7 @@ final class Platform implements NauvimPlatform {
   }
 
   @override
-  Future<void> configureInitialWindow(DisplayWindowOptions options) async {
+  Future<void> configureInitialWindow(WindowOptions options) async {
     calls.add(('initial_window', options));
     await windowGate?.future;
   }
@@ -189,10 +190,15 @@ void main() {
   test(
     'applies initial window options once before font discovery and startup',
     () async {
-      const margins = DisplayMargins(top: 3, bottom: 5, left: 7, right: 11);
+      const margins = DisplayMargins(
+        top: DisplayLength(value: 3, unit: DisplayLengthUnit.px),
+        bottom: DisplayLength(value: 5, unit: DisplayLengthUnit.px),
+        left: DisplayLength(value: 7, unit: DisplayLengthUnit.px),
+        right: DisplayLength(value: 11, unit: DisplayLengthUnit.px),
+      );
       const options = DisplayWindowOptions(
-        width: 960,
-        height: 640,
+        width: DisplayLength(value: 960, unit: DisplayLengthUnit.px),
+        height: DisplayLength(value: 640, unit: DisplayLengthUnit.px),
         margin: margins,
         decorations: DisplayDecorations.none,
         opacity: 0.8,
@@ -202,8 +208,22 @@ void main() {
       engine.events.add(const Update(kind: 'ready', windowOptions: options));
       engine.events.add(const Update(kind: 'ready', windowOptions: options));
       await settle();
-      expect(platform.calls, [('initial_window', options)]);
-      expect(controller.windowMargins, same(margins));
+      final initial = platform.calls.single.$2 as WindowOptions;
+      expect((initial.width, initial.height), (960, 640));
+      expect(
+        (
+          initial.margin.top,
+          initial.margin.bottom,
+          initial.margin.left,
+          initial.margin.right,
+        ),
+        (3, 5, 7, 11),
+      );
+      expect(
+        (initial.decorations, initial.opacity, initial.startupMode),
+        (DisplayDecorations.none, 0.8, DisplayStartupMode.fullscreen),
+      );
+      expect(controller.windowMargins, same(initial.margin));
       expect(controller.ready, isFalse);
       controller.updateViewport(viewport(controller));
       expect(engine.calls, isEmpty);
@@ -218,17 +238,79 @@ void main() {
         const Update(
           kind: 'ready',
           windowOptions: DisplayWindowOptions(
-            width: 1000,
-            height: 700,
-            margin: DisplayMargins(top: 0, bottom: 0, left: 0, right: 0),
+            width: DisplayLength(value: 1000, unit: DisplayLengthUnit.px),
+            height: DisplayLength(value: 700, unit: DisplayLengthUnit.px),
+            margin: DisplayMargins(
+              top: DisplayLength(value: 0, unit: DisplayLengthUnit.px),
+              bottom: DisplayLength(value: 0, unit: DisplayLengthUnit.px),
+              left: DisplayLength(value: 0, unit: DisplayLengthUnit.px),
+              right: DisplayLength(value: 0, unit: DisplayLengthUnit.px),
+            ),
           ),
         ),
       );
       await settle();
-      expect(platform.calls, [('initial_window', options)]);
-      expect(controller.windowMargins, same(margins));
+      expect(platform.calls, [('initial_window', initial)]);
+      expect(controller.windowMargins, same(initial.margin));
     },
   );
+
+  test('resolves em geometry from selected-font cells before startup and retains it', () async {
+    const zero = DisplayLength(value: 0, unit: DisplayLengthUnit.px);
+    const options = DisplayWindowOptions(
+      width: DisplayLength(value: 100, unit: DisplayLengthUnit.em),
+      height: DisplayLength(value: 40, unit: DisplayLengthUnit.em),
+      margin: DisplayMargins(
+        top: DisplayLength(value: 0.5, unit: DisplayLengthUnit.em),
+        bottom: zero,
+        left: DisplayLength(value: 0.5, unit: DisplayLengthUnit.em),
+        right: zero,
+      ),
+    );
+    final fallback = controller.font;
+    platform.fontGate = Completer();
+    platform.windowGate = Completer();
+    engine.events.add(const Update(kind: 'ready', windowOptions: options));
+    controller.updateViewport(viewport(controller));
+    await settle();
+    expect(platform.calls, isEmpty);
+    expect(engine.calls, isEmpty);
+    platform.fontGate!.complete(['monospace']);
+    await settle();
+    expect(controller.ready, isFalse);
+    controller.updateWindowGrid(
+      const WindowGrid(
+        cellWidth: 99,
+        cellHeight: 99,
+        baseWidth: 0,
+        baseHeight: 0,
+      ),
+      const Size(800, 480),
+      font: fallback,
+    );
+    expect(platform.calls, isEmpty);
+    final measured = EditorViewport(
+      font: controller.font,
+      size: const Size(680, 372),
+      cellWidth: 8.5,
+      cellHeight: 15.5,
+    );
+    controller.updateViewport(measured);
+    final initial = platform.calls.single.$2 as WindowOptions;
+    expect((initial.width, initial.height), (850, 620));
+    expect((initial.margin.top, initial.margin.left), (8, 4));
+    expect(controller.viewport, isNull);
+    expect(engine.calls, isEmpty);
+    platform.windowGate!.complete();
+    await settle();
+    expect(controller.ready, isTrue);
+    expect(engine.calls, isEmpty);
+    controller.updateViewport(measured);
+    expect(engine.calls, [('start', (80, 24))]);
+    controller.updateViewport(viewport(controller));
+    expect(platform.calls, [('initial_window', initial)]);
+    expect(controller.windowMargins, same(initial.margin));
+  });
 
   test('starts once after font discovery and a matching viewport without a widget tree', () async {
     platform.fontGate = Completer();

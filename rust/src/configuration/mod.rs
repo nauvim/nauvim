@@ -1,7 +1,8 @@
 //! Validates the selected UI dictionary and resolves configuration-relative paths.
 
 use crate::api::display::{
-    DisplayDecorations, DisplayFont, DisplayMargins, DisplayStartupMode, DisplayWindowOptions,
+    DisplayDecorations, DisplayFont, DisplayLength, DisplayLengthUnit, DisplayMargins,
+    DisplayStartupMode, DisplayWindowOptions,
 };
 
 use nauvim_core::{Config, Error, UiConfig, UiTable, UiValue};
@@ -119,17 +120,19 @@ fn window(config: &UiConfig) -> Result<Option<DisplayWindowOptions>, Error> {
                     let margin = table(config, value, "window.margin")?;
                     fields(margin, &["top", "bottom", "left", "right"], "window.margin")?;
                     DisplayMargins {
-                        top: integer(margin.get("top"), "window.margin.top", 0)?.unwrap_or(0),
-                        bottom: integer(margin.get("bottom"), "window.margin.bottom", 0)?
-                            .unwrap_or(0),
-                        left: integer(margin.get("left"), "window.margin.left", 0)?.unwrap_or(0),
-                        right: integer(margin.get("right"), "window.margin.right", 0)?.unwrap_or(0),
+                        top: length(margin.get("top"), "window.margin.top", 0)?.unwrap_or_default(),
+                        bottom: length(margin.get("bottom"), "window.margin.bottom", 0)?
+                            .unwrap_or_default(),
+                        left: length(margin.get("left"), "window.margin.left", 0)?
+                            .unwrap_or_default(),
+                        right: length(margin.get("right"), "window.margin.right", 0)?
+                            .unwrap_or_default(),
                     }
                 }
             };
             Some(DisplayWindowOptions {
-                width: integer(window.get("width"), "window.width", 1)?,
-                height: integer(window.get("height"), "window.height", 1)?,
+                width: length(window.get("width"), "window.width", 1)?,
+                height: length(window.get("height"), "window.height", 1)?,
                 margin,
                 decorations: match window.get("decorations") {
                     None | Some(UiValue::Nil) => None,
@@ -158,6 +161,46 @@ fn window(config: &UiConfig) -> Result<Option<DisplayWindowOptions>, Error> {
             })
         }
     })
+}
+
+fn length(value: Option<&UiValue>, field: &str, min: u32) -> Result<Option<DisplayLength>, Error> {
+    let invalid_length = || {
+        invalid(format!(
+            "{field} must be {} integer pixels, integer 'px', finite 'em', or nil",
+            if min == 0 { "nonnegative" } else { "positive" },
+        ))
+    };
+    let (value, unit) = match value {
+        None | Some(UiValue::Nil) => return Ok(None),
+        Some(UiValue::Integer(value)) => (
+            f64::from(u32::try_from(*value).map_err(|_| invalid_length())?),
+            DisplayLengthUnit::Px,
+        ),
+        Some(UiValue::String(bytes)) => {
+            let s = str::from_utf8(bytes).map_err(|_| invalid_length())?;
+            if let Some(s) = s.strip_suffix("px") {
+                if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+                    return Err(invalid_length());
+                }
+                (
+                    f64::from(s.parse::<u32>().map_err(|_| invalid_length())?),
+                    DisplayLengthUnit::Px,
+                )
+            } else if let Some(s) = s.strip_suffix("em") {
+                (
+                    s.parse::<f64>().map_err(|_| invalid_length())?,
+                    DisplayLengthUnit::Em,
+                )
+            } else {
+                return Err(invalid_length());
+            }
+        }
+        _ => return Err(invalid_length()),
+    };
+    if !value.is_finite() || value < 0.0 || (min > 0 && value == 0.0) {
+        return Err(invalid_length());
+    }
+    Ok(Some(DisplayLength { value, unit }))
 }
 
 fn opacity(value: Option<&UiValue>) -> Result<Option<f64>, Error> {

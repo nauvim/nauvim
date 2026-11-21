@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -633209719;
+  int get rustContentHash => -1236008271;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -146,6 +146,10 @@ abstract class RustLibApi extends BaseApi {
   Future<Application> crateApiApplicationCreateApplication({
     String? configPath,
   });
+
+  Future<DisplayLength> crateApiDisplayDisplayLengthDefault();
+
+  Future<DisplayLengthUnit> crateApiDisplayDisplayLengthUnitDefault();
 
   Future<DisplayMargins> crateApiDisplayDisplayMarginsDefault();
 
@@ -705,7 +709,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<DisplayMargins> crateApiDisplayDisplayMarginsDefault() {
+  Future<DisplayLength> crateApiDisplayDisplayLengthDefault() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -714,6 +718,63 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             generalizedFrbRustBinding,
             serializer,
             funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_display_length,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDisplayDisplayLengthDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDisplayDisplayLengthDefaultConstMeta =>
+      const TaskConstMeta(debugName: "display_length_default", argNames: []);
+
+  @override
+  Future<DisplayLengthUnit> crateApiDisplayDisplayLengthUnitDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_display_length_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDisplayDisplayLengthUnitDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDisplayDisplayLengthUnitDefaultConstMeta =>
+      const TaskConstMeta(
+        debugName: "display_length_unit_default",
+        argNames: [],
+      );
+
+  @override
+  Future<DisplayMargins> crateApiDisplayDisplayMarginsDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
             port: port_,
           );
         },
@@ -740,7 +801,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 18,
             port: port_,
           );
         },
@@ -767,7 +828,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 19,
             port: port_,
           );
         },
@@ -802,7 +863,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 20,
             port: port_,
           );
         },
@@ -831,7 +892,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 21,
             port: port_,
           );
         },
@@ -932,6 +993,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   DisplayFrame dco_decode_box_autoadd_display_frame(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_display_frame(raw);
+  }
+
+  @protected
+  DisplayLength dco_decode_box_autoadd_display_length(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_display_length(raw);
   }
 
   @protected
@@ -1115,16 +1182,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayLength dco_decode_display_length(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return DisplayLength(
+      value: dco_decode_f_64(arr[0]),
+      unit: dco_decode_display_length_unit(arr[1]),
+    );
+  }
+
+  @protected
+  DisplayLengthUnit dco_decode_display_length_unit(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DisplayLengthUnit.values[raw as int];
+  }
+
+  @protected
   DisplayMargins dco_decode_display_margins(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 4)
       throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return DisplayMargins(
-      top: dco_decode_u_32(arr[0]),
-      bottom: dco_decode_u_32(arr[1]),
-      left: dco_decode_u_32(arr[2]),
-      right: dco_decode_u_32(arr[3]),
+      top: dco_decode_display_length(arr[0]),
+      bottom: dco_decode_display_length(arr[1]),
+      left: dco_decode_display_length(arr[2]),
+      right: dco_decode_display_length(arr[3]),
     );
   }
 
@@ -1190,8 +1275,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 6)
       throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return DisplayWindowOptions(
-      width: dco_decode_opt_box_autoadd_u_32(arr[0]),
-      height: dco_decode_opt_box_autoadd_u_32(arr[1]),
+      width: dco_decode_opt_box_autoadd_display_length(arr[0]),
+      height: dco_decode_opt_box_autoadd_display_length(arr[1]),
       margin: dco_decode_display_margins(arr[2]),
       decorations: dco_decode_opt_box_autoadd_display_decorations(arr[3]),
       opacity: dco_decode_opt_box_autoadd_f_64(arr[4]),
@@ -1424,6 +1509,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayLength? dco_decode_opt_box_autoadd_display_length(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_display_length(raw);
+  }
+
+  @protected
   DisplayStartupMode? dco_decode_opt_box_autoadd_display_startup_mode(
     dynamic raw,
   ) {
@@ -1628,6 +1719,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_display_frame(deserializer));
+  }
+
+  @protected
+  DisplayLength sse_decode_box_autoadd_display_length(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_display_length(deserializer));
   }
 
   @protected
@@ -1836,12 +1935,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayLength sse_decode_display_length(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_value = sse_decode_f_64(deserializer);
+    var var_unit = sse_decode_display_length_unit(deserializer);
+    return DisplayLength(value: var_value, unit: var_unit);
+  }
+
+  @protected
+  DisplayLengthUnit sse_decode_display_length_unit(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return DisplayLengthUnit.values[inner];
+  }
+
+  @protected
   DisplayMargins sse_decode_display_margins(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_top = sse_decode_u_32(deserializer);
-    var var_bottom = sse_decode_u_32(deserializer);
-    var var_left = sse_decode_u_32(deserializer);
-    var var_right = sse_decode_u_32(deserializer);
+    var var_top = sse_decode_display_length(deserializer);
+    var var_bottom = sse_decode_display_length(deserializer);
+    var var_left = sse_decode_display_length(deserializer);
+    var var_right = sse_decode_display_length(deserializer);
     return DisplayMargins(
       top: var_top,
       bottom: var_bottom,
@@ -1919,8 +2035,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_width = sse_decode_opt_box_autoadd_u_32(deserializer);
-    var var_height = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_width = sse_decode_opt_box_autoadd_display_length(deserializer);
+    var var_height = sse_decode_opt_box_autoadd_display_length(deserializer);
     var var_margin = sse_decode_display_margins(deserializer);
     var var_decorations = sse_decode_opt_box_autoadd_display_decorations(
       deserializer,
@@ -2292,6 +2408,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayLength? sse_decode_opt_box_autoadd_display_length(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_display_length(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   DisplayStartupMode? sse_decode_opt_box_autoadd_display_startup_mode(
     SseDeserializer deserializer,
   ) {
@@ -2558,6 +2687,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_display_length(
+    DisplayLength self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_display_length(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_display_startup_mode(
     DisplayStartupMode self,
     SseSerializer serializer,
@@ -2709,15 +2847,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_display_length(DisplayLength self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.value, serializer);
+    sse_encode_display_length_unit(self.unit, serializer);
+  }
+
+  @protected
+  void sse_encode_display_length_unit(
+    DisplayLengthUnit self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_display_margins(
     DisplayMargins self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_u_32(self.top, serializer);
-    sse_encode_u_32(self.bottom, serializer);
-    sse_encode_u_32(self.left, serializer);
-    sse_encode_u_32(self.right, serializer);
+    sse_encode_display_length(self.top, serializer);
+    sse_encode_display_length(self.bottom, serializer);
+    sse_encode_display_length(self.left, serializer);
+    sse_encode_display_length(self.right, serializer);
   }
 
   @protected
@@ -2769,8 +2923,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_opt_box_autoadd_u_32(self.width, serializer);
-    sse_encode_opt_box_autoadd_u_32(self.height, serializer);
+    sse_encode_opt_box_autoadd_display_length(self.width, serializer);
+    sse_encode_opt_box_autoadd_display_length(self.height, serializer);
     sse_encode_display_margins(self.margin, serializer);
     sse_encode_opt_box_autoadd_display_decorations(
       self.decorations,
@@ -3097,6 +3251,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_display_frame(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_display_length(
+    DisplayLength? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_display_length(self, serializer);
     }
   }
 

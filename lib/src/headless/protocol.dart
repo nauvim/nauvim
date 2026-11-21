@@ -10,6 +10,8 @@ export '../bridge/api/display.dart'
         DisplayFrame,
         DisplayGrid,
         DisplayMargins,
+        DisplayLength,
+        DisplayLengthUnit,
         DisplayHighlight,
         DisplayRow,
         DisplayWidget,

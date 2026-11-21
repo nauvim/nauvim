@@ -9,6 +9,9 @@ import 'platform.dart';
 import 'previews.dart';
 import 'protocol.dart';
 import 'viewport.dart';
+import 'window_geometry.dart';
+
+enum _WindowSetup { waiting, cells, applying, done }
 
 /// The application state shared by every visual design.
 enum SessionPhase { welcome, connecting, attached, closing }
@@ -49,14 +52,15 @@ final class NauvimController extends ChangeNotifier {
   bool _disposed = false;
   bool _ready = false;
   bool _started = false;
-  bool _windowConfigured = false;
+  _WindowSetup _windowSetup = _WindowSetup.waiting;
+  DisplayWindowOptions? _pendingWindow;
   int _attachment = 0;
   int _fontRequest = 0;
   (double, double, double, double, int, Size)? _windowGrid;
   (int, int)? _dimensions;
   EditorViewport? _viewport;
   EditorFont _font = const EditorFont.fallback();
-  DisplayMargins? _windowMargins;
+  WindowMargins? _windowMargins;
   SessionPhase _phase = SessionPhase.welcome;
   String _destination = '';
   List<String> _hosts = const [];
@@ -68,13 +72,13 @@ final class NauvimController extends ChangeNotifier {
   bool get attached => _phase == SessionPhase.attached;
   bool get connecting => _phase == SessionPhase.connecting;
   bool get closing => _phase == SessionPhase.closing;
-  bool get ready => _ready;
+  bool get ready => _ready && _windowSetup == _WindowSetup.done;
   bool get hasEngine => _engine != null;
   String get destination => _destination;
   List<String> get hosts => _hosts;
   EditorFont get font => _font;
   EditorViewport? get viewport => _viewport;
-  DisplayMargins? get windowMargins => _windowMargins;
+  WindowMargins? get windowMargins => _windowMargins;
   List<String> get errors => _errors;
 
   void _changed() {
@@ -141,13 +145,14 @@ final class NauvimController extends ChangeNotifier {
     DisplayWindowOptions? windowOptions,
   ) async {
     final request = ++_fontRequest;
-    if (!_windowConfigured) {
-      _windowConfigured = true;
-      _windowMargins = windowOptions?.margin;
-      if (windowOptions != null) {
-        _initialWindow = _guard(
-          () => _platform.configureInitialWindow(windowOptions),
-        );
+    if (_windowSetup == _WindowSetup.waiting) {
+      if (windowOptions == null) {
+        _windowSetup = _WindowSetup.done;
+      } else if (windowUsesCells(windowOptions)) {
+        _pendingWindow = windowOptions;
+        _windowSetup = _WindowSetup.cells;
+      } else {
+        _initialWindow = _configureWindow(windowOptions);
       }
     }
     await _initialWindow;
@@ -172,8 +177,50 @@ final class NauvimController extends ChangeNotifier {
     _startIfMeasured();
   }
 
-  void updateWindowGrid(WindowGrid grid, Size windowSize) {
+  Future<void> _configureWindow(
+    DisplayWindowOptions options, {
+    double? cellWidth,
+    double? cellHeight,
+  }) async {
+    _windowSetup = _WindowSetup.applying;
+    _pendingWindow = null;
+    WindowOptions resolved;
+    try {
+      resolved = WindowOptions.resolve(
+        options,
+        cellWidth: cellWidth,
+        cellHeight: cellHeight,
+      );
+    } catch (e) {
+      reportError('Resolve window geometry: $e');
+      resolved = WindowOptions(
+        decorations: options.decorations,
+        opacity: options.opacity,
+        startupMode: options.startupMode,
+      );
+    }
+    _windowMargins = resolved.margin;
+    await _guard(() => _platform.configureInitialWindow(resolved));
+    _windowSetup = _WindowSetup.done;
+    _changed();
+  }
+
+  bool _windowReady(double cellWidth, double cellHeight) {
+    if (_windowSetup == _WindowSetup.cells) {
+      _initialWindow = _configureWindow(
+        _pendingWindow!,
+        cellWidth: cellWidth,
+        cellHeight: cellHeight,
+      );
+    }
+    return _windowSetup == _WindowSetup.done;
+  }
+
+  /// Reports native resize hints and, with a matching [font], startup cell sizes.
+  void updateWindowGrid(WindowGrid grid, Size windowSize, {EditorFont? font}) {
     if (_disposed || closing || !_ready) return;
+    if (_windowSetup == _WindowSetup.cells && !identical(font, _font)) return;
+    if (!_windowReady(grid.cellWidth, grid.cellHeight)) return;
     final key = (
       grid.cellWidth,
       grid.cellHeight,
@@ -270,6 +317,10 @@ final class NauvimController extends ChangeNotifier {
       reportError('Measure editor viewport: invalid dimensions');
       return;
     }
+    if (_windowSetup == _WindowSetup.cells && !_ready) return;
+    if (_ready && !_windowReady(viewport.cellWidth, viewport.cellHeight)) {
+      return;
+    }
     _viewport = viewport;
     _previews.layout(viewport, attached: attached);
     final dimensions = (viewport.columns, viewport.rows);
@@ -298,6 +349,7 @@ final class NauvimController extends ChangeNotifier {
     if (_disposed ||
         closing ||
         !_ready ||
+        _windowSetup != _WindowSetup.done ||
         _started ||
         viewport == null ||
         engine == null ||

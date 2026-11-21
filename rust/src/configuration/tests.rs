@@ -2,6 +2,20 @@ use super::*;
 
 use nauvim_core::{Config, HostInfo, ProjectDirs};
 
+fn px(value: u32) -> DisplayLength {
+    DisplayLength {
+        value: f64::from(value),
+        unit: DisplayLengthUnit::Px,
+    }
+}
+
+fn em(value: f64) -> DisplayLength {
+    DisplayLength {
+        value,
+        unit: DisplayLengthUnit::Em,
+    }
+}
+
 fn info(path: &Path) -> HostInfo {
     HostInfo {
         host_name: "ui-options-test".into(),
@@ -93,7 +107,10 @@ fn parses_initial_size_and_independent_nonnegative_margins() {
         parse("{window={height=1080,width=1920,margin={top=0,bottom=10,left=20,right=30}}}")
             .unwrap();
     let window = options.window.unwrap();
-    assert_eq!((window.width, window.height), (Some(1920), Some(1080)));
+    assert_eq!(
+        (window.width, window.height),
+        (Some(px(1920)), Some(px(1080)))
+    );
     assert_eq!(
         (
             window.margin.top,
@@ -101,11 +118,11 @@ fn parses_initial_size_and_independent_nonnegative_margins() {
             window.margin.left,
             window.margin.right
         ),
-        (0, 10, 20, 30)
+        (px(0), px(10), px(20), px(30))
     );
     let options = parse("{window={height=600}}").unwrap();
     let window = options.window.unwrap();
-    assert_eq!((window.width, window.height), (None, Some(600)));
+    assert_eq!((window.width, window.height), (None, Some(px(600))));
     assert_eq!(
         (
             window.margin.top,
@@ -113,7 +130,7 @@ fn parses_initial_size_and_independent_nonnegative_margins() {
             window.margin.left,
             window.margin.right
         ),
-        (0, 0, 0, 0)
+        (px(0), px(0), px(0), px(0))
     );
     for options in [
         "{window=false}",
@@ -130,6 +147,104 @@ fn parses_initial_size_and_independent_nonnegative_margins() {
             parse(options).is_err(),
             "Accepted invalid UI options {options}"
         );
+    }
+}
+
+#[test]
+fn parses_pixel_and_cell_lengths_independently() {
+    let window = parse("{window={width='1920px',height='40em',margin={top='0.5em',bottom='1em',left=8,right='8px'}}}")
+        .unwrap().window.unwrap();
+    assert_eq!(window.width, Some(px(1920)));
+    assert_eq!(window.height, Some(em(40.0)));
+    assert_eq!(
+        (
+            window.margin.top,
+            window.margin.bottom,
+            window.margin.left,
+            window.margin.right
+        ),
+        (em(0.5), em(1.0), px(8), px(8))
+    );
+
+    for (value, expected) in [
+        ("1", px(1)),
+        ("'1px'", px(1)),
+        ("'001px'", px(1)),
+        ("'4294967295px'", px(u32::MAX)),
+        ("'100em'", em(100.0)),
+        ("'0.5em'", em(0.5)),
+        ("'.5em'", em(0.5)),
+        ("'1e2em'", em(100.0)),
+    ] {
+        let options = parse(&format!("{{window={{width={value}}}}}")).unwrap();
+        assert_eq!(options.window.unwrap().width, Some(expected), "{value}");
+    }
+    for value in ["0", "'0px'", "'0em'"] {
+        let options = parse(&format!("{{window={{margin={{top={value}}}}}}}")).unwrap();
+        assert_eq!(options.window.unwrap().margin.top.value, 0.0, "{value}");
+    }
+    let options = parse("{window={width=nil,height=nil,margin={top=nil}}}")
+        .unwrap()
+        .window
+        .unwrap();
+    assert_eq!(
+        (options.width, options.height, options.margin.top),
+        (None, None, px(0))
+    );
+}
+
+#[test]
+fn rejects_malformed_units_and_nonfinite_lengths() {
+    for field in [
+        "width",
+        "height",
+        "margin.top",
+        "margin.bottom",
+        "margin.left",
+        "margin.right",
+    ] {
+        for value in [
+            "1.5",
+            "true",
+            "{}",
+            "'0.5px'",
+            "'1.0px'",
+            "'1e2px'",
+            "'4294967296px'",
+            "'-1px'",
+            "'-0.5em'",
+            "'NaNem'",
+            "'infem'",
+            "'1e309em'",
+            "'10pt'",
+            "'10PX'",
+            "'10EM'",
+            "'10'",
+            "''",
+            "'px'",
+            "'em'",
+            "' 1px'",
+            "'1em '",
+            "'1 em'",
+            "'1.2.3em'",
+            "'1pxem'",
+        ] {
+            let window = if let Some(side) = field.strip_prefix("margin.") {
+                format!("margin={{{side}={value}}}")
+            } else {
+                format!("{field}={value}")
+            };
+            let e = parse(&format!("{{window={{{window}}}}}")).err().unwrap();
+            assert!(e.to_string().contains(field), "{field}={value}: {e}");
+        }
+    }
+    for field in ["width", "height"] {
+        for value in ["0", "'0px'", "'0em'", "'-0em'"] {
+            assert!(
+                parse(&format!("{{window={{{field}={value}}}}}")).is_err(),
+                "{field}={value}"
+            );
+        }
     }
 }
 
@@ -164,7 +279,7 @@ fn parses_window_appearance_and_startup_modes() {
             assert_eq!(selected, mode);
             assert_eq!(
                 (options.width, options.height, options.margin.left),
-                (Some(960), Some(640), 8)
+                (Some(px(960)), Some(px(640)), px(8))
             );
         }
     }

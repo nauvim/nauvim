@@ -7,6 +7,8 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `fmt`, `fmt`
+
 /// Cell text and its Neovim highlight handle.
 ///
 /// An empty string can be a continuation cell of a wider glyph.
@@ -353,12 +355,43 @@ class DisplayHighlight {
           blend == other.blend;
 }
 
-/// Nonnegative logical-pixel margins around the editor and command row.
+/// A geometry value and its unit, resolved after editor cells are measured.
+class DisplayLength {
+  final double value;
+  final DisplayLengthUnit unit;
+
+  const DisplayLength({required this.value, required this.unit});
+
+  static Future<DisplayLength> default_() =>
+      RustLib.instance.api.crateApiDisplayDisplayLengthDefault();
+
+  @override
+  int get hashCode => value.hashCode ^ unit.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DisplayLength &&
+          runtimeType == other.runtimeType &&
+          value == other.value &&
+          unit == other.unit;
+}
+
+/// The scale of a window geometry value; em uses the corresponding cell axis.
+enum DisplayLengthUnit {
+  px,
+  em;
+
+  static Future<DisplayLengthUnit> default_() =>
+      RustLib.instance.api.crateApiDisplayDisplayLengthUnitDefault();
+}
+
+/// Nonnegative margins around the editor and command row.
 class DisplayMargins {
-  final int top;
-  final int bottom;
-  final int left;
-  final int right;
+  final DisplayLength top;
+  final DisplayLength bottom;
+  final DisplayLength left;
+  final DisplayLength right;
 
   const DisplayMargins({
     required this.top,
@@ -516,10 +549,10 @@ class DisplayWindow {
           width == other.width;
 }
 
-/// Startup appearance, mode, client-area dimensions, and logical-pixel margins.
+/// Startup appearance, mode, client-area dimensions, and editor margins.
 class DisplayWindowOptions {
-  final int? width;
-  final int? height;
+  final DisplayLength? width;
+  final DisplayLength? height;
   final DisplayMargins margin;
   final DisplayDecorations? decorations;
 

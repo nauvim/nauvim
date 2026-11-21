@@ -21,11 +21,11 @@ pub struct DisplayFont {
     pub path: Option<String>,
 }
 
-/// Startup appearance, mode, client-area dimensions, and logical-pixel margins.
+/// Startup appearance, mode, client-area dimensions, and editor margins.
 #[derive(Default)]
 pub struct DisplayWindowOptions {
-    pub width: Option<u32>,
-    pub height: Option<u32>,
+    pub width: Option<DisplayLength>,
+    pub height: Option<DisplayLength>,
     pub margin: DisplayMargins,
     pub decorations: Option<DisplayDecorations>,
     /// Whole-window opacity, including text, controls, and native previews.
@@ -46,13 +46,28 @@ pub enum DisplayStartupMode {
     Fullscreen,
 }
 
-/// Nonnegative logical-pixel margins around the editor and command row.
+/// A geometry value and its unit, resolved after editor cells are measured.
+#[derive(Debug, Default, PartialEq)]
+pub struct DisplayLength {
+    pub value: f64,
+    pub unit: DisplayLengthUnit,
+}
+
+/// The scale of a window geometry value; em uses the corresponding cell axis.
+#[derive(Debug, Default, PartialEq)]
+pub enum DisplayLengthUnit {
+    #[default]
+    Px,
+    Em,
+}
+
+/// Nonnegative margins around the editor and command row.
 #[derive(Default)]
 pub struct DisplayMargins {
-    pub top: u32,
-    pub bottom: u32,
-    pub left: u32,
-    pub right: u32,
+    pub top: DisplayLength,
+    pub bottom: DisplayLength,
+    pub left: DisplayLength,
+    pub right: DisplayLength,
 }
 
 /// A native preview positioned in cells relative to its Neovim grid.

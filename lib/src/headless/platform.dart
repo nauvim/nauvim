@@ -2,6 +2,7 @@ import 'dart:ui' show Rect;
 
 import 'protocol.dart';
 import 'viewport.dart';
+import 'window_geometry.dart';
 
 sealed class NauvimPlatformEvent {
   const NauvimPlatformEvent();
@@ -22,8 +23,8 @@ abstract interface class NauvimPlatform {
   void setEventHandler(Future<void> Function(NauvimPlatformEvent)? handler);
   Future<EditorFont> resolveFonts(List<DisplayFont> fonts);
 
-  /// Applies startup appearance, mode, and size, preserving omitted size axes.
-  Future<void> configureInitialWindow(DisplayWindowOptions options);
+  /// Applies resolved startup options in logical pixels, preserving omitted axes.
+  Future<void> configureInitialWindow(WindowOptions options);
   Future<void> configureWindowGrid(WindowGrid grid);
   Future<void> setTitle(String title);
   Future<void> alert();

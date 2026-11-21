@@ -86,7 +86,7 @@ class TestPlatform implements NauvimPlatform {
   void setEventHandler(Future<void> Function(NauvimPlatformEvent)? handler) =>
       native.setEventHandler(handler);
   @override
-  Future<void> configureInitialWindow(DisplayWindowOptions options) =>
+  Future<void> configureInitialWindow(WindowOptions options) =>
       native.configureInitialWindow(options);
   @override
   Future<void> configureWindowGrid(WindowGrid grid) =>

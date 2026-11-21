@@ -96,6 +96,8 @@ Core selects UI opts using `com.naughie.nauvim.flutter` or `use_ui_opts`.
 font paths against the loaded configuration's canonical directory. Schema errors
 follow core's complete-default fallback. The [user README](../README.md#configuration-and-connections)
 is the authoritative schema reference.
+Geometry values retain their pixel/cell units across the bridge. Flutter resolves
+them using measured editor cells; Rust does not estimate geometry from font size.
 
 Font processing is separate from the async engine. `source` owns file reads and
 a bounded one-file candidate buffer. `selection` handles OpenType face/name and

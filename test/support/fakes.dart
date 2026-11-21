@@ -74,7 +74,7 @@ class FakePlatform implements NauvimPlatform {
   final previews = <(DisplayWindow, Rect)>[];
   final closedPreviews = <int>[];
   final diagnostics = <String>[];
-  final initialWindows = <DisplayWindowOptions>[];
+  final initialWindows = <WindowOptions>[];
   final windowGrids = <WindowGrid>[];
   int alerts = 0, closes = 0;
 
@@ -85,7 +85,7 @@ class FakePlatform implements NauvimPlatform {
   Future<EditorFont> resolveFonts(List<DisplayFont> fonts) async =>
       fixtureFonts(fonts);
   @override
-  Future<void> configureInitialWindow(DisplayWindowOptions options) async =>
+  Future<void> configureInitialWindow(WindowOptions options) async =>
       initialWindows.add(options);
   @override
   Future<void> configureWindowGrid(WindowGrid grid) async =>

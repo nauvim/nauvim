@@ -50,12 +50,12 @@ return {
                 { family = "monospace", size = 14 },
             },
             window = {
-                width = 1920,
-                height = 1080,
+                width = "1920px",
+                height = "40em",
                 decorations = "full",
                 opacity = 1.0,
                 startup_mode = "windowed",
-                margin = { top = 0, bottom = 0, left = 8, right = 8 },
+                margin = { top = "0.5em", bottom = "1em", left = 8, right = "8px" },
             },
         },
     },
@@ -78,19 +78,21 @@ Font = {
     path: string | nil,
 }
 
+Length = integer | "<integer>px" | "<number>em"
+
 UiOpts = {
     fonts: string | Font | list[Font] | nil,
     window: {
-        width: positive integer | nil,
-        height: positive integer | nil,
+        width: positive Length | nil,
+        height: positive Length | nil,
         decorations: "full" | "none" | nil,
         opacity: number in [0, 1] | nil,
         startup_mode: "windowed" | "maximized" | "fullscreen" | nil,
         margin: {
-            top: nonnegative integer | nil,
-            bottom: nonnegative integer | nil,
-            left: nonnegative integer | nil,
-            right: nonnegative integer | nil,
+            top: nonnegative Length | nil,
+            bottom: nonnegative Length | nil,
+            left: nonnegative Length | nil,
+            right: nonnegative Length | nil,
         } | nil,
     } | nil,
 }
@@ -100,10 +102,16 @@ A font string is shorthand for `{ family = "..." }`. Omitted font sizes use
 15 logical pixels. An omitted or empty font list uses the system monospace
 font at that size. See the [OpenType selection appendix](#appendix-opentype-font-selection)
 for the exact meaning of `family`, `subfamily`, and `path`.
-Dimensions, font sizes, and margins are Lua integers within the unsigned 32-bit
-range. Dimensions and font sizes must be positive; margins can be zero.
+Font sizes remain positive Lua integers within the unsigned 32-bit range.
+Window dimensions and margins accept Lua integers in that range, integer pixel
+strings such as `"1920px"`, or finite cell-relative numbers such as `"100em"`
+and `"0.5em"`. Dimensions must be positive; margins can be zero. A `px` string
+contains decimal digits only before the suffix, so `"0.5px"` is invalid. An `em`
+number can include a decimal fraction or exponent, such as `"1e2em"`. Unit
+suffixes are lowercase and strings cannot contain whitespace. Bare Lua fractions
+such as `width = 100.5` remain invalid; use an explicit `em` string for fractions.
 
-All dimensions use **logical pixels**: Flutter logical pixels, GTK logical
+Integer and `px` values use **logical pixels**: Flutter logical pixels, GTK logical
 coordinates on Linux, and AppKit points on macOS. The display scale converts
 these to physical pixels. Font size specifies the em size in the same unit.
 Window width and height are the initial client-area size, including Nauvim's
@@ -112,6 +120,21 @@ An omitted dimension keeps the platform's initial size. Margins default to zero
 and surround the editor grid and its command row. Cell resize increments can
 adjust the requested size to fit whole cells; window-manager constraints still
 apply.
+
+For horizontal geometry (`width`, `margin.left`, and `margin.right`), `1em` is
+one editor cell width. For vertical geometry (`height`, `margin.top`, and
+`margin.bottom`), it is one editor cell height. These are the measured cells of
+the selected font, including display-scale rounding and any design-supplied line
+spacing; they are not the font's em size. For example, `width = "100em"` requests
+a client area 100 cell widths wide, still including toolbar space and margins;
+it does not request exactly 100 editor columns.
+
+Cell-relative geometry is resolved once at startup after measuring the selected
+font. Results are rounded to the nearest logical pixel, with half pixels rounded
+up. Dimensions are at least one logical pixel, and resolved values are capped at
+4294967295. Later window resizing or cell-metric changes do not reapply these
+startup values. Omitted dimensions retain the platform's initial size, and
+omitted margins remain zero.
 
 `window.opacity` accepts finite Lua integers or numbers from 0 (invisible) to 1
 (opaque). It defaults to 1 and affects the whole window:
