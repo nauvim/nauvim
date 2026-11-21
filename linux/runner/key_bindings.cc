@@ -1,37 +1,51 @@
 #include "key_bindings.h"
 #include <gdk/gdkkeysyms.h>
 
-std::string nauvim_key_name(guint keyval) {
-  switch (keyval) {
-    case GDK_KEY_Escape: return "escape";
-    case GDK_KEY_Return: return "enter";
-    case GDK_KEY_KP_Enter: return "numpadenter";
-    case GDK_KEY_Tab: case GDK_KEY_ISO_Left_Tab: return "tab";
-    case GDK_KEY_BackSpace: return "backspace";
-    case GDK_KEY_Delete: return "delete";
-    case GDK_KEY_Insert: return "insert";
-    case GDK_KEY_Up: return "arrowup";
-    case GDK_KEY_Down: return "arrowdown";
-    case GDK_KEY_Left: return "arrowleft";
-    case GDK_KEY_Right: return "arrowright";
-    case GDK_KEY_Home: return "home";
-    case GDK_KEY_End: return "end";
-    case GDK_KEY_Page_Up: return "pageup";
-    case GDK_KEY_Page_Down: return "pagedown";
-    default: break;
+static guint normalize_keyval(guint keyval) {
+  if (keyval == GDK_KEY_ISO_Left_Tab) return GDK_KEY_Tab;
+  const gunichar c = gdk_keyval_to_unicode(keyval);
+  if (c && !g_unichar_iscntrl(c))
+    return gdk_unicode_to_keyval(g_unichar_tolower(c));
+  return keyval;
+}
+
+guint nauvim_keyval(const char* name) {
+  if (!name || !*name) return 0;
+  static const struct { const char* name; guint value; } named[] = {
+    {"escape", GDK_KEY_Escape}, {"enter", GDK_KEY_Return},
+    {"numpadenter", GDK_KEY_KP_Enter}, {"tab", GDK_KEY_Tab},
+    {"backspace", GDK_KEY_BackSpace}, {"delete", GDK_KEY_Delete},
+    {"insert", GDK_KEY_Insert}, {"arrowup", GDK_KEY_Up},
+    {"arrowdown", GDK_KEY_Down}, {"arrowleft", GDK_KEY_Left},
+    {"arrowright", GDK_KEY_Right}, {"home", GDK_KEY_Home},
+    {"end", GDK_KEY_End}, {"pageup", GDK_KEY_Page_Up},
+    {"pagedown", GDK_KEY_Page_Down},
+  };
+  for (const auto& key : named) {
+    if (g_str_equal(name, key.name)) return key.value;
   }
-  if (keyval >= GDK_KEY_F1 && keyval <= GDK_KEY_F24)
-    return "f" + std::to_string(keyval - GDK_KEY_F1 + 1);
-  gunichar c = gdk_keyval_to_unicode(keyval);
-  if (!c || g_unichar_iscntrl(c)) return "";
-  char buf[6];
-  const int length = g_unichar_to_utf8(c, buf);
-  g_autofree gchar* upper = g_utf8_strup(buf, length);
-  std::string name(upper);
-  for (auto& byte : name) {
-    if (byte >= 'A' && byte <= 'Z') byte += 'a' - 'A';
+  if (*name == 'f') {
+    char* end = nullptr;
+    const auto n = g_ascii_strtoull(name + 1, &end, 10);
+    if (end && !*end && n >= 1 && n <= 24)
+      return GDK_KEY_F1 + static_cast<guint>(n) - 1;
   }
-  return name;
+  const gunichar c = g_utf8_get_char_validated(name, -1);
+  if (c == static_cast<gunichar>(-1) || c == static_cast<gunichar>(-2) ||
+      !c || g_unichar_iscntrl(c) || *g_utf8_next_char(name)) return 0;
+  return gdk_unicode_to_keyval(g_unichar_tolower(c));
+}
+
+KeyBinding::KeyBinding(const char* name, unsigned modifiers, const char* action)
+    : key(nauvim_keyval(name)), modifiers(modifiers), action(PreviewAction::none) {
+  static const struct { const char* name; PreviewAction value; } actions[] = {
+    {"reload", PreviewAction::reload}, {"goBack", PreviewAction::go_back},
+    {"goForward", PreviewAction::go_forward}, {"close", PreviewAction::close},
+    {"focusEditor", PreviewAction::focus_editor},
+  };
+  for (const auto& item : actions) {
+    if (g_strcmp0(action, item.name) == 0) { this->action = item.value; break; }
+  }
 }
 
 guint nauvim_shortcut_keyval(guint keyval, guint base, guint shifted) {
@@ -53,11 +67,11 @@ unsigned nauvim_key_modifiers(guint state) {
 
 const KeyBinding* nauvim_key_binding(const std::vector<KeyBinding>& bindings,
                                     guint keyval, guint state) {
-  if (bindings.empty()) return nullptr;
-  const auto key = nauvim_key_name(keyval);
+  const auto key = normalize_keyval(keyval);
   const auto modifiers = nauvim_key_modifiers(state);
   for (const auto& binding : bindings) {
-    if (binding.key == key && binding.modifiers == modifiers) return &binding;
+    if (binding.key && binding.key == key && binding.modifiers == modifiers &&
+        binding.action != PreviewAction::none) return &binding;
   }
   return nullptr;
 }

@@ -49,8 +49,8 @@ def main():
         config.write_text(f"return {{default_host='first',hosts={{{hosts}}}," + """
             ui_opts = { ["com.naughie.nauvim.flutter"] = {
                 key_bindings = {
-                    welcome = { ["Ctrl+Q"] = "quit" },
-                    clipboard = { ["Alt+V"] = "paste" },
+                    welcome = { ["Ctrl-q"] = "quit" },
+                    clipboard = { ["Alt_v"] = "paste" },
                     webview = { ["F5"] = "reload", ["Escape"] = "focus_editor" },
                 },
             }},

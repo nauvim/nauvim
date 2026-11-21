@@ -4,6 +4,47 @@ use super::{fields, invalid, table, text};
 
 use nauvim_core::{Error, UiConfig, UiValue};
 
+use std::borrow::Cow;
+
+const FUNCTION_KEYS: [&str; 24] = [
+    "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "f13", "f14", "f15",
+    "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23", "f24",
+];
+
+const NAMED_KEYS: &[(&str, &str)] = &[
+    ("escape", "escape"),
+    ("esc", "escape"),
+    ("enter", "enter"),
+    ("return", "enter"),
+    ("numpadenter", "numpadenter"),
+    ("tab", "tab"),
+    ("space", " "),
+    ("plus", "+"),
+    ("minus", "-"),
+    ("underscore", "_"),
+    ("backspace", "backspace"),
+    ("bs", "backspace"),
+    ("delete", "delete"),
+    ("del", "delete"),
+    ("insert", "insert"),
+    ("ins", "insert"),
+    ("up", "arrowup"),
+    ("arrowup", "arrowup"),
+    ("down", "arrowdown"),
+    ("arrowdown", "arrowdown"),
+    ("left", "arrowleft"),
+    ("arrowleft", "arrowleft"),
+    ("right", "arrowright"),
+    ("arrowright", "arrowright"),
+    ("home", "home"),
+    ("end", "end"),
+    ("pageup", "pageup"),
+    ("pgup", "pageup"),
+    ("pagedown", "pagedown"),
+    ("pgdown", "pagedown"),
+    ("pgdn", "pagedown"),
+];
+
 pub(super) fn parse(config: &UiConfig) -> Result<Option<KeyBindings>, Error> {
     let root = match config.get("key_bindings") {
         None | Some(UiValue::Nil) => return Ok(None),
@@ -39,7 +80,7 @@ fn context(
             _ => return Err(invalid("Key binding actions must be strings or false")),
         };
         bindings.push(KeyBinding {
-            key,
+            key: key.into_owned(),
             modifiers,
             action,
         });
@@ -59,21 +100,30 @@ fn context(
     Ok(bindings)
 }
 
-fn chord(source: &str) -> Result<(String, u8), Error> {
-    let mut parts = source.split('+');
-    let key = parts.next_back().unwrap_or_default().trim();
+fn chord(source: &str) -> Result<(Cow<'_, str>, u8), Error> {
+    let mut key = source.trim();
     let mut modifiers = 0;
-    for part in parts {
-        let bit = match part.trim().to_ascii_lowercase().as_str() {
-            "ctrl" | "control" => 1,
-            "shift" => 2,
-            "alt" | "option" | "opt" => 4,
-            "super" | "meta" | "cmd" | "command" => 8,
-            _ => {
-                return Err(invalid(format!(
-                    "Unknown modifier in key binding: {source}"
-                )));
-            }
+    while let Some((part, rest)) = key.split_once(['-', '_']) {
+        let part = part.trim();
+        let bit = if ["ctrl", "control"]
+            .iter()
+            .any(|name| part.eq_ignore_ascii_case(name))
+        {
+            1
+        } else if part.eq_ignore_ascii_case("shift") {
+            2
+        } else if ["alt", "option", "opt"]
+            .iter()
+            .any(|name| part.eq_ignore_ascii_case(name))
+        {
+            4
+        } else if ["super", "meta", "cmd", "command"]
+            .iter()
+            .any(|name| part.eq_ignore_ascii_case(name))
+        {
+            8
+        } else {
+            break;
         };
         if modifiers & bit != 0 {
             return Err(invalid(format!(
@@ -81,43 +131,63 @@ fn chord(source: &str) -> Result<(String, u8), Error> {
             )));
         }
         modifiers |= bit;
+        key = rest.trim();
     }
-    let mut lower = key.to_uppercase();
-    lower.make_ascii_lowercase();
-    if let Some(n) = lower.strip_prefix('f').and_then(|s| s.parse::<u8>().ok())
-        && (1..=24).contains(&n)
+
+    let mut chars = key.chars();
+    if let Some(c) = chars.next()
+        && chars.next().is_none()
+        && !c.is_control()
+        && !c.is_whitespace()
     {
-        return Ok((format!("f{n}"), modifiers));
-    }
-    let key = match lower.as_str() {
-        "esc" | "escape" => "escape",
-        "return" | "enter" => "enter",
-        "numpadenter" => "numpadenter",
-        "space" => " ",
-        "plus" => "+",
-        "minus" => "-",
-        "backspace" | "bs" => "backspace",
-        "delete" | "del" => "delete",
-        "insert" | "ins" => "insert",
-        "up" | "arrowup" => "arrowup",
-        "down" | "arrowdown" => "arrowdown",
-        "left" | "arrowleft" => "arrowleft",
-        "right" | "arrowright" => "arrowright",
-        "pageup" | "pgup" => "pageup",
-        "pagedown" | "pgdown" | "pgdn" => "pagedown",
-        "tab" | "home" | "end" => return Ok((lower, modifiers)),
-        _ if key.chars().count() == 1
-            && !key.chars().any(|c| c.is_control() || c.is_whitespace()) =>
+        if modifiers != 0 && matches!(c, '-' | '_') {
+            return Err(invalid(
+                "Use Minus or Underscore for a separator key after a modifier",
+            ));
+        }
+        if c.is_uppercase() {
+            modifiers |= 2;
+        }
+        if c.is_ascii_alphabetic() {
+            const LETTERS: [&str; 26] = [
+                "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p",
+                "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+            ];
+            if let Some(letter) = LETTERS
+                .iter()
+                .find(|letter| key.eq_ignore_ascii_case(letter))
+            {
+                return Ok((Cow::Borrowed(letter), modifiers));
+            }
+        }
+        // Keep single-scalar Unicode keyboard labels. An expanding uppercase
+        // mapping (such as ß -> SS) must retain its original key identity.
+        let mut upper = c.to_uppercase();
+        if let Some(upper_c) = upper.next()
+            && upper.next().is_none()
+            && upper_c != c
         {
-            return Ok((lower, modifiers));
+            return Ok((Cow::Owned(upper_c.to_string()), modifiers));
         }
-        _ => {
-            return Err(invalid(format!(
-                "Unknown key in binding {source}; use Plus for '+' and Space for a space"
-            )));
-        }
-    };
-    Ok((key.to_owned(), modifiers))
+        return Ok((Cow::Borrowed(key), modifiers));
+    }
+
+    if let Some((_, key)) = NAMED_KEYS.iter().find(|(name, _)| key_name_eq(key, name)) {
+        return Ok((Cow::Borrowed(key), modifiers));
+    }
+    if let Some(key) = FUNCTION_KEYS.iter().find(|name| key_name_eq(key, name)) {
+        return Ok((Cow::Borrowed(key), modifiers));
+    }
+    Err(invalid(format!(
+        "Unknown key binding {source}; join modifiers with '-' or '_' and use Space for a space"
+    )))
+}
+
+fn key_name_eq(key: &str, name: &str) -> bool {
+    key.bytes()
+        .filter(|b| !matches!(b, b'-' | b'_'))
+        .map(|b| b.to_ascii_lowercase())
+        .eq(name.bytes())
 }
 
 fn action(context: &str, name: &str) -> Result<KeyAction, Error> {

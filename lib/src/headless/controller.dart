@@ -246,9 +246,7 @@ final class NauvimController extends ChangeNotifier {
         if (closing) return;
         _hosts = List.unmodifiable(update.hosts);
         _keyBindings = NauvimKeyBindings(update.keyBindings);
-        _previews.keyBindings = _keyBindings
-            .bindings(KeyContext.webview)
-            .toList();
+        _previews.keyBindings = _keyBindings.bindings(KeyContext.webview);
         if (!_started) _destination = update.destination?.alias ?? '';
         _changed();
         unawaited(_configureFonts(update.fonts, update.windowOptions));

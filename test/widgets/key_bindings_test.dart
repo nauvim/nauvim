@@ -8,6 +8,14 @@ import 'package:nauvim_flutter/nauvim_widgets.dart' show boundKey;
 
 import '../support/fakes.dart';
 
+final class KeyWithoutLabel extends LogicalKeyboardKey {
+  const KeyWithoutLabel(super.keyId);
+
+  @override
+  String get keyLabel =>
+      throw StateError('Key matching requested a display label');
+}
+
 Future<
   ({FakeEngine engine, FakePlatform platform, NauvimController controller})
 >
@@ -101,6 +109,68 @@ void select(NauvimController controller) {
 }
 
 void main() {
+  testWidgets('matches key identities without requesting display labels', (
+    tester,
+  ) async {
+    final bindings = NauvimKeyBindings();
+    for (var i = 0; i < 10; i++) {
+      expect(
+        boundKey(
+          bindings,
+          KeyContext.welcome,
+          const KeyDownEvent(
+            physicalKey: PhysicalKeyboardKey.keyJ,
+            logicalKey: KeyWithoutLabel(0x6a),
+            timeStamp: Duration.zero,
+          ),
+        ),
+        KeyAction.selectNext,
+      );
+    }
+  });
+
+  test(
+    'reuses immutable defaults and retains a snapshot of configured bindings',
+    () {
+      final first = NauvimKeyBindings();
+      final second = NauvimKeyBindings();
+      expect(
+        identical(
+          first.bindings(KeyContext.welcome),
+          second.bindings(KeyContext.welcome),
+        ),
+        isTrue,
+      );
+      expect(
+        () => first.bindings(KeyContext.welcome).clear(),
+        throwsUnsupportedError,
+      );
+      final overrides = [
+        const KeyBinding(
+          key: 'j',
+          modifiers: 2,
+          action: KeyAction.selectPrevious,
+        ),
+      ];
+      final configured = NauvimKeyBindings(
+        KeyBindings(welcome: overrides, clipboard: const [], webview: const []),
+      );
+      overrides.clear();
+      expect(
+        configured.lookup(KeyContext.welcome, 'j', 2),
+        KeyAction.selectPrevious,
+      );
+      expect(
+        configured.lookup(KeyContext.welcome, 'j', 0),
+        KeyAction.selectNext,
+      );
+      expect(
+        configured.hint(KeyContext.welcome, KeyAction.selectPrevious),
+        startsWith('Shift-j/'),
+      );
+    },
+  );
+
   test('retains modified Enter and Escape defaults as explicit chords', () {
     final defaults = NauvimKeyBindings();
     for (var modifiers = 0; modifiers < 16; modifiers++) {

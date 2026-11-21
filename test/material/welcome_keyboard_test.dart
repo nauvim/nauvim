@@ -101,6 +101,33 @@ Future<void> manualEntry(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('keeps lowercase j navigation and handles capital J as Shift-j', (
+    tester,
+  ) async {
+    await welcome(
+      tester,
+      keyBindings: const KeyBindings(
+        welcome: [
+          KeyBinding(key: 'j', modifiers: 2, action: KeyAction.selectPrevious),
+        ],
+        clipboard: [],
+        webview: [],
+      ),
+    );
+    await key(tester, LogicalKeyboardKey.keyJ);
+    expect(selectedItem(tester), 'local');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyJ);
+    await tester.pump();
+    expect(selectedItem(tester), 'Default local host');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyJ);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.keyJ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyJ);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(selectedItem(tester), 'work');
+  });
+
   testWidgets(
     'remaps menu commands, unbinds defaults, and retains other keys',
     (tester) async {

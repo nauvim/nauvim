@@ -3,10 +3,88 @@ import CoreText
 import FlutterMacOS
 import WebKit
 
+private enum PreviewKey: Equatable {
+  case character(UInt32), function(UInt32)
+  case escape, enter, numpadEnter, tab, backspace, delete, insert
+  case up, down, left, right, home, end, pageUp, pageDown
+
+  init?(name: String) {
+    switch name {
+    case "escape": self = .escape
+    case "enter": self = .enter
+    case "numpadenter": self = .numpadEnter
+    case "tab": self = .tab
+    case "backspace": self = .backspace
+    case "delete": self = .delete
+    case "insert": self = .insert
+    case "arrowup": self = .up
+    case "arrowdown": self = .down
+    case "arrowleft": self = .left
+    case "arrowright": self = .right
+    case "home": self = .home
+    case "end": self = .end
+    case "pageup": self = .pageUp
+    case "pagedown": self = .pageDown
+    default:
+      if name.first == "f", let n = UInt32(name.dropFirst()), (1...24).contains(n) {
+        self = .function(n)
+      } else if name.unicodeScalars.count == 1, let scalar = name.unicodeScalars.first {
+        self = .character(scalar.value)
+      } else { return nil }
+    }
+  }
+
+  static func event(_ text: String, keyCode: UInt16) -> PreviewKey? {
+    guard text.unicodeScalars.count == 1, let c = text.unicodeScalars.first else { return nil }
+    switch c.value {
+    case 0x1b: return .escape
+    case 0x0d, 0x0a: return keyCode == 76 ? .numpadEnter : .enter
+    case 0x09, 0x19: return .tab
+    case 0x7f: return .backspace
+    case 0xf728: return .delete
+    case 0xf727: return .insert
+    case 0xf700: return .up
+    case 0xf701: return .down
+    case 0xf702: return .left
+    case 0xf703: return .right
+    case 0xf729: return .home
+    case 0xf72b: return .end
+    case 0xf72c: return .pageUp
+    case 0xf72d: return .pageDown
+    case 0xf704...0xf71b: return .function(c.value - 0xf704 + 1)
+    default: return .character(c.value)
+    }
+  }
+}
+
+private enum PreviewAction: String {
+  case reload, goBack, goForward, close, focusEditor
+}
+
 private struct PreviewKeyBinding {
-  let key: String
+  let key: PreviewKey
+  let lower: PreviewKey
+  let upper: PreviewKey
   let modifiers: Int
-  let action: String
+  let action: PreviewAction
+
+  init?(key name: String, modifiers: Int, action: String) {
+    guard let key = PreviewKey(name: name), let action = PreviewAction(rawValue: action) else { return nil }
+    self.key = key
+    self.modifiers = modifiers
+    self.action = action
+    if case .character = key {
+      self.lower = PreviewKey(name: name.lowercased()) ?? key
+      self.upper = PreviewKey(name: name.uppercased()) ?? key
+    } else {
+      self.lower = key
+      self.upper = key
+    }
+  }
+
+  func matches(_ key: PreviewKey) -> Bool {
+    self.key == key || lower == key || upper == key
+  }
 }
 
 private class PreviewWebView: WKWebView {
@@ -201,7 +279,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
           let focused = firstResponder as? NSView,
           focused === view || focused.isDescendant(of: view),
           var text = event.charactersIgnoringModifiers else { return false }
-    for flags in [NSEvent.ModifierFlags(), .shift] {
+    for level in 0...1 {
+      let flags: NSEvent.ModifierFlags = level == 0 ? [] : .shift
       if let clue = event.characters(byApplyingModifiers: flags),
          clue.unicodeScalars.count == 1, let c = clue.unicodeScalars.first,
          (48...57).contains(c.value) || (65...90).contains(c.value) || (97...122).contains(c.value) {
@@ -209,48 +288,21 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
         break
       }
     }
-    let key: String
-    switch text {
-    case "\u{1b}": key = "escape"
-    case "\r", "\n": key = event.keyCode == 76 ? "numpadenter" : "enter"
-    case "\t", "\u{19}": key = "tab"
-    case "\u{7f}": key = "backspace"
-    case "\u{f728}": key = "delete"
-    case "\u{f727}": key = "insert"
-    case "\u{f700}": key = "arrowup"
-    case "\u{f701}": key = "arrowdown"
-    case "\u{f702}": key = "arrowleft"
-    case "\u{f703}": key = "arrowright"
-    case "\u{f729}": key = "home"
-    case "\u{f72b}": key = "end"
-    case "\u{f72c}": key = "pageup"
-    case "\u{f72d}": key = "pagedown"
-    default:
-      if text.unicodeScalars.count == 1, let scalar = text.unicodeScalars.first,
-         (0xf704...0xf71b).contains(scalar.value) {
-        key = "f\(scalar.value - 0xf704 + 1)"
-      } else {
-        let upper = text.uppercased()
-        key = String(upper.map { c in
-          c.asciiValue.map { (65...90).contains($0) } == true ? Character(c.lowercased()) : c
-        })
-      }
-    }
+    guard let key = PreviewKey.event(text, keyCode: event.keyCode) else { return false }
     let flags = event.modifierFlags
     let modifiers = (flags.contains(.control) ? 1 : 0) |
                     (flags.contains(.shift) ? 2 : 0) |
                     (flags.contains(.option) ? 4 : 0) |
                     (flags.contains(.command) ? 8 : 0)
-    guard let binding = keyBindings.first(where: { $0.key == key && $0.modifiers == modifiers }) else { return false }
+    guard let binding = keyBindings.first(where: { $0.modifiers == modifiers && $0.matches(key) }) else { return false }
     switch binding.action {
-    case "reload": view.reload()
-    case "goBack": view.goBack()
-    case "goForward": view.goForward()
-    case "focusEditor": makeFirstResponder(editor)
-    case "close":
+    case .reload: view.reload()
+    case .goBack: view.goBack()
+    case .goForward: view.goForward()
+    case .focusEditor: makeFirstResponder(editor)
+    case .close:
       channel?.invokeMethod("close_webview_requested", arguments: handle)
       makeFirstResponder(editor)
-    default: return false
     }
     return true
   }

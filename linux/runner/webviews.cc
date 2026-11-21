@@ -33,11 +33,11 @@ static gboolean preview_key(GtkWidget* widget, GdkEventKey* event, gpointer data
       nauvim_shortcut_keyval(event->keyval, base, shifted), state);
   if (!binding) return FALSE;
   auto* view = WEBKIT_WEB_VIEW(widget);
-  if (binding->action == "reload") webkit_web_view_reload(view);
-  else if (binding->action == "goBack") webkit_web_view_go_back(view);
-  else if (binding->action == "goForward") webkit_web_view_go_forward(view);
-  else if (binding->action == "focusEditor") gtk_widget_grab_focus(GTK_WIDGET(windows->flutter));
-  else if (binding->action == "close") {
+  if (binding->action == PreviewAction::reload) webkit_web_view_reload(view);
+  else if (binding->action == PreviewAction::go_back) webkit_web_view_go_back(view);
+  else if (binding->action == PreviewAction::go_forward) webkit_web_view_go_forward(view);
+  else if (binding->action == PreviewAction::focus_editor) gtk_widget_grab_focus(GTK_WIDGET(windows->flutter));
+  else if (binding->action == PreviewAction::close) {
     auto* handle = static_cast<gint64*>(g_object_get_data(G_OBJECT(widget), "nauvim-handle"));
     if (handle) {
       g_autoptr(FlValue) args = fl_value_new_int(*handle);

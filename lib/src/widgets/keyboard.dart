@@ -3,6 +3,90 @@ import 'package:flutter/services.dart';
 import '../headless/key_bindings.dart';
 import '../headless/protocol.dart';
 
+// Configuration objects are immutable. Weak keys let their compiled tables be
+// reclaimed when a controller replaces its configuration or is disposed.
+final _compiledBindings = Expando<Map<KeyContext, _CompiledBindings>>();
+
+final class _CompiledBindings {
+  _CompiledBindings(List<KeyBinding> bindings) {
+    for (final binding in bindings) {
+      final action = binding.action;
+      if (action == null) continue;
+      void add(int id) => (keys[id] ??= {})[binding.modifiers] = action;
+      final named = _bindingKeys[binding.key];
+      if (named != null) {
+        add(named.keyId);
+        continue;
+      }
+      if (binding.key.length == 1) {
+        final scalar = binding.key.codeUnitAt(0);
+        if (scalar < 128) {
+          add(LogicalKeyboardKey.unicodePlane | scalar);
+          continue;
+        }
+      }
+      // Unicode-plane logical key IDs are the scalar value. Resolve case
+      // variants once; key events can then use the supplied ID directly.
+      for (final name in [
+        binding.key,
+        binding.key.toLowerCase(),
+        binding.key.toUpperCase(),
+      ]) {
+        final chars = name.runes.iterator;
+        if (!chars.moveNext()) continue;
+        final scalar = chars.current;
+        if (!chars.moveNext()) add(LogicalKeyboardKey.unicodePlane | scalar);
+      }
+    }
+  }
+
+  final keys = <int, Map<int, KeyAction>>{};
+
+  KeyAction? lookup(int key, int modifiers) => keys[key]?[modifiers];
+}
+
+const _bindingKeys = <String, LogicalKeyboardKey>{
+  'escape': LogicalKeyboardKey.escape,
+  'enter': LogicalKeyboardKey.enter,
+  'numpadenter': LogicalKeyboardKey.numpadEnter,
+  'backspace': LogicalKeyboardKey.backspace,
+  'delete': LogicalKeyboardKey.delete,
+  'tab': LogicalKeyboardKey.tab,
+  'arrowleft': LogicalKeyboardKey.arrowLeft,
+  'arrowright': LogicalKeyboardKey.arrowRight,
+  'arrowup': LogicalKeyboardKey.arrowUp,
+  'arrowdown': LogicalKeyboardKey.arrowDown,
+  'home': LogicalKeyboardKey.home,
+  'end': LogicalKeyboardKey.end,
+  'pageup': LogicalKeyboardKey.pageUp,
+  'pagedown': LogicalKeyboardKey.pageDown,
+  'insert': LogicalKeyboardKey.insert,
+  'f1': LogicalKeyboardKey.f1,
+  'f2': LogicalKeyboardKey.f2,
+  'f3': LogicalKeyboardKey.f3,
+  'f4': LogicalKeyboardKey.f4,
+  'f5': LogicalKeyboardKey.f5,
+  'f6': LogicalKeyboardKey.f6,
+  'f7': LogicalKeyboardKey.f7,
+  'f8': LogicalKeyboardKey.f8,
+  'f9': LogicalKeyboardKey.f9,
+  'f10': LogicalKeyboardKey.f10,
+  'f11': LogicalKeyboardKey.f11,
+  'f12': LogicalKeyboardKey.f12,
+  'f13': LogicalKeyboardKey.f13,
+  'f14': LogicalKeyboardKey.f14,
+  'f15': LogicalKeyboardKey.f15,
+  'f16': LogicalKeyboardKey.f16,
+  'f17': LogicalKeyboardKey.f17,
+  'f18': LogicalKeyboardKey.f18,
+  'f19': LogicalKeyboardKey.f19,
+  'f20': LogicalKeyboardKey.f20,
+  'f21': LogicalKeyboardKey.f21,
+  'f22': LogicalKeyboardKey.f22,
+  'f23': LogicalKeyboardKey.f23,
+  'f24': LogicalKeyboardKey.f24,
+};
+
 /// Resolves one logical key with the exact pressed modifier set.
 KeyAction? boundKey(
   NauvimKeyBindings bindings,
@@ -13,20 +97,16 @@ KeyAction? boundKey(
   final keyboard = HardwareKeyboard.instance;
   final key = event.logicalKey;
   if (_modifiers.contains(key)) return null;
-  final label = key == LogicalKeyboardKey.space
-      ? ' '
-      : key.keyLabel.replaceAll(' ', '');
-  // Flutter supplies uppercase Unicode labels. Canonical ASCII names and
-  // letters use lowercase, without losing the remaining Unicode label.
-  final name = label.codeUnits.any((c) => c > 127)
-      ? label
-      : label.toLowerCase();
   final modifiers =
       (keyboard.isControlPressed ? 1 : 0) |
       (keyboard.isShiftPressed ? 2 : 0) |
       (keyboard.isAltPressed ? 4 : 0) |
       (keyboard.isMetaPressed ? 8 : 0);
-  return bindings.lookup(context, name, modifiers);
+  final contexts = _compiledBindings[bindings] ??= {};
+  final compiled = contexts[context] ??= _CompiledBindings(
+    bindings.bindings(context),
+  );
+  return compiled.lookup(key.keyId, modifiers);
 }
 
 final _names = <LogicalKeyboardKey, String>{

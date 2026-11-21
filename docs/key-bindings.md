@@ -15,7 +15,7 @@ an action adds another shortcut. To move an action, disable the old chord too:
 key_bindings = {
     welcome = {
         ["q"] = false,
-        ["Ctrl+Q"] = "quit",
+        ["Ctrl-q"] = "quit",
         ["Enter"] = false,
         ["F2"] = "activate",
     },
@@ -30,22 +30,23 @@ Changes take effect on the next launch. Invalid chords, unknown contexts,
 actions in the wrong context, and duplicate normalized chords produce
 configuration diagnostics. Like other invalid UI options, they trigger core's
 complete-default configuration fallback, including host settings. Two Lua keys
-such as `Ctrl+C` and `Control+c` are duplicates within the same context.
+such as `Ctrl-c` and `Control_c` are duplicates within the same context.
 
 ## Key strings
 
-A chord consists of zero or more modifiers followed by one logical key, joined
-by `+`. This uses the modifier-plus-key style of terminal configurations such as
-[kitty](https://sw.kovidgoyal.net/kitty/mapping/). It identifies the logical key
-from the active keyboard layout, rather than a physical key position.
+A chord consists of zero or more modifiers followed by one logical key.
+Join components with `-` or `_`; the two separators can be mixed. Plus signs
+are not separators: `Ctrl+Shift+c` is rejected. Chords identify logical keys
+rather than physical key positions.
 
-Modifier order is free. Names and ASCII letters are case-insensitive, and spaces
-around each component are ignored. These strings all mean the same chord:
+Modifier order is free. Modifier names and named keys are case-insensitive,
+and spaces around components are ignored. These strings mean the same chord:
 
 ```text
-Ctrl+Shift+C
-shift+control+c
- control + SHIFT + c
+Ctrl-Shift-c
+shift_control_c
+ control _ SHIFT - c
+Ctrl-C
 ```
 
 | Modifier | Accepted names |
@@ -56,15 +57,22 @@ shift+control+c
 | Meta | `Super`, `Meta`, `Command`, `Cmd` |
 
 Meta means Command on macOS and Super on Linux. Modifiers match exactly;
-`Ctrl+C` and `Ctrl+Shift+C` are different chords. Caps Lock and Num Lock do not
-count as modifiers. Repeating the same modifier through an alias is an error.
+`Ctrl-c` and `Ctrl-C` are different chords. Caps Lock and Num Lock do not
+count as modifiers. Repeating an explicit modifier, including through an alias,
+is an error.
 
-ASCII letter case never implies Shift: `j` and `J` name the same unmodified
-key, while `Shift+J` names the shifted chord. For shifted punctuation, name its
-logical symbol and include Shift explicitly, such as `Shift+Plus`. Letters and
-digits keep their key identity across Shift: `Shift+1` names the shifted digit
-key, even when it produces `!`. Unicode keys such as `é` or `Ж` are also
-accepted and normalized to their uppercase keyboard labels.
+Capital letter keys imply Shift: `J`, `Shift-j`, and `SHIFT_J` name the same
+chord. `j` names the unmodified key. `Shift-J` is also accepted; the implied
+Shift does not add a second modifier. Named keys such as `ENTER` or `F2` do not
+imply Shift. Names may include separators, such as `Ctrl-Page_Down` or
+`CTRL_ARROW_UP`.
+
+For shifted punctuation, name its logical symbol and include Shift explicitly,
+such as `Shift-Plus`. Letters and digits keep their key identity across Shift:
+`Shift-1` names the shifted digit key, even when it produces `!`. Unicode keys
+such as `é` or `Ж` are also accepted. Capital Unicode letters imply Shift;
+single-character keyboard labels are preserved instead of expanding one key
+into multiple characters.
 
 The welcome page and editor use Flutter's logical-key identities, including its
 Latin shortcut mapping on non-Latin layouts. Native previews resolve keys
@@ -78,7 +86,8 @@ through the platform keyboard layout.
 | Tab | `Tab` |
 | Space | `Space` |
 | Plus | `Plus` |
-| Minus | `Minus`, `-` |
+| Minus | `Minus` |
+| Underscore | `Underscore` |
 | Backspace | `Backspace`, `BS` |
 | Delete | `Delete`, `Del` |
 | Insert | `Insert`, `Ins` |
@@ -88,8 +97,10 @@ through the platform keyboard layout.
 | Page Down | `PageDown`, `PgDown`, `PgDn` |
 | Function keys | `F1` through `F24` |
 
-Other printable single Unicode characters name themselves. Use `Plus` for the
-plus key and `Space` for a space, so neither can be confused with syntax.
+Other printable single Unicode characters name themselves. Use `Minus` and
+`Underscore` after modifiers, so they cannot be confused with separators.
+Bare `-` and `_` name those keys without modifiers. `Plus` or a literal `+`
+names the plus key, as in `Ctrl-Plus` or `Ctrl-+`. Use `Space` for a space.
 Key sequences, physical scan codes, and Neovim notation such as `<C-c>` are
 not part of this grammar.
 
@@ -97,8 +108,8 @@ not part of this grammar.
 
 | Action | Behavior | Default keys |
 | --- | --- | --- |
-| `select_next` | Moves down, wrapping at the end | `j`, `Down`, `Tab`, `Ctrl+N` |
-| `select_previous` | Moves up, wrapping at the start | `k`, `Up`, `Shift+Tab`, `Ctrl+P` |
+| `select_next` | Moves down, wrapping at the end | `j`, `Down`, `Tab`, `Ctrl-n` |
+| `select_previous` | Moves up, wrapping at the start | `k`, `Up`, `Shift-Tab`, `Ctrl-p` |
 | `activate` | Selects a destination or submits the entered alias | `Enter`, `NumpadEnter`, including modified variants |
 | `back` | Leaves text entry or cancels a pending connection | `Escape`, including modified variants |
 | `quit` | Closes Nauvim, preserving the host Neovim | `q` |
@@ -113,15 +124,15 @@ available. Only navigation repeats while a key is held.
 The welcome page shows hints from the effective bindings, including configured
 overrides. An action with no remaining bindings is shown as unbound.
 Enter and Escape retain their original acceptance of modifier combinations.
-Each variant is a separate chord: disabling `Enter` leaves `Ctrl+Enter`, for
+Each variant is a separate chord: disabling `Enter` leaves `Ctrl-Enter`, for
 example, available unless it is also disabled.
 
 ## Clipboard actions
 
 | Action | Behavior | Linux default | macOS default |
 | --- | --- | --- | --- |
-| `copy` | Copies the grid's selected text to the client clipboard | `Ctrl+Shift+C` | `Super+C` |
-| `paste` | Requests the engine's authorized clipboard paste | `Ctrl+Shift+V` | `Super+V` |
+| `copy` | Copies the grid's selected text to the client clipboard | `Ctrl-Shift-c` | `Super-c` |
+| `paste` | Requests the engine's authorized clipboard paste | `Ctrl-Shift-v` | `Super-v` |
 
 These bindings operate while the editor canvas has keyboard focus. Copy falls
 through to Neovim when there is no grid selection. Other unbound editor keys
