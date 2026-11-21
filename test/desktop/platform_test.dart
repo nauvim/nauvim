@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nauvim_flutter/src/desktop/platform.dart';
+import 'package:nauvim_flutter/src/headless/key_bindings.dart';
 import 'package:nauvim_flutter/src/headless/protocol.dart';
 import 'package:nauvim_flutter/src/headless/window_geometry.dart';
 
@@ -57,7 +58,18 @@ void main() {
     }
   });
 
-  test('sends active webview bindings to the native presentation', () async {
+  test('applies webview binding replacements and removals', () async {
+    final bindings = NauvimKeyBindings(
+      const KeyBindings(
+        welcome: [],
+        clipboard: [],
+        webview: [
+          KeyBinding(key: 'r', modifiers: 1),
+          KeyBinding(key: 'escape', modifiers: 0, action: KeyAction.reload),
+          KeyBinding(key: 'w', modifiers: 8, action: KeyAction.close),
+        ],
+      ),
+    );
     await DesktopNauvimPlatform(channel: channel).openPreview(
       const DisplayWindow(
         handle: 5,
@@ -69,18 +81,13 @@ void main() {
         width: 4,
       ),
       const Rect.fromLTWH(1, 2, 3, 4),
-      keyBindings: const [
-        KeyBinding(key: 'r', modifiers: 1, action: KeyAction.reload),
-        KeyBinding(key: 'escape', modifiers: 0, action: KeyAction.focusEditor),
-        KeyBinding(key: 'w', modifiers: 8, action: KeyAction.close),
-        KeyBinding(key: 'f5', modifiers: 0),
-      ],
+      keyBindings: bindings.bindings(KeyContext.webview),
     );
     expect(calls.single.method, 'open_webview');
     expect((calls.single.arguments as Map)['key_bindings'], [
-      {'key': 'r', 'modifiers': 1, 'action': 'reload'},
-      {'key': 'escape', 'modifiers': 0, 'action': 'focusEditor'},
+      {'key': 'escape', 'modifiers': 0, 'action': 'reload'},
       {'key': 'w', 'modifiers': 8, 'action': 'close'},
+      {'key': 'w', 'modifiers': 1, 'action': 'close'},
     ]);
   });
 }

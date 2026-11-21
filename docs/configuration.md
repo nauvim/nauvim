@@ -21,9 +21,6 @@ return {
                 height = "720px",
                 margin = { left = 8, right = 8 },
             },
-            key_bindings = {
-                welcome = { ["Ctrl-q"] = "quit" },
-            },
         },
     },
 }
@@ -108,7 +105,8 @@ increments. Margins apply in all modes.
 ### Key bindings
 
 Use `key_bindings` to override specific shortcuts on the welcome page, in
-the editor, or in a web preview. See the [key binding reference](key-bindings.md).
+the editor, or in a web preview. See the
+[complete Linux defaults and key binding reference](key-bindings.md#linux-defaults).
 
 ## Configuration fallback
 

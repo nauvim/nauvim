@@ -412,6 +412,11 @@ void main() {
       expect(arguments['url'], preview.url);
       expect(arguments['width'], greaterThan(0));
       expect(arguments['height'], greaterThan(0));
+      expect(arguments['key_bindings'], [
+        {'key': 'r', 'modifiers': 1, 'action': 'reload'},
+        {'key': 'w', 'modifiers': 1, 'action': 'close'},
+        {'key': 'escape', 'modifiers': 0, 'action': 'focusEditor'},
+      ]);
       await emit(tester, app, update('welcome'));
       final closed = nativeCalls.where(
         (call) => call.method == 'close_webview',

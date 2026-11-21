@@ -89,7 +89,11 @@ final class NauvimKeyBindings {
               ],
         overrides?.clipboard,
       ),
-      _webview = _merge(const [], overrides?.webview);
+      _webview = _merge(const [
+        KeyBinding(key: 'r', modifiers: 1, action: KeyAction.reload),
+        KeyBinding(key: 'w', modifiers: 1, action: KeyAction.close),
+        KeyBinding(key: 'escape', modifiers: 0, action: KeyAction.focusEditor),
+      ], overrides?.webview);
 
   final List<KeyBinding> _welcome, _clipboard, _webview;
 

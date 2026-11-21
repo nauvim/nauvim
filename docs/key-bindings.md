@@ -2,7 +2,85 @@
 
 Set `key_bindings` inside the selected UI options in `nauvim/init.lua`.
 Use `welcome` for the destination screen, `clipboard` for the editor,
-and `webview` for native previews. [Configuration example](configuration.md)
+and `webview` for native previews.
+
+## Linux defaults
+
+```lua
+key_bindings = {
+    welcome = {
+        j = "select_next",
+        Down = "select_next",
+        ["Ctrl-n"] = "select_next",
+        Tab = "select_next",
+        k = "select_previous",
+        Up = "select_previous",
+        ["Ctrl-p"] = "select_previous",
+        ["Shift-Tab"] = "select_previous",
+        q = "quit",
+
+        Enter = "activate",
+        ["Ctrl-Enter"] = "activate",
+        ["Shift-Enter"] = "activate",
+        ["Ctrl-Shift-Enter"] = "activate",
+        ["Alt-Enter"] = "activate",
+        ["Ctrl-Alt-Enter"] = "activate",
+        ["Shift-Alt-Enter"] = "activate",
+        ["Ctrl-Shift-Alt-Enter"] = "activate",
+        ["Super-Enter"] = "activate",
+        ["Ctrl-Super-Enter"] = "activate",
+        ["Shift-Super-Enter"] = "activate",
+        ["Ctrl-Shift-Super-Enter"] = "activate",
+        ["Alt-Super-Enter"] = "activate",
+        ["Ctrl-Alt-Super-Enter"] = "activate",
+        ["Shift-Alt-Super-Enter"] = "activate",
+        ["Ctrl-Shift-Alt-Super-Enter"] = "activate",
+
+        NumpadEnter = "activate",
+        ["Ctrl-NumpadEnter"] = "activate",
+        ["Shift-NumpadEnter"] = "activate",
+        ["Ctrl-Shift-NumpadEnter"] = "activate",
+        ["Alt-NumpadEnter"] = "activate",
+        ["Ctrl-Alt-NumpadEnter"] = "activate",
+        ["Shift-Alt-NumpadEnter"] = "activate",
+        ["Ctrl-Shift-Alt-NumpadEnter"] = "activate",
+        ["Super-NumpadEnter"] = "activate",
+        ["Ctrl-Super-NumpadEnter"] = "activate",
+        ["Shift-Super-NumpadEnter"] = "activate",
+        ["Ctrl-Shift-Super-NumpadEnter"] = "activate",
+        ["Alt-Super-NumpadEnter"] = "activate",
+        ["Ctrl-Alt-Super-NumpadEnter"] = "activate",
+        ["Shift-Alt-Super-NumpadEnter"] = "activate",
+        ["Ctrl-Shift-Alt-Super-NumpadEnter"] = "activate",
+
+        Esc = "back",
+        ["Ctrl-Esc"] = "back",
+        ["Shift-Esc"] = "back",
+        ["Ctrl-Shift-Esc"] = "back",
+        ["Alt-Esc"] = "back",
+        ["Ctrl-Alt-Esc"] = "back",
+        ["Shift-Alt-Esc"] = "back",
+        ["Ctrl-Shift-Alt-Esc"] = "back",
+        ["Super-Esc"] = "back",
+        ["Ctrl-Super-Esc"] = "back",
+        ["Shift-Super-Esc"] = "back",
+        ["Ctrl-Shift-Super-Esc"] = "back",
+        ["Alt-Super-Esc"] = "back",
+        ["Ctrl-Alt-Super-Esc"] = "back",
+        ["Shift-Alt-Super-Esc"] = "back",
+        ["Ctrl-Shift-Alt-Super-Esc"] = "back",
+    },
+    clipboard = {
+        ["Ctrl-Shift-c"] = "copy",
+        ["Ctrl-Shift-v"] = "paste",
+    },
+    webview = {
+        ["Ctrl-r"] = "reload",
+        ["Ctrl-w"] = "close",
+        Esc = "focus_editor",
+    },
+}
+```
 
 ## Override and remove bindings
 
@@ -95,15 +173,15 @@ grid selection, the copy chord goes to Neovim.
 
 ## Webview actions
 
-Webview actions have no default chords. Your bindings apply while a native
-preview has keyboard focus. Unbound chords retain the browser's behavior.
+These bindings apply while a native preview has keyboard focus. Unbound
+chords retain the browser's behavior.
 
-| Action | Behavior |
-| --- | --- |
-| `reload` | Reloads the focused preview |
-| `go_back` | Navigates backward through its history |
-| `go_forward` | Navigates forward through its history |
-| `focus_editor` | Returns keyboard focus to the editor |
-| `close` | Closes that preview and returns focus to the editor |
+| Action | Behavior | Default keys |
+| --- | --- | --- |
+| `reload` | Reloads the focused preview | `Ctrl-r` |
+| `go_back` | Navigates backward through its history | None |
+| `go_forward` | Navigates forward through its history | None |
+| `focus_editor` | Returns keyboard focus to the editor | `Esc` |
+| `close` | Closes that preview and returns focus to the editor | `Ctrl-w` |
 
 The host plugin can show a closed preview again.
