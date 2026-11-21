@@ -92,7 +92,7 @@ if the list is empty or none resolve.
 | `margin.top`, `margin.bottom`, `margin.left`, `margin.right` | `0` | Nonnegative space around the editor grid and command row. |
 | `decorations` | `"full"` | Set to `"none"` for a borderless window. Use your window manager to move or resize it. |
 | `opacity` | `1` | Whole-window opacity from `0` (invisible) to `1` (opaque). Linux window opacity requires compositor support. |
-| `startup_mode` | `"windowed"` | Set to `"maximized"` (native zoom on macOS) or `"fullscreen"` to request that state after setting the initial windowed size. |
+| `startup_mode` | `"windowed"` | Set to `"maximized"` (native zoom on macOS) or `"fullscreen"` to request that state before the window appears. |
 
 An integer like `720` or a string like `"720px"` counts logical pixels.
 Use decimal digits before `px`.

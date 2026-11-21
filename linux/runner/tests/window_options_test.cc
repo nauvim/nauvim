@@ -52,6 +52,35 @@ void startup_transition() {
     gtk_widget_destroy(GTK_WIDGET(window));
   }
 }
+
+void waits_for_configuration_and_first_frame() {
+  const WindowMode modes[] = {WindowMode::windowed, WindowMode::maximized,
+                              WindowMode::fullscreen};
+  const bool orders[] = {false, true};
+  for (const auto mode : modes) {
+    for (const bool frame_first : orders) {
+      GtkWindow* window = GTK_WINDOW(gtk_window_new(GTK_WINDOW_TOPLEVEL));
+      GtkWidget* widget = GTK_WIDGET(window);
+      gtk_widget_realize(widget);
+      WindowOptions options;
+      options.mode = mode;
+
+      if (frame_first) {
+        nauvim_window_first_frame(window);
+        g_assert_false(gtk_widget_get_visible(widget));
+        nauvim_configure_window(window, options);
+      } else {
+        nauvim_configure_window(window, options);
+        g_assert_false(gtk_widget_get_visible(widget));
+        nauvim_window_first_frame(window);
+      }
+
+      g_assert_true(gtk_widget_get_mapped(widget));
+      gtk_widget_destroy(widget);
+    }
+  }
+}
+
 void unconfirmed_startup_mode_expires() {
   GtkWindow* window = GTK_WINDOW(gtk_window_new(GTK_WINDOW_TOPLEVEL));
   WindowOptions options;
@@ -77,6 +106,8 @@ int main(int argc, char** argv) {
     g_log_set_always_fatal(static_cast<GLogLevelFlags>(G_LOG_FATAL_MASK | G_LOG_LEVEL_CRITICAL));
   g_test_add_func("/window/appearance_and_dimensions", appearance_and_dimensions);
   g_test_add_func("/window/startup_transition", startup_transition);
+  g_test_add_func("/window/waits_for_configuration_and_first_frame",
+                  waits_for_configuration_and_first_frame);
   g_test_add_func("/window/unconfirmed_startup_mode_expires", unconfirmed_startup_mode_expires);
   return g_test_run();
 }

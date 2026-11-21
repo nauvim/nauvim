@@ -107,9 +107,15 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
   private(set) var isCleanupComplete = false
   private var closeRequested = false
   private var startupModePending = false
+  private var startupOpacity: CGFloat = 1
+  private var applyingStartupZoom = false
 
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
+
+  override func animationResizeTime(_ newFrame: NSRect) -> TimeInterval {
+    applyingStartupZoom ? 0 : super.animationResizeTime(newFrame)
+  }
 
   func configureInitialWindow(_ args: [String: Any]) {
     let current = contentRect(forFrameRect: frame).size
@@ -120,7 +126,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     }
     if let opacity = (args["opacity"] as? NSNumber)?.doubleValue,
        opacity.isFinite, (0...1).contains(opacity) {
-      alphaValue = CGFloat(opacity)
+      startupOpacity = CGFloat(opacity)
     }
     let width = (args["width"] as? NSNumber)?.doubleValue ?? current.width
     let height = (args["height"] as? NSNumber)?.doubleValue ?? current.height
@@ -129,26 +135,40 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     }
     switch args["startup_mode"] as? String ?? "windowed" {
     case "maximized":
-      if !isZoomed { zoom(nil) }
+      if !isZoomed {
+        applyingStartupZoom = true
+        zoom(nil)
+        applyingStartupZoom = false
+      }
     case "fullscreen":
       if !styleMask.contains(.fullScreen) {
+        alphaValue = 0
         startupModePending = true
         collectionBehavior.insert(.fullScreenPrimary)
         toggleFullScreen(nil)
       }
     default: break
     }
+    if !startupModePending { alphaValue = startupOpacity }
   }
 
   func windowDidEnterFullScreen(_ notification: Notification) {
-    startupModePending = false
+    finishStartupFullscreen()
   }
 
   func windowDidFailToEnterFullScreen(_ window: NSWindow) {
+    finishStartupFullscreen()
+  }
+
+  private func finishStartupFullscreen() {
+    guard startupModePending else { return }
     startupModePending = false
+    alphaValue = startupOpacity
   }
 
   override func awakeFromNib() {
+    // Keep the window ordered so Flutter and AppKit can initialize it.
+    alphaValue = 0
     let controller = FlutterViewController()
     let windowFrame = frame
     contentViewController = controller

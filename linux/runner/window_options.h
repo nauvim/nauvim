@@ -14,6 +14,7 @@ struct WindowOptions {
 };
 
 void nauvim_configure_window(GtkWindow* window, const WindowOptions& options);
+void nauvim_window_first_frame(GtkWindow* window);
 bool nauvim_window_mode_pending(GtkWindow* window);
 
 #endif

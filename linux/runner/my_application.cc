@@ -1,6 +1,7 @@
 #include "my_application.h"
 #include "renderer_policy.h"
 #include "webviews.h"
+#include "window_options.h"
 
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
@@ -17,8 +18,8 @@ struct _MyApplication {
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
 // Called when first Flutter frame received.
-static void first_frame_cb(MyApplication* self, FlView* view) {
-  gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+static void first_frame_cb(FlView*, GtkWindow* window) {
+  nauvim_window_first_frame(window);
 }
 
 // Implements GApplication::activate.
@@ -73,10 +74,8 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_show(GTK_WIDGET(overlay));
   nauvim_register_windows(view, window, overlay);
 
-  // Show the window when Flutter renders.
-  // Requires the view to be realized so we can start rendering.
-  g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb),
-                           self);
+  // Realize the view to start Flutter while the toplevel is still hidden.
+  g_signal_connect(view, "first-frame", G_CALLBACK(first_frame_cb), window);
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));

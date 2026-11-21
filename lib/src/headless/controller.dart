@@ -27,6 +27,8 @@ final class NauvimController extends ChangeNotifier {
     NauvimEngine? engine,
     required NauvimPlatform platform,
     String? startupError,
+    // A runner can wait for configuration even when no window options arrive.
+    this._defaultWindowOptions,
   }) : _engine = engine,
        _platform = platform,
        _connectionError = startupError {
@@ -36,12 +38,17 @@ final class NauvimController extends ChangeNotifier {
     _subscription = engine?.updates().listen(
       _update,
       onError: _streamError,
-      onDone: _finishUpdates,
+      onDone: () {
+        _configureDefaultWindow();
+        _finishUpdates();
+      },
     );
+    if (engine == null) _configureDefaultWindow();
   }
 
   final NauvimEngine? _engine;
   final NauvimPlatform _platform;
+  final WindowOptions? _defaultWindowOptions;
   final editor = EditorModel();
   late final Previews _previews;
   final _updatesFinished = Completer<void>();
@@ -143,6 +150,16 @@ final class NauvimController extends ChangeNotifier {
     _connectionError = error.toString();
     _refreshErrors();
     _changed();
+    _configureDefaultWindow();
+  }
+
+  void _configureDefaultWindow() {
+    if (_disposed || closing || _windowSetup != _WindowSetup.waiting) return;
+    if (_defaultWindowOptions case final options?) {
+      _initialWindow = _applyWindow(options);
+    } else {
+      _windowSetup = _WindowSetup.done;
+    }
   }
 
   Future<void> _configureFonts(
@@ -152,7 +169,7 @@ final class NauvimController extends ChangeNotifier {
     final request = ++_fontRequest;
     if (_windowSetup == _WindowSetup.waiting) {
       if (windowOptions == null) {
-        _windowSetup = _WindowSetup.done;
+        _configureDefaultWindow();
       } else if (windowUsesCells(windowOptions)) {
         _pendingWindow = windowOptions;
         _windowSetup = _WindowSetup.cells;
@@ -172,6 +189,10 @@ final class NauvimController extends ChangeNotifier {
     } catch (e) {
       if (!_disposed && !closing && request == _fontRequest) {
         reportError('Find configured fonts: $e');
+        if (_pendingWindow case final options?) {
+          _initialWindow = _applyWindow(_windowAppearance(options));
+          await _initialWindow;
+        }
       }
       return;
     }
@@ -186,10 +207,8 @@ final class NauvimController extends ChangeNotifier {
     DisplayWindowOptions options, {
     double? cellWidth,
     double? cellHeight,
-  }) async {
-    _windowSetup = _WindowSetup.applying;
-    _pendingWindow = null;
-    WindowOptions resolved;
+  }) {
+    final WindowOptions resolved;
     try {
       resolved = WindowOptions.resolve(
         options,
@@ -197,15 +216,25 @@ final class NauvimController extends ChangeNotifier {
         cellHeight: cellHeight,
       );
     } catch (e) {
+      final applied = _applyWindow(_windowAppearance(options));
       reportError('Resolve window geometry: $e');
-      resolved = WindowOptions(
+      return applied;
+    }
+    return _applyWindow(resolved);
+  }
+
+  WindowOptions _windowAppearance(DisplayWindowOptions options) =>
+      WindowOptions(
         decorations: options.decorations,
         opacity: options.opacity,
         startupMode: options.startupMode,
       );
-    }
-    _windowMargins = resolved.margin;
-    await _guard(() => _platform.configureInitialWindow(resolved));
+
+  Future<void> _applyWindow(WindowOptions options) async {
+    _windowSetup = _WindowSetup.applying;
+    _pendingWindow = null;
+    _windowMargins = options.margin;
+    await _guard(() => _platform.configureInitialWindow(options));
     _windowSetup = _WindowSetup.done;
     _changed();
   }

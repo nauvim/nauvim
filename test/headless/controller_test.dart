@@ -192,6 +192,73 @@ void main() {
   });
 
   test(
+    'configures the desktop window when startup supplies no options',
+    () async {
+      const defaults = WindowOptions();
+      for (final ready in [false, true]) {
+        final engine = Engine();
+        final platform = Platform();
+        final controller = NauvimController(
+          engine: engine,
+          platform: platform,
+          defaultWindowOptions: defaults,
+        );
+        if (ready) engine.events.add(const Update(kind: 'ready'));
+        await engine.events.close();
+        await settle();
+        expect(platform.calls, [
+          ('initial_window', defaults),
+        ], reason: 'ready=$ready');
+        controller.dispose();
+      }
+    },
+  );
+
+  test('configures the desktop window on bootstrap failure', () async {
+    const defaults = WindowOptions();
+    final controller = NauvimController(
+      platform: platform,
+      startupError: 'Failed to load the engine',
+      defaultWindowOptions: defaults,
+    );
+    addTearDown(controller.dispose);
+    await settle();
+    expect(platform.calls, [('initial_window', defaults)]);
+    expect(controller.errors, ['Failed to load the engine']);
+  });
+
+  test(
+    'applies the startup mode if cell sizing fails during font discovery',
+    () async {
+      const zero = DisplayLength(value: 0, unit: DisplayLengthUnit.px);
+      const options = DisplayWindowOptions(
+        width: DisplayLength(value: 100, unit: DisplayLengthUnit.em),
+        margin: DisplayMargins(
+          top: zero,
+          bottom: zero,
+          left: zero,
+          right: zero,
+        ),
+        startupMode: DisplayStartupMode.fullscreen,
+      );
+      platform.fontGate = Completer();
+      engine.events.add(const Update(kind: 'ready', windowOptions: options));
+      await settle();
+      expect(platform.calls, isEmpty);
+
+      platform.fontGate!.completeError(StateError('No usable font'));
+      await settle();
+      final initial = platform.calls.single.$2 as WindowOptions;
+      expect(initial.startupMode, DisplayStartupMode.fullscreen);
+      expect(initial.width, isNull);
+      expect(
+        controller.errors.single,
+        'Find configured fonts: Bad state: No usable font',
+      );
+    },
+  );
+
+  test(
     'applies initial window options once before font discovery and startup',
     () async {
       const margins = DisplayMargins(

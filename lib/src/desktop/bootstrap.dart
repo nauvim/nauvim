@@ -6,6 +6,7 @@ import '../bridge/api/application.dart';
 import '../bridge/frb_generated.dart';
 import '../headless/controller.dart';
 import '../headless/platform.dart';
+import '../headless/window_geometry.dart';
 import 'engine.dart';
 import 'platform.dart';
 
@@ -17,6 +18,9 @@ Future<NauvimController> createDesktopController({
   NauvimPlatform? platform,
 }) async {
   final services = platform ?? DesktopNauvimPlatform();
+  final defaults = services is DesktopNauvimPlatform
+      ? const WindowOptions()
+      : null;
   try {
     final override = Platform.environment['NAUVIM_LIBRARY'];
     final executableDir = File(Platform.resolvedExecutable).parent.path;
@@ -30,8 +34,13 @@ Future<NauvimController> createDesktopController({
     return NauvimController(
       engine: RustNauvimEngine(application),
       platform: services,
+      defaultWindowOptions: defaults,
     );
   } catch (e) {
-    return NauvimController(platform: services, startupError: e.toString());
+    return NauvimController(
+      platform: services,
+      startupError: e.toString(),
+      defaultWindowOptions: defaults,
+    );
   }
 }
