@@ -67,6 +67,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DisplayDecorations dco_decode_box_autoadd_display_decorations(dynamic raw);
 
   @protected
+  DisplayDestination dco_decode_box_autoadd_display_destination(dynamic raw);
+
+  @protected
   DisplayFrame dco_decode_box_autoadd_display_frame(dynamic raw);
 
   @protected
@@ -103,6 +106,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DisplayDecorations dco_decode_display_decorations(dynamic raw);
+
+  @protected
+  DisplayDestination dco_decode_display_destination(dynamic raw);
 
   @protected
   DisplayEvent dco_decode_display_event(dynamic raw);
@@ -233,6 +239,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DisplayDestination? dco_decode_opt_box_autoadd_display_destination(
+    dynamic raw,
+  );
+
+  @protected
   DisplayFrame? dco_decode_opt_box_autoadd_display_frame(dynamic raw);
 
   @protected
@@ -330,6 +341,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DisplayDestination sse_decode_box_autoadd_display_destination(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DisplayFrame sse_decode_box_autoadd_display_frame(
     SseDeserializer deserializer,
   );
@@ -374,6 +390,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DisplayDecorations sse_decode_display_decorations(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DisplayDestination sse_decode_display_destination(
     SseDeserializer deserializer,
   );
 
@@ -530,6 +551,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DisplayDestination? sse_decode_opt_box_autoadd_display_destination(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DisplayFrame? sse_decode_opt_box_autoadd_display_frame(
     SseDeserializer deserializer,
   );
@@ -646,6 +672,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_display_destination(
+    DisplayDestination self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_display_frame(
     DisplayFrame self,
     SseSerializer serializer,
@@ -699,6 +731,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_display_decorations(
     DisplayDecorations self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_display_destination(
+    DisplayDestination self,
     SseSerializer serializer,
   );
 
@@ -897,6 +935,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_display_decorations(
     DisplayDecorations? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_display_destination(
+    DisplayDestination? self,
     SseSerializer serializer,
   );
 

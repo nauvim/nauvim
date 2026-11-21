@@ -5,6 +5,7 @@ export '../bridge/api/display.dart'
         DisplayChunk,
         DisplayCompletion,
         DisplayCursor,
+        DisplayDestination,
         DisplayEvent,
         DisplayFont,
         DisplayFrame,

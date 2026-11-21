@@ -1224,6 +1224,14 @@ impl SseDecode for crate::api::display::DisplayDecorations {
     }
 }
 
+impl SseDecode for crate::api::display::DisplayDestination {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_alias = <Option<String>>::sse_decode(deserializer);
+        return crate::api::display::DisplayDestination { alias: var_alias };
+    }
+}
+
 impl SseDecode for crate::api::display::DisplayEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1838,6 +1846,19 @@ impl SseDecode for Option<crate::api::display::DisplayDecorations> {
     }
 }
 
+impl SseDecode for Option<crate::api::display::DisplayDestination> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::display::DisplayDestination>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::display::DisplayFrame> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1996,6 +2017,8 @@ impl SseDecode for crate::api::display::UiUpdate {
         let mut var_message = <Option<String>>::sse_decode(deserializer);
         let mut var_hosts = <Vec<String>>::sse_decode(deserializer);
         let mut var_defaultHost = <Option<String>>::sse_decode(deserializer);
+        let mut var_destination =
+            <Option<crate::api::display::DisplayDestination>>::sse_decode(deserializer);
         let mut var_fonts = <Vec<crate::api::display::DisplayFont>>::sse_decode(deserializer);
         let mut var_windowOptions =
             <Option<crate::api::display::DisplayWindowOptions>>::sse_decode(deserializer);
@@ -2006,6 +2029,7 @@ impl SseDecode for crate::api::display::UiUpdate {
             message: var_message,
             hosts: var_hosts,
             default_host: var_defaultHost,
+            destination: var_destination,
             fonts: var_fonts,
             window_options: var_windowOptions,
             window: var_window,
@@ -2275,6 +2299,23 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::display::DisplayDecorations>
     for crate::api::display::DisplayDecorations
 {
     fn into_into_dart(self) -> crate::api::display::DisplayDecorations {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::display::DisplayDestination {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.alias.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::display::DisplayDestination
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::display::DisplayDestination>
+    for crate::api::display::DisplayDestination
+{
+    fn into_into_dart(self) -> crate::api::display::DisplayDestination {
         self
     }
 }
@@ -2758,6 +2799,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::display::UiUpdate {
             self.message.into_into_dart().into_dart(),
             self.hosts.into_into_dart().into_dart(),
             self.default_host.into_into_dart().into_dart(),
+            self.destination.into_into_dart().into_dart(),
             self.fonts.into_into_dart().into_dart(),
             self.window_options.into_into_dart().into_dart(),
             self.window.into_into_dart().into_dart(),
@@ -2872,6 +2914,13 @@ impl SseEncode for crate::api::display::DisplayDecorations {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::display::DisplayDestination {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.alias, serializer);
     }
 }
 
@@ -3325,6 +3374,16 @@ impl SseEncode for Option<crate::api::display::DisplayDecorations> {
     }
 }
 
+impl SseEncode for Option<crate::api::display::DisplayDestination> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::display::DisplayDestination>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::display::DisplayFrame> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3454,6 +3513,7 @@ impl SseEncode for crate::api::display::UiUpdate {
         <Option<String>>::sse_encode(self.message, serializer);
         <Vec<String>>::sse_encode(self.hosts, serializer);
         <Option<String>>::sse_encode(self.default_host, serializer);
+        <Option<crate::api::display::DisplayDestination>>::sse_encode(self.destination, serializer);
         <Vec<crate::api::display::DisplayFont>>::sse_encode(self.fonts, serializer);
         <Option<crate::api::display::DisplayWindowOptions>>::sse_encode(
             self.window_options,

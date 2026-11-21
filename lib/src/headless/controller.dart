@@ -240,12 +240,17 @@ final class NauvimController extends ChangeNotifier {
       case 'ready':
         if (closing) return;
         _hosts = List.unmodifiable(update.hosts);
+        if (!_started) _destination = update.destination?.alias ?? '';
+        _changed();
         unawaited(_configureFonts(update.fonts, update.windowOptions));
       case 'connecting':
         if (closing) return;
         _resetAttachment();
         _phase = SessionPhase.connecting;
-        _destination = update.message ?? '';
+        _destination = switch (update.destination) {
+          DisplayDestination(:final alias) => alias ?? '',
+          null => update.message ?? '',
+        };
         _changed();
       case 'frame':
         if (closing) return;

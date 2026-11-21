@@ -6,6 +6,7 @@ mod attachment;
 mod driver;
 mod error;
 pub(crate) use error::Error;
+mod history;
 mod input;
 mod size;
 use size::GridSize;
@@ -19,6 +20,7 @@ use updates::Updates;
 use tokio::sync::{Mutex, mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
+use std::path::PathBuf;
 use std::thread;
 
 enum Command {
@@ -40,6 +42,13 @@ pub(crate) struct Handle {
 
 /// Starts the engine without blocking Flutter's UI isolate.
 pub(crate) fn spawn(config_path: Option<String>) -> Result<Handle, Error> {
+    spawn_with_history(config_path, None)
+}
+
+fn spawn_with_history(
+    config_path: Option<String>,
+    state_path: Option<PathBuf>,
+) -> Result<Handle, Error> {
     let (commands, receiver) = mpsc::channel(32);
     let (input, input_receiver) = mpsc::channel(256);
     let (input_epoch_tx, input_epoch) = watch::channel(CancellationToken::new());
@@ -61,6 +70,7 @@ pub(crate) fn spawn(config_path: Option<String>) -> Result<Handle, Error> {
             {
                 Ok(runtime) => runtime.block_on(run(
                     config_path,
+                    state_path,
                     receiver,
                     input_receiver,
                     input_epoch_tx,

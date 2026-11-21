@@ -182,8 +182,15 @@ alias called `local` or `default` remains distinct from the default local choice
 Set `default_host = "work"` to connect there automatically at startup. With no
 host configuration, startup connects to the default local host.
 
-The welcome page starts with a selected destination. Use `j` to move down and
-`k` to move up, then Enter to select. Up/Down, Tab/Shift+Tab,
+The welcome page selects the last destination you requested, including the
+default local host. This choice survives quitting or detaching from Neovim and
+restarting Nauvim. An alias outside the configured list is restored under
+**Type yourself**. With no saved choice, the default local host is selected.
+This selection does not change the automatic startup rules above. See
+[host selection storage](docs/persistence.md#host-selection) for its location
+and recovery.
+
+Use `j` to move down and `k` to move up, then Enter to select. Up/Down, Tab/Shift+Tab,
 and Ctrl+N/Ctrl+P also move between choices. Select **Type yourself** to enter
 another host alias; Enter connects and Escape returns to the menu while keeping
 the draft. In text entry, `hjkl` types normally. Escape also cancels a pending

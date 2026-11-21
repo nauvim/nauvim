@@ -8,6 +8,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
+fn spawn(config_path: Option<String>) -> Result<Handle, Error> {
+    let state_path = Path::new(config_path.as_deref().unwrap())
+        .parent()
+        .unwrap()
+        .join("state.sqlite3");
+    spawn_with_history(config_path, Some(state_path))
+}
+
 struct Host {
     nvim: PathBuf,
     socket: PathBuf,
@@ -159,6 +167,85 @@ async fn reports_alias_failure_once_and_preserves_the_welcome_page() {
     );
     app.close().await.unwrap();
     receive(&mut updates, "shutdown").await;
+}
+
+#[tokio::test]
+async fn restores_the_requested_host_without_waiting_for_shutdown() {
+    use crate::api::display::DisplayDestination;
+
+    let root = tempfile::tempdir().unwrap();
+    let config = root.path().join("init.lua");
+    fs::write(
+        &config,
+        r#"return {hosts = {local_alias = {
+            nvim = function() error('selected-local-alias') end,
+        }}}"#,
+    )
+    .unwrap();
+    let app = spawn(Some(config.to_string_lossy().into_owned())).unwrap();
+    let mut updates = app.take_updates().await.unwrap();
+    assert_eq!(receive(&mut updates, "ready").await.destination, None);
+    app.connect("local_alias".into(), 80, 24).await.unwrap();
+    assert_eq!(
+        receive(&mut updates, "connecting").await.destination,
+        Some(DisplayDestination {
+            alias: Some("local_alias".into())
+        }),
+    );
+    receive(&mut updates, "welcome").await;
+
+    // Reopen while the first instance is alive: persistence cannot depend on
+    // graceful shutdown or a successful attachment.
+    let restarted = spawn(Some(config.to_string_lossy().into_owned())).unwrap();
+    let mut restored_updates = restarted.take_updates().await.unwrap();
+    assert_eq!(
+        receive(&mut restored_updates, "ready").await.destination,
+        Some(DisplayDestination {
+            alias: Some("local_alias".into())
+        }),
+    );
+    restarted.start(80, 24).await.unwrap();
+    receive(&mut restored_updates, "welcome").await;
+    restarted.close().await.unwrap();
+    app.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn storage_failure_does_not_prevent_host_selection() {
+    let root = tempfile::tempdir().unwrap();
+    let config = root.path().join("init.lua");
+    fs::write(
+        &config,
+        r#"return {hosts = {local_alias = {
+            nvim = function() error('selected-local-alias') end,
+        }}}"#,
+    )
+    .unwrap();
+    fs::write(root.path().join("state.sqlite3"), b"damaged database").unwrap();
+    let app = spawn(Some(config.to_string_lossy().into_owned())).unwrap();
+    let mut updates = app.take_updates().await.unwrap();
+    receive(&mut updates, "ready").await;
+    assert!(
+        receive(&mut updates, "error")
+            .await
+            .message
+            .unwrap()
+            .contains("last selected host database")
+    );
+    app.connect("local_alias".into(), 80, 24).await.unwrap();
+    receive(&mut updates, "connecting").await;
+    assert!(
+        receive(&mut updates, "welcome")
+            .await
+            .message
+            .unwrap()
+            .contains("selected-local-alias")
+    );
+    app.close().await.unwrap();
+    assert_eq!(
+        fs::read(root.path().join("state.sqlite3")).unwrap(),
+        b"damaged database"
+    );
 }
 
 #[tokio::test]

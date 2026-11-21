@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`
 
 /// Cell text and its Neovim highlight handle.
 ///
@@ -116,6 +116,23 @@ class DisplayCursor {
 
 /// Native window decorations requested at startup; omission selects full.
 enum DisplayDecorations { full, none }
+
+/// A host choice; an absent alias selects the independent default local host.
+class DisplayDestination {
+  final String? alias;
+
+  const DisplayDestination({this.alias});
+
+  @override
+  int get hashCode => alias.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DisplayDestination &&
+          runtimeType == other.runtimeType &&
+          alias == other.alias;
+}
 
 /// An ordered application event, handled once independently of painting.
 class DisplayEvent {
@@ -601,6 +618,9 @@ class UiUpdate {
   final String? message;
   final List<String> hosts;
   final String? defaultHost;
+
+  /// The remembered or connecting destination, independent of its display label.
+  final DisplayDestination? destination;
   final List<DisplayFont> fonts;
   final DisplayWindowOptions? windowOptions;
   final DisplayWindow? window;
@@ -611,6 +631,7 @@ class UiUpdate {
     this.message,
     required this.hosts,
     this.defaultHost,
+    this.destination,
     required this.fonts,
     this.windowOptions,
     this.window,
@@ -626,6 +647,7 @@ class UiUpdate {
       message.hashCode ^
       hosts.hashCode ^
       defaultHost.hashCode ^
+      destination.hashCode ^
       fonts.hashCode ^
       windowOptions.hashCode ^
       window.hashCode;
@@ -640,6 +662,7 @@ class UiUpdate {
           message == other.message &&
           hosts == other.hosts &&
           defaultHost == other.defaultHost &&
+          destination == other.destination &&
           fonts == other.fonts &&
           windowOptions == other.windowOptions &&
           window == other.window;

@@ -8,9 +8,17 @@ pub struct UiUpdate {
     pub message: Option<String>,
     pub hosts: Vec<String>,
     pub default_host: Option<String>,
+    /// The remembered or connecting destination, independent of its display label.
+    pub destination: Option<DisplayDestination>,
     pub fonts: Vec<DisplayFont>,
     pub window_options: Option<DisplayWindowOptions>,
     pub window: Option<DisplayWindow>,
+}
+
+/// A host choice; an absent alias selects the independent default local host.
+#[derive(Debug, PartialEq)]
+pub struct DisplayDestination {
+    pub alias: Option<String>,
 }
 
 /// A configured OpenType face and its logical-pixel em size.

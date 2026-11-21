@@ -1,9 +1,10 @@
-use crate::api::display::UiUpdate;
+use crate::api::display::{DisplayDestination, UiUpdate};
 use crate::configuration;
 use crate::display::Presenter;
 
 use super::Command;
 use super::attachment::{self, Attachment};
+use super::history::History;
 use super::input::{Input, QueuedInput, completed, reset_input, start_input, stop_input};
 use super::size::GridSize;
 use super::updates::{Updates, close_window, message, open_window};
@@ -14,11 +15,12 @@ use tokio::time::{Duration, timeout};
 use tokio_util::sync::CancellationToken;
 
 use std::future::{Future, poll_fn};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::task::Poll;
 
 pub(super) async fn run(
     path: Option<String>,
+    state_path: Option<PathBuf>,
     mut commands: mpsc::Receiver<Command>,
     mut input: mpsc::Receiver<QueuedInput>,
     input_epoch: watch::Sender<CancellationToken>,
@@ -32,16 +34,39 @@ pub(super) async fn run(
         }
     };
 
+    let mut history_error = None;
+    let history = match state_path
+        .as_deref()
+        .map_or_else(History::system, History::open)
+    {
+        Ok(history) => Some(history),
+        Err(e) => {
+            history_error = Some(format!("Open the last selected host database: {e}"));
+            None
+        }
+    };
+    let destination = history.as_ref().and_then(|history| match history.load() {
+        Ok(destination) => destination,
+        Err(e) => {
+            history_error = Some(format!("Restore the last selected host: {e}"));
+            None
+        }
+    });
+
     let startup = UiUpdate {
         kind: "ready".into(),
         hosts: config.hosts().map(str::to_owned).collect(),
         default_host: config.default_host().map(str::to_owned),
+        destination,
         fonts: options.fonts,
         window_options: options.window,
         ..UiUpdate::default()
     };
     if updates.send(startup).await.is_err() {
         return;
+    }
+    if let Some(error) = history_error {
+        let _ = updates.send(message("error", Some(error))).await;
     }
 
     let mut engine = match Engine::new(config) {
@@ -70,12 +95,13 @@ pub(super) async fn run(
                     Command::Start(size) if !started => {
                         started = true;
                         dimensions = size;
-                        let host = engine.config().startup_host().map(|host| match host {
-                            HostSelection::Default => "Local".to_owned(),
-                            HostSelection::Alias(alias) => alias.to_owned(),
-                        });
-                        if let Some(host) = host {
-                            let _ = updates.send(message("connecting", Some(host))).await;
+                        if let Some(host) = engine.config().startup_host() {
+                            let alias = match host {
+                                HostSelection::Default => None,
+                                HostSelection::Alias(alias) => Some(alias),
+                            };
+                            remember(history.as_ref(), alias, &updates).await;
+                            let _ = updates.send(connecting(alias.map(str::to_owned))).await;
                         }
                         begin(engine.start(dimensions.width(), dimensions.height())).await
                     }
@@ -87,8 +113,8 @@ pub(super) async fn run(
                         presenter.reset();
                         attachment = Attachment::Pending;
                         dimensions = size;
-                        let connecting = host.clone().unwrap_or_else(|| "Local".into());
-                        let _ = updates.send(message("connecting", Some(connecting))).await;
+                        remember(history.as_ref(), host.as_deref(), &updates).await;
+                        let _ = updates.send(connecting(host.clone())).await;
                         match host {
                             Some(host) => {
                                 begin(engine.connect(&host, dimensions.width(), dimensions.height())).await
@@ -170,7 +196,8 @@ pub(super) async fn run(
                         reset_input(task.as_mut(), &mut input, &input_epoch);
                         presenter.reset();
                         attachment = Attachment::Pending;
-                        message("connecting", Some(host))
+                        remember(history.as_ref(), Some(&host), &updates).await;
+                        connecting(Some(host))
                     }
                     EngineEvent::OpenWebview { handle, url, position } => {
                         open_window(handle, url, position)
@@ -214,6 +241,28 @@ pub(super) async fn run(
     commands.close();
     input.close();
     finish(&mut engine, &updates).await;
+}
+
+fn connecting(alias: Option<String>) -> UiUpdate {
+    UiUpdate {
+        kind: "connecting".into(),
+        message: Some(alias.clone().unwrap_or_else(|| "Local".into())),
+        destination: Some(DisplayDestination { alias }),
+        ..UiUpdate::default()
+    }
+}
+
+async fn remember(history: Option<&History>, alias: Option<&str>, updates: &Updates) {
+    if let Some(history) = history
+        && let Err(e) = history.save(alias)
+    {
+        let _ = updates
+            .send(message(
+                "error",
+                Some(format!("Remember the selected host: {e}")),
+            ))
+            .await;
+    }
 }
 
 async fn finish(engine: &mut Engine, updates: &Updates) {

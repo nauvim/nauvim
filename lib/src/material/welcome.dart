@@ -23,6 +23,7 @@ class _NauvimWelcomeState extends State<NauvimWelcome> {
   int _selected = 0;
   bool _typing = false;
   late bool _connecting;
+  late String _destination;
 
   int get _manualIndex => widget.controller.hosts.length + 1;
   int get _selectedIndex => _selected.clamp(0, _manualIndex);
@@ -40,17 +41,20 @@ class _NauvimWelcomeState extends State<NauvimWelcome> {
     _focusMenu();
   }
 
-  void _restoreDestination() {
+  void _restoreDestination({bool keepDraft = false}) {
     _connecting = widget.controller.connecting;
     _typing = false;
     final destination = widget.controller.destination;
+    _destination = destination;
     final host = widget.controller.hosts.indexOf(destination);
     _selected = destination.isEmpty
         ? 0
         : host < 0
         ? _manualIndex
         : host + 1;
-    _host.text = host < 0 ? destination : '';
+    if (!keepDraft || (host < 0 && destination.isNotEmpty)) {
+      _host.text = host < 0 ? destination : '';
+    }
   }
 
   @override
@@ -66,6 +70,12 @@ class _NauvimWelcomeState extends State<NauvimWelcome> {
 
   void _syncConnection() {
     final connecting = widget.controller.connecting;
+    final destination = widget.controller.destination;
+    if (destination != _destination) {
+      setState(() => _restoreDestination(keepDraft: true));
+      _focusMenu();
+      return;
+    }
     if (connecting == _connecting) return;
     setState(() {
       _connecting = connecting;

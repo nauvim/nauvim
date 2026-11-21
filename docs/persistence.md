@@ -1,6 +1,52 @@
-# Persistent font cache
+# Persistent state and font cache
 
-## Storage scope
+## Host selection
+
+Nauvim stores the last requested destination in SQLite before beginning its
+connection attempt. The default local host is a separate choice from every
+alias, including `local`, `Local`, and `default`. Failed or cancelled attempts
+retain the requested choice. Returning to the welcome page after Neovim quits
+or detaches selects that destination again.
+
+The next Nauvim process restores this selection on the welcome page. An alias
+outside the current configuration is restored under **Type yourself**, with the
+alias ready to edit or submit. Restoring the selection does not connect to the
+host. Lua's `default_host` and the automatic default local connection with no
+configured hosts keep their existing startup behavior. An automatic startup
+connection or a host switch requested by the Neovim plugin also saves its
+destination.
+
+The database is `nauvim/state.sqlite3` beneath the platform local data directory:
+
+| Platform | Location |
+| --- | --- |
+| Linux | `$XDG_DATA_HOME/nauvim/state.sqlite3`, or `$HOME/.local/share/nauvim/state.sqlite3` when no absolute XDG data directory is set |
+| macOS | `$HOME/Library/Application Support/nauvim/state.sqlite3` |
+
+The selection is shared across configurations for the same operating-system
+user. It stores only a destination, without duplicating core's host process or
+session registry. Window geometry remains governed by UI options and platform
+window policy.
+
+The application driver opens one synchronous `rusqlite` connection with a 25 ms
+busy timeout. Schema version 1 uses application ID `0x4e415553` and SQLite
+`user_version`. The `selection` table holds one row: a null alias means the
+default local host; a nonempty alias names a configured or manually entered
+host. An empty table means there is no saved choice. Each selection is committed
+when requested, so it does not depend on orderly process shutdown.
+
+An unavailable, locked, damaged, or incompatible database produces a diagnostic
+without preventing connections. If opening fails, persistence is disabled for
+that process; the next launch tries again. A failed write leaves the previous
+selection stored. Unknown application IDs, unsupported schema versions, and
+occupied unversioned databases are preserved. To reset the saved selection or
+recover from corruption, close Nauvim and delete `state.sqlite3`. The next
+launch creates a fresh database. This does not remove host sessions or the font
+cache.
+
+## Font cache
+
+### Storage scope
 
 Nauvim persists prepared fonts owned by the Flutter frontend. Each entry contains
 the selected standalone SFNT bytes, metrics in em units, Unicode coverage, and
@@ -19,15 +65,10 @@ current request index is attached when the prepared face is returned. Resolution
 reads an entry after selecting the source face and writes it after successful
 preparation. Entries may be evicted or deleted at any time.
 
-Lua remains the source of configuration. Window geometry is not stored: the
-current initial-size contract comes from UI options and platform window policy,
-and restoration would need its own precedence and multi-window policy. Sessions
-are not stored by this frontend: `nauvim-core` owns host selection, socket
-discovery, session eligibility, and surviving Neovim processes. A second session
-registry would duplicate that ownership. No restoration state is selected for
-SQLite in this implementation.
+Lua remains the source of configuration. `nauvim-core` owns socket discovery,
+session eligibility, and surviving Neovim processes.
 
-## Location and recovery
+### Location and recovery
 
 The database is `nauvim/fonts.sqlite3` beneath the platform cache directory:
 
@@ -55,7 +96,7 @@ database corruption, close Nauvim and delete `fonts.sqlite3` from the location
 above. The next font resolution recreates it. Nauvim does not delete an unreadable
 database or overwrite an unknown schema automatically.
 
-## Storage design
+### Storage design
 
 The Rust font-processing layer uses synchronous `rusqlite` with bundled SQLite.
 This keeps storage beside preparation without an async runtime, connection pool,

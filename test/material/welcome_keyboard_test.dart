@@ -165,6 +165,109 @@ void main() {
     expect(controller.destination, 'local');
   });
 
+  testWidgets('restores the destination after leaving an attached editor', (
+    tester,
+  ) async {
+    final (:engine, :controller) = await welcome(
+      tester,
+      hosts: ['local', 'Local', 'default'],
+    );
+    for (final detach in [false, true]) {
+      for (final alias in [null, 'local', 'Local', 'default', 'manual-host']) {
+        final title = alias == null
+            ? 'Default local host'
+            : alias == 'manual-host'
+            ? 'Type yourself'
+            : alias;
+        await tester.tap(find.widgetWithText(ListTile, title));
+        await tester.pump();
+        if (alias == 'manual-host') {
+          tester.testTextInput.enterText(alias!);
+          await tester.testTextInput.receiveAction(TextInputAction.done);
+          await tester.pump();
+        }
+        engine.emit(
+          UiUpdate(
+            kind: 'connecting',
+            message: alias ?? 'Local',
+            destination: DisplayDestination(alias: alias),
+            hosts: const [],
+            fonts: const [],
+          ),
+        );
+        engine.emit(
+          const UiUpdate(
+            kind: 'frame',
+            frame: DisplayFrame(
+              full: true,
+              grids: [],
+              removedGrids: [],
+              rows: [],
+              highlights: [],
+              title: '',
+              mode: 'normal',
+              busy: false,
+              events: [],
+            ),
+            hosts: [],
+            fonts: [],
+          ),
+        );
+        await tester.pump();
+        expect(controller.attached, isTrue);
+        expect(find.byType(ListTile), findsNothing);
+        if (detach) await controller.detach();
+        await returnToWelcome(tester, engine);
+        expect(selectedItem(tester), title);
+        expect(controller.destination, alias ?? '');
+        expect(find.byType(TextField), findsNothing);
+      }
+    }
+    expect(engine.detaches, 5);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final alias in [null, 'local', 'Local', 'default', 'manual-host']) {
+    testWidgets('restores the saved destination $alias when ready arrives', (
+      tester,
+    ) async {
+      final (:engine, :controller) = await welcome(tester, ready: false);
+      engine.emit(
+        UiUpdate(
+          kind: 'ready',
+          destination: DisplayDestination(alias: alias),
+          hosts: const ['local', 'Local', 'default'],
+          fonts: const [],
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      final title = alias == null
+          ? 'Default local host'
+          : alias == 'manual-host'
+          ? 'Type yourself'
+          : alias;
+      expect(selectedItem(tester), title);
+      expect(find.byType(TextField), findsNothing);
+      expect(controller.connecting, isFalse);
+      expect(engine.defaults, isEmpty);
+      expect(engine.connections, isEmpty);
+      await key(tester, LogicalKeyboardKey.enter);
+      if (alias == 'manual-host') {
+        expect(hostField(tester).controller!.text, alias);
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pump();
+      }
+      if (alias == null) {
+        expect(engine.defaults, hasLength(1));
+        expect(engine.connections, isEmpty);
+      } else {
+        expect(engine.connections.single.$1, alias);
+        expect(engine.defaults, isEmpty);
+      }
+    });
+  }
+
   testWidgets('Type yourself enters text mode and Escape retains its draft', (
     tester,
   ) async {
