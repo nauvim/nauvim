@@ -2,6 +2,7 @@
 """Check desktop attachment, previews, switching, shutdown, and host reuse."""
 
 import argparse
+import contextlib
 import http.server
 import json
 import os
@@ -37,13 +38,52 @@ def main():
     if not binary.is_file():
         parser.error(f"Build the release application first: {binary}")
 
-    with tempfile.TemporaryDirectory(prefix="nauvim-gui-smoke-") as directory:
+    with (
+        tempfile.TemporaryDirectory(prefix="nauvim-gui-smoke-") as directory,
+        contextlib.ExitStack() as resources,
+    ):
         root = pathlib.Path(directory)
         sockets = {name: root / f"{name}.sock" for name in ("first", "second")}
         config = root / "init.lua"
+        fetched = threading.Event()
+        redirected = threading.Event()
+        blocked_request = threading.Event()
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path == "/index.html":
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"<h1>Nauvim preview</h1>")
+                    fetched.set()
+                elif self.path == "/redirect":
+                    self.send_response(302)
+                    self.send_header("Location", blocked_origin + "/blocked")
+                    self.end_headers()
+                    redirected.set()
+                elif self.path == "/blocked":
+                    blocked_request.set()
+                    self.send_error(403)
+                else:
+                    self.send_error(404)
+
+            def log_message(self, *_args):
+                pass
+
+        server = resources.enter_context(http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler))
+        blocked_server = resources.enter_context(
+            http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        )
+        origin = f"http://127.0.0.1:{server.server_port}"
+        blocked_origin = f"http://127.0.0.1:{blocked_server.server_port}"
+        for preview_server in (server, blocked_server):
+            threading.Thread(target=preview_server.serve_forever, daemon=True).start()
+            resources.callback(preview_server.shutdown)
+
+        policies = "policies={plugin={http={open_webview={origins={" + json.dumps(origin) + "}}}}}"
         hosts = ",".join(
             f"{name}={{nvim={{prog={json.dumps(nvim)},args={{'-u','NONE','-i','NONE','-n'}}}},"
-            f"socket={json.dumps(str(socket))}}}"
+            f"socket={json.dumps(str(socket))},{policies}}}"
             for name, socket in sockets.items()
         )
         config.write_text(f"return {{default_host='first',hosts={{{hosts}}}," + """
@@ -62,7 +102,6 @@ def main():
             path.mkdir(mode=0o700)
             env[key] = str(path)
         process = None
-        server = None
 
         def evaluate(host, expression):
             return subprocess.check_output(
@@ -122,33 +161,33 @@ def main():
                 lua("first", "vim.api.nvim_input('<Esc>')")
                 print("Exercised structured completion updates", flush=True)
 
-                fetched = threading.Event()
-
-                class Handler(http.server.BaseHTTPRequestHandler):
-                    def do_GET(self):
-                        if self.path == "/index.html":
-                            fetched.set()
-                            self.send_response(200)
-                            self.end_headers()
-                            self.wfile.write(b"<h1>Nauvim preview</h1>")
-                        else:
-                            self.send_error(404)
-
-                    def log_message(self, *_args):
-                        pass
-
-                server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
-                threading.Thread(target=server.serve_forever, daemon=True).start()
-                url = f"http://127.0.0.1:{server.server_port}/index.html#fragment"
                 prefix = ("local u=vim.api.nvim_list_uis()[1]; "
                           "local id=tonumber(vim.api.nvim_get_chan_info(u.chan).client.name:match('(%d+)$')); ")
-                handle = lua("first", "(function() " + prefix +
-                             "return vim.rpcrequest(u.chan,'nauvim-plugin/http.open_webview',id," +
-                             json.dumps(url) + ",{grid=1,top=1,left=1,height=3,width=16}) end)()")
+
+                def open_preview(path, *, focus, focusable):
+                    return lua(
+                        "first", "(function() " + prefix +
+                        "return vim.rpcrequest(u.chan,'nauvim-plugin/http.open_webview',id," +
+                        json.dumps(origin + path) + ",{grid=1,top=1,left=1,height=3,width=16}," +
+                        json.dumps(focus) + "," + json.dumps(focusable) + ") end)()",
+                    )
+
+                def preview_notify(method, handle):
+                    lua(
+                        "first", "(function() " + prefix +
+                        f"return vim.rpcnotify(u.chan,'nauvim-plugin/http.{method}',id,{handle}) end)()",
+                    )
+
+                handle = open_preview("/index.html#fragment", focus=False, focusable=True)
                 assert fetched.wait(15), "Native preview did not fetch its URL"
-                lua("first", "(function() " + prefix +
-                    "return vim.rpcnotify(u.chan,'nauvim-plugin/http.clear',id," + handle + ") end)()")
-                print("Opened and cleared native HTTP preview", flush=True)
+                preview_notify("focus_webview", handle)
+                preview_notify("clear", handle)
+
+                handle = open_preview("/redirect", focus=True, focusable=False)
+                assert redirected.wait(15), "Native preview did not fetch the redirect"
+                assert not blocked_request.wait(3), "Native preview followed a disallowed redirect"
+                preview_notify("clear", handle)
+                print("Opened and cleared native HTTP previews and blocked a redirect", flush=True)
 
                 lua("first", "(function() " + prefix +
                     "vim.rpcnotify(u.chan,'nauvim-plugin/client.connect',id,'second'); "
@@ -179,9 +218,6 @@ def main():
             print((root / "gui.log").read_text())
             raise
         finally:
-            if server is not None:
-                server.shutdown()
-                server.server_close()
             if process is not None and process.poll() is None:
                 process.kill()
                 process.wait()

@@ -79,11 +79,14 @@ void main() {
         left: 0,
         height: 2,
         width: 4,
+        focus: false,
+        focusable: false,
       ),
       const Rect.fromLTWH(1, 2, 3, 4),
       keyBindings: bindings.bindings(KeyContext.webview),
     );
     expect(calls.single.method, 'open_webview');
+    expect((calls.single.arguments as Map)['focusable'], isFalse);
     expect((calls.single.arguments as Map)['key_bindings'], [
       {'key': 'escape', 'modifiers': 0, 'action': 'reload'},
       {'key': 'w', 'modifiers': 8, 'action': 'close'},

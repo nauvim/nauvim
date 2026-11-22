@@ -103,6 +103,10 @@ class FakePlatform implements NauvimPlatform {
     List<KeyBinding> keyBindings = const [],
   }) async => previews.add((window, rectangle));
   @override
+  Future<void> hidePreview(int handle) async {}
+  @override
+  Future<void> focusPreview(int handle) async {}
+  @override
   Future<void> closePreview(int handle) async => closedPreviews.add(handle);
   @override
   Future<void> closeWindow() async => closes++;

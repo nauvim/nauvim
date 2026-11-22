@@ -76,9 +76,10 @@ python3 tool/smoke.py --nvim /absolute/path/to/nvim
 ```
 
 It uses isolated configuration, sockets, and temporary directories. It loads
-custom welcome, clipboard, and webview bindings through the real bridge and checks
-attachment, structured completion updates, native HTTP preview access,
-detachment, SIGTERM cleanup, and reuse of the same surviving host process.
+custom welcome, clipboard, and webview bindings through the real bridge. The
+check covers attachment, structured completion updates, native HTTP preview
+access, blocked preview redirects, detachment, SIGTERM cleanup, and reuse of
+the same surviving host process.
 It stops its test-owned hosts afterward.
 The smoke check verifies connection and process reuse; it does not inspect
 buffer pixels. Use the rendering regression above to check received buffer

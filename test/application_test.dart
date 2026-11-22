@@ -104,6 +104,10 @@ class TestPlatform implements NauvimPlatform {
     List<KeyBinding> keyBindings = const [],
   }) => native.openPreview(window, rectangle, keyBindings: keyBindings);
   @override
+  Future<void> hidePreview(int handle) => native.hidePreview(handle);
+  @override
+  Future<void> focusPreview(int handle) => native.focusPreview(handle);
+  @override
   Future<void> closePreview(int handle) => native.closePreview(handle);
   @override
   Future<void> closeWindow() => native.closeWindow();
@@ -391,6 +395,8 @@ void main() {
         left: 1,
         height: 3,
         width: 5,
+        focus: false,
+        focusable: true,
       );
       await emit(tester, app, update('open_webview', window: preview));
       await emit(tester, app, update('close_webview', window: preview));

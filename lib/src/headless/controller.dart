@@ -134,7 +134,13 @@ final class NauvimController extends ChangeNotifier {
       case PlatformFailure(:final message):
         reportError(message);
       case PreviewCloseRequested(:final handle):
-        _previews.clear(handle);
+        _previews.clear(handle, userRequested: true);
+      case PreviewNavigationRequested(:final handle, :final url):
+        await _guard(() async {
+          event.allowed = await _previews.allowsNavigation(handle, url);
+        });
+      case PreviewFailure(:final handle, :final message):
+        await _guard(() => _previews.reportFailure(handle, message));
     }
   }
 
@@ -325,6 +331,10 @@ final class NauvimController extends ChangeNotifier {
         if (!closing && window != null) _previews.open(window);
       case 'close_webview':
         if (update.window case final window?) _previews.clear(window.handle);
+      case 'focus_webview':
+        if (update.window case final window? when !closing) {
+          _previews.focus(window.handle);
+        }
       case 'shutdown':
         _finishUpdates();
         unawaited(close());

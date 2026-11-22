@@ -166,7 +166,7 @@ Enter binding. Each modifier combination has its own binding, so removing
 | Action | Behavior | Linux default | macOS default |
 | --- | --- | --- | --- |
 | `copy` | Copies the grid's selected text to the client clipboard | `Ctrl-Shift-c` | `Super-c` |
-| `paste` | Pastes the client clipboard into Neovim if host policy allows it | `Ctrl-Shift-v` | `Super-v` |
+| `paste` | Pastes the client clipboard into Neovim | `Ctrl-Shift-v` | `Super-v` |
 
 These bindings apply while the editor has keyboard focus. When there is no
 grid selection, the copy chord goes to Neovim.
@@ -184,4 +184,6 @@ chords retain the browser's behavior.
 | `focus_editor` | Returns keyboard focus to the editor | `Esc` |
 | `close` | Closes that preview and returns focus to the editor | `Ctrl-w` |
 
-The host plugin can show a closed preview again.
+The host plugin can open a preview without moving keyboard focus. A preview
+opened with `focusable = false` cannot receive keyboard focus. The host plugin
+can open a new preview after the original closes.

@@ -1,7 +1,7 @@
 # Rust architecture
 
 This crate adapts the published `nauvim-core` engine to Flutter. Core owns host
-selection, transport, clipboard policy, and plugin resources. This crate owns
+selection, transport, host plugin permissions, and plugin resources. This crate owns
 the application thread, action scheduling, UI snapshot projection, UI option
 validation, and font preparation. Flutter owns layout, shaping, and drawing.
 
