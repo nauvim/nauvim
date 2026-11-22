@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nauvim_flutter/nauvim.dart';
@@ -56,7 +57,7 @@ class CompletionEngine extends FakeEngine {
 
 void main() {
   testWidgets(
-    'keeps a command row below the grid without resizing on visibility changes',
+    'expands and scrolls bottom messages while keeping the command row anchored',
     (tester) async {
       final engine = CompletionEngine();
       final controller = NauvimController(
@@ -205,23 +206,62 @@ void main() {
         lessThanOrEqualTo(presentationBounds.bottom),
       );
 
-      final multiline = List.filled(50, 'A line of message history').join('\n');
-      await display([text('message', multiline)]);
+      const error = 'Error in command line:\nE492: Not an editor command';
+      const notification = 'Build finished';
+      final errorText = find.text(error, findRichText: true);
+      final notificationText = find.text(notification, findRichText: true);
+      final messageScroll = find.ancestor(
+        of: notificationText,
+        matching: find.byType(Scrollable),
+      );
+      await display([text('message', error), text('message', notification)]);
       expectStableViewport();
-      final historyPanel = find
-          .ancestor(
-            of: find.text(multiline, findRichText: true),
-            matching: find.byType(ColoredBox),
-          )
-          .first;
-      final historyBounds = tester.getRect(historyPanel);
-      expect(historyBounds.bottom, presentationBounds.bottom);
-      expect(historyBounds.height, controller.viewport!.cellHeight);
+      final expanded = tester.getRect(messageScroll);
+      expect(expanded.bottom, panelBounds.bottom);
+      expect(expanded.top, lessThan(panelBounds.top));
+      expect(expanded.top, greaterThan(editorBounds.top));
+      expect(tester.getRect(errorText).top, greaterThanOrEqualTo(expanded.top));
+      expect(tester.getRect(notificationText).bottom, messageBounds.bottom);
+      expect(
+        tester.state<ScrollableState>(messageScroll).position.maxScrollExtent,
+        0,
+      );
+
+      final multiline = List.filled(80, 'A line of message output').join('\n');
+      await display([
+        text('message', error),
+        text('message', multiline),
+        text('message', notification),
+      ]);
+      expectStableViewport();
+      final capped = tester.getRect(messageScroll);
+      expect(capped.top, editorBounds.top);
+      expect(capped.bottom, panelBounds.bottom);
+      expect(capped.contains(tester.getCenter(errorText)), isFalse);
+      expect(tester.getRect(notificationText).bottom, messageBounds.bottom);
+
+      final scroll = tester.state<ScrollableState>(messageScroll).position;
+      expect(scroll.maxScrollExtent, greaterThan(0));
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: capped.center,
+          scrollDelta: Offset(0, -scroll.maxScrollExtent),
+        ),
+      );
+      await tester.pump();
+      expect(capped.contains(tester.getCenter(errorText)), isTrue);
+      expect(capped.contains(tester.getCenter(notificationText)), isFalse);
 
       await display([]);
       expectStableViewport();
       expect(indicators, findsNothing);
-      expect(find.text(multiline, findRichText: true), findsNothing);
+      expect(errorText, findsNothing);
+      expect(notificationText, findsNothing);
+      final bottomScroll = find.descendant(
+        of: find.byType(NauvimEditor),
+        matching: find.byType(Scrollable),
+      );
+      expect(tester.getRect(bottomScroll), panelBounds);
       expect(tester.takeException(), isNull);
     },
   );
