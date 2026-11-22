@@ -1,4 +1,4 @@
-//! Parses window geometry, appearance, and startup mode.
+//! Parses window appearance, margins, and startup size.
 
 use crate::api::display::{
     DisplayDecorations, DisplayLength, DisplayLengthUnit, DisplayMargins, DisplayStartupMode,
@@ -22,22 +22,46 @@ pub(super) fn parse(config: &UiConfig) -> Result<Option<DisplayWindowOptions>, E
     };
     fields(
         window,
-        &[
-            "width",
-            "height",
-            "margin",
-            "decorations",
-            "opacity",
-            "startup_mode",
-        ],
+        &["margin", "decorations", "opacity", "startup_size"],
         "window",
     )?;
 
     let margin = margins(config, window.get("margin"))?;
+    let (startup_mode, width, height) = match window.get("startup_size") {
+        None | Some(UiValue::Nil) => (None, None, None),
+        Some(UiValue::String(s)) if s == "maximized" => {
+            (Some(DisplayStartupMode::Maximized), None, None)
+        }
+        Some(UiValue::String(s)) if s == "fullscreen" => {
+            (Some(DisplayStartupMode::Fullscreen), None, None)
+        }
+        Some(value @ UiValue::Table(_)) => {
+            let size = table(config, value, "window.startup_size")?;
+            fields(size, &["width", "height"], "window.startup_size")?;
+            (
+                Some(DisplayStartupMode::Windowed),
+                length(
+                    size.get("width"),
+                    "window.startup_size.width",
+                    Minimum::Positive,
+                )?,
+                length(
+                    size.get("height"),
+                    "window.startup_size.height",
+                    Minimum::Positive,
+                )?,
+            )
+        }
+        _ => {
+            return Err(invalid(
+                "window.startup_size must be a table, 'maximized', 'fullscreen', or nil",
+            ));
+        }
+    };
 
     Ok(Some(DisplayWindowOptions {
-        width: length(window.get("width"), "window.width", Minimum::Positive)?,
-        height: length(window.get("height"), "window.height", Minimum::Positive)?,
+        width,
+        height,
         margin,
         decorations: match window.get("decorations") {
             None | Some(UiValue::Nil) => None,
@@ -46,17 +70,7 @@ pub(super) fn parse(config: &UiConfig) -> Result<Option<DisplayWindowOptions>, E
             _ => return Err(invalid("window.decorations must be 'full', 'none', or nil")),
         },
         opacity: opacity(window.get("opacity"))?,
-        startup_mode: match window.get("startup_mode") {
-            None | Some(UiValue::Nil) => None,
-            Some(UiValue::String(s)) if s == "windowed" => Some(DisplayStartupMode::Windowed),
-            Some(UiValue::String(s)) if s == "maximized" => Some(DisplayStartupMode::Maximized),
-            Some(UiValue::String(s)) if s == "fullscreen" => Some(DisplayStartupMode::Fullscreen),
-            _ => {
-                return Err(invalid(
-                    "window.startup_mode must be 'windowed', 'maximized', 'fullscreen', or nil",
-                ));
-            }
-        },
+        startup_mode,
     }))
 }
 

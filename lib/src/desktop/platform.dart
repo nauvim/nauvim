@@ -27,6 +27,14 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
               switch (call.method) {
                 case 'close_requested':
                   await handler(const WindowCloseRequested());
+                case 'window_size_changed':
+                  if (call.arguments case [final num width, final num height]
+                      when _isWindowDimension(width) &&
+                          _isWindowDimension(height)) {
+                    await handler(
+                      WindowSizeChanged(width.round(), height.round()),
+                    );
+                  }
                 case 'window_error':
                   await handler(PlatformFailure(call.arguments.toString()));
                 case 'close_webview_requested':
@@ -35,6 +43,9 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
             },
     );
   }
+
+  static bool _isWindowDimension(num value) =>
+      value >= 1 && value <= 0xffffffff;
 
   @override
   Future<EditorFont> resolveFonts(List<DisplayFont> fonts) async {

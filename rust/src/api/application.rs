@@ -98,6 +98,13 @@ impl Application {
             .map_err(|e| e.to_string())
     }
 
+    /// Records the latest client-area size in logical pixels for orderly shutdown.
+    /// Ignores measurements with a zero dimension.
+    #[frb(sync)]
+    pub fn record_window_size(&self, width: u32, height: u32) {
+        self.handle.record_window_size(width, height);
+    }
+
     /// Reports GUI focus to the attached Neovim.
     pub async fn focus(&self, focused: bool) -> Result<(), String> {
         self.handle.focus(focused).await.map_err(|e| e.to_string())

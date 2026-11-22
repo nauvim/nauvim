@@ -118,7 +118,7 @@ fn validates_font_structure_and_scalar_types() {
 #[test]
 fn parses_initial_size_and_independent_nonnegative_margins() {
     let options =
-        parse("{window={height=1080,width=1920,margin={top=0,bottom=10,left=20,right=30}}}")
+        parse("{window={startup_size={height=1080,width=1920},margin={top=0,bottom=10,left=20,right=30}}}")
             .unwrap();
     let window = options.window.unwrap();
     assert_eq!(
@@ -134,7 +134,7 @@ fn parses_initial_size_and_independent_nonnegative_margins() {
         ),
         (px(0), px(10), px(20), px(30))
     );
-    let options = parse("{window={height=600}}").unwrap();
+    let options = parse("{window={startup_size={height=600}}}").unwrap();
     let window = options.window.unwrap();
     assert_eq!((window.width, window.height), (None, Some(px(600))));
     assert_eq!(
@@ -148,10 +148,15 @@ fn parses_initial_size_and_independent_nonnegative_margins() {
     );
     for options in [
         "{window=false}",
-        "{window={height=0}}",
-        "{window={width=-1}}",
-        "{window={width=640.5}}",
-        "{window={height=4294967296}}",
+        "{window={startup_size={height=0}}}",
+        "{window={startup_size={width=-1}}}",
+        "{window={startup_size={width=640.5}}}",
+        "{window={startup_size={height=4294967296}}}",
+        "{window={startup_size={depth=600}}}",
+        "{window={startup_size={[1]=600}}}",
+        "{window={startup_mode='windowed'}}",
+        "{window={width=800}}",
+        "{window={height=600}}",
         "{window={margin={bottom=-1}}}",
         "{window={margin={left=1.5}}}",
         "{window={margin={unknown=1}}}",
@@ -166,7 +171,7 @@ fn parses_initial_size_and_independent_nonnegative_margins() {
 
 #[test]
 fn parses_pixel_and_cell_lengths_independently() {
-    let window = parse("{window={width='1920px',height='40em',margin={top='0.5em',bottom='1em',left=8,right='8px'}}}")
+    let window = parse("{window={startup_size={width='1920px',height='40em'},margin={top='0.5em',bottom='1em',left=8,right='8px'}}}")
         .unwrap().window.unwrap();
     assert_eq!(window.width, Some(px(1920)));
     assert_eq!(window.height, Some(em(40.0)));
@@ -190,14 +195,14 @@ fn parses_pixel_and_cell_lengths_independently() {
         ("'.5em'", em(0.5)),
         ("'1e2em'", em(100.0)),
     ] {
-        let options = parse(&format!("{{window={{width={value}}}}}")).unwrap();
+        let options = parse(&format!("{{window={{startup_size={{width={value}}}}}}}")).unwrap();
         assert_eq!(options.window.unwrap().width, Some(expected), "{value}");
     }
     for value in ["0", "'0px'", "'0em'"] {
         let options = parse(&format!("{{window={{margin={{top={value}}}}}}}")).unwrap();
         assert_eq!(options.window.unwrap().margin.top.value, 0.0, "{value}");
     }
-    let options = parse("{window={width=nil,height=nil,margin={top=nil}}}")
+    let options = parse("{window={startup_size={width=nil,height=nil},margin={top=nil}}}")
         .unwrap()
         .window
         .unwrap();
@@ -246,7 +251,7 @@ fn rejects_malformed_units_and_nonfinite_lengths() {
             let window = if let Some(side) = field.strip_prefix("margin.") {
                 format!("margin={{{side}={value}}}")
             } else {
-                format!("{field}={value}")
+                format!("startup_size={{{field}={value}}}")
             };
             let e = parse(&format!("{{window={{{window}}}}}")).err().unwrap();
             assert!(e.to_string().contains(field), "{field}={value}: {e}");
@@ -255,7 +260,7 @@ fn rejects_malformed_units_and_nonfinite_lengths() {
     for field in ["width", "height"] {
         for value in ["0", "'0px'", "'0em'", "'-0em'"] {
             assert!(
-                parse(&format!("{{window={{{field}={value}}}}}")).is_err(),
+                parse(&format!("{{window={{startup_size={{{field}={value}}}}}}}")).is_err(),
                 "{field}={value}"
             );
         }
@@ -264,7 +269,7 @@ fn rejects_malformed_units_and_nonfinite_lengths() {
 
 #[test]
 fn parses_window_appearance_and_startup_modes() {
-    for window in ["{}", "{decorations=nil,opacity=nil,startup_mode=nil}"] {
+    for window in ["{}", "{decorations=nil,opacity=nil,startup_size=nil}"] {
         let options = parse(&format!("{{window={window}}}"))
             .unwrap()
             .window
@@ -275,9 +280,13 @@ fn parses_window_appearance_and_startup_modes() {
     }
 
     for (decorations, expected) in [("full", true), ("none", false)] {
-        for mode in ["windowed", "maximized", "fullscreen"] {
+        for (size, mode) in [
+            ("{}", "windowed"),
+            ("'maximized'", "maximized"),
+            ("'fullscreen'", "fullscreen"),
+        ] {
             let options = parse(&format!(
-                "{{window={{width=960,height=640,margin={{left=8}},decorations='{decorations}',opacity=0.75,startup_mode='{mode}'}}}}"
+                "{{window={{startup_size={size},margin={{left=8}},decorations='{decorations}',opacity=0.75}}}}"
             )).unwrap().window.unwrap();
             assert_eq!(
                 matches!(options.decorations, Some(DisplayDecorations::Full)),
@@ -293,7 +302,7 @@ fn parses_window_appearance_and_startup_modes() {
             assert_eq!(selected, mode);
             assert_eq!(
                 (options.width, options.height, options.margin.left),
-                (Some(px(960)), Some(px(640)), px(8))
+                (None, None, px(8))
             );
         }
     }
@@ -311,8 +320,8 @@ fn rejects_invalid_window_appearance_and_startup_values() {
             ["'borderless'", "'FULL'", "true", "0", "{}", "''"],
         ),
         (
-            "startup_mode",
-            ["'normal'", "'MAXIMIZED'", "false", "1", "{}", "''"],
+            "startup_size",
+            ["'windowed'", "'MAXIMIZED'", "false", "1", "1.5", "''"],
         ),
         (
             "opacity",

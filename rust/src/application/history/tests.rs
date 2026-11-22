@@ -33,7 +33,7 @@ fn restores_named_manual_and_default_destinations_after_reopening() {
 
 #[test]
 fn preserves_unknown_and_damaged_databases() {
-    for (application, version) in [(123, 1), (APPLICATION_ID, 2), (0, 0), (APPLICATION_ID, 1)] {
+    for (application, version) in [(123, 1), (APPLICATION_ID, 3), (0, 0), (APPLICATION_ID, 1)] {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("state.sqlite3");
         let conn = Connection::open(&path).unwrap();
@@ -54,6 +54,51 @@ fn preserves_unknown_and_damaged_databases() {
     fs::write(&path, b"damaged SQLite database").unwrap();
     assert!(History::open(&path).is_err());
     assert_eq!(fs::read(&path).unwrap(), b"damaged SQLite database");
+}
+
+#[test]
+fn adds_window_size_to_version_one_without_losing_host_selection() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("state.sqlite3");
+    let conn = Connection::open(&path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE selection (id INTEGER PRIMARY KEY CHECK (id = 1), alias TEXT) STRICT;
+         INSERT INTO selection VALUES (1, 'work');",
+    )
+    .unwrap();
+    conn.pragma_update(None, "application_id", APPLICATION_ID)
+        .unwrap();
+    conn.pragma_update(None, "user_version", 1).unwrap();
+    drop(conn);
+
+    let history = History::open(&path).unwrap();
+    assert_eq!(
+        history.load().unwrap(),
+        Some(Destination::Alias("work".into()))
+    );
+    assert_eq!(history.load_window_size().unwrap(), None);
+    let version: i64 = history
+        .0
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, SCHEMA_VERSION);
+    history
+        .save_window_size(WindowSize::new(800, 600).unwrap())
+        .unwrap();
+    history
+        .save_window_size(WindowSize::new(920, 676).unwrap())
+        .unwrap();
+    drop(history);
+
+    let history = History::open(&path).unwrap();
+    assert_eq!(
+        history.load_window_size().unwrap(),
+        WindowSize::new(920, 676)
+    );
+    assert_eq!(
+        history.load().unwrap(),
+        Some(Destination::Alias("work".into()))
+    );
 }
 
 #[test]

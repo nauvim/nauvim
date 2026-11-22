@@ -50,7 +50,7 @@ pub enum DisplayDecorations {
     None,
 }
 
-/// Initial native window state; omission selects windowed.
+/// Initial native window state; omission allows restoring a saved size.
 pub enum DisplayStartupMode {
     Windowed,
     Maximized,

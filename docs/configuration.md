@@ -17,8 +17,7 @@ return {
         ["com.naughie.nauvim.flutter"] = {
             fonts = { family = "monospace", size = 14 },
             window = {
-                width = "100em",
-                height = "720px",
+                startup_size = { width = "100em", height = "720px" },
                 margin = { left = 8, right = 8 },
             },
         },
@@ -85,22 +84,28 @@ if the list is empty or none resolve.
 
 | Field | Default | Effect |
 | --- | --- | --- |
-| `width`, `height` | Platform's initial size | Positive initial client-area size, including toolbar and margins. |
+| `startup_size` | `nil` | Set a windowed size, request a startup mode, or restore the last size. |
 | `margin.top`, `margin.bottom`, `margin.left`, `margin.right` | `0` | Nonnegative space around the editor grid and command row. |
 | `decorations` | `"full"` | Set to `"none"` for a borderless window. Use your window manager to move or resize it. |
 | `opacity` | `1` | Whole-window opacity from `0` (invisible) to `1` (opaque). Linux window opacity requires compositor support. |
-| `startup_mode` | `"windowed"` | Set to `"maximized"` (native zoom on macOS) or `"fullscreen"` to request that state before the window appears. |
 
-An integer like `720` or a string like `"720px"` counts logical pixels.
-Use decimal digits before `px`.
-Use an `em` string for cell-relative lengths. For example, `width = "100em"`
-uses 100 measured cell widths, and `margin = { top = "0.5em" }` adds half a
-measured cell height. The available editor space depends on the margins and
-other controls inside the window.
+- A table such as `startup_size = { width = "100em", height = 720 }` requests
+  a windowed client-area size, including toolbars and margins. Each dimension
+  must be positive when set. Omit either dimension to use the platform's default
+  for that axis. An empty table uses platform defaults for both axes.
+- Set `startup_size` to `"maximized"` (native zoom on macOS) or `"fullscreen"`
+  to request that state before the window appears.
+- Omit `startup_size` or set it to `nil` to restore the last saved client-area
+  size in windowed mode. Before a size has been saved, Nauvim uses the
+  platform's initial size. See [saved window size](persistence.md#window-size).
 
-Nauvim resolves these settings once at startup. The platform can adjust the
-requested window size or mode. A normal window can snap to whole-cell
-increments. Margins apply in all modes.
+Use an integer like `720` or a string like `"720px"` to count logical pixels.
+Use decimal digits before `px`. An `em` string counts measured cells along the
+corresponding axis. For example, `width = "100em"` uses 100 cell widths and
+`margin = { top = "0.5em" }` adds half a cell height.
+
+The platform can adjust the requested size or mode. A normal window can snap to
+whole-cell increments. Margins apply in all modes.
 
 ### Key bindings
 

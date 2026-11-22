@@ -8,17 +8,28 @@ host list is restored under **Type yourself**, ready to edit or submit.
 Automatic connections follow the startup rules in your configuration.
 [Hosts and startup](configuration.md#hosts-and-startup)
 
-Nauvim shares the saved destination across configurations for your OS account.
+## Window size
+
+Nauvim saves the latest client-area width and height in whole logical pixels
+during an orderly shutdown. On the next launch, Nauvim restores that size when
+`window.startup_size` is omitted or `nil`. Explicit dimensions and startup modes
+take precedence. See [window configuration](configuration.md#window).
+
+## Application state database
+
+Nauvim shares the saved destination and window size across configurations for
+your OS account.
 
 | Platform | Location |
 | --- | --- |
 | Linux | `$XDG_DATA_HOME/nauvim/state.sqlite3`, or `$HOME/.local/share/nauvim/state.sqlite3` when no absolute XDG data directory is set |
 | macOS | `$HOME/Library/Application Support/nauvim/state.sqlite3` |
 
-Storage errors appear in the error display, and you can still connect. To reset
-the selection or recover from a damaged database, close Nauvim and delete
-`state.sqlite3`. The next launch creates a new database. You can still reattach
-to existing Neovim sessions.
+Storage errors appear in the error display. You can still connect and start
+with the platform's default size when the saved size is unavailable. To clear
+the saved destination and size or recover from a damaged database, close Nauvim
+and delete `state.sqlite3`. The next launch creates a new database. You can still
+reattach to existing Neovim sessions.
 
 ## Font cache
 

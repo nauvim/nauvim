@@ -461,7 +461,7 @@ class DisplayRow {
           cells == other.cells;
 }
 
-/// Initial native window state; omission selects windowed.
+/// Initial native window state; omission allows restoring a saved size.
 enum DisplayStartupMode { windowed, maximized, fullscreen }
 
 /// An external UI widget with content selected by `kind`.

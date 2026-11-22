@@ -21,6 +21,7 @@ class FakeApplication implements Application {
   final defaults = <(int, int)>[];
   final connections = <(String, int, int)>[];
   final inputs = <String>[];
+  final windowSizes = <(int, int)>[];
   final tabpages = <int>[];
   final buffers = <int>[];
   final completions = <int>[];
@@ -56,6 +57,9 @@ class FakeApplication implements Application {
   Future<void> paste() async => pastes++;
   @override
   Future<void> resize({required int width, required int height}) async {}
+  @override
+  void recordWindowSize({required int width, required int height}) =>
+      windowSizes.add((width, height));
   @override
   Future<void> selectPopupmenuItem({required int index}) async =>
       completions.add(index);
@@ -223,6 +227,28 @@ void main() {
     expect(nativeCalls.where((call) => call.method == 'close'), hasLength(1));
     expect(accepted(), isTrue);
   }
+
+  testWidgets('records valid native client sizes independently of grid sizes', (
+    tester,
+  ) async {
+    final app = await mount(tester);
+    for (final arguments in [
+      [920, 670],
+      [935.0, 688.5],
+      [0, 400],
+      [1000, double.infinity],
+      [900],
+    ]) {
+      await binding.defaultBinaryMessenger.handlePlatformMessage(
+        channel.name,
+        channel.codec.encodeMethodCall(
+          MethodCall('window_size_changed', arguments),
+        ),
+        null,
+      );
+    }
+    expect(app.windowSizes, [(920, 670), (935, 689)]);
+  });
 
   testWidgets('starts once after fonts and the viewport are ready', (
     tester,

@@ -17,6 +17,8 @@ struct Windows {
   bool closing;
   FlView* flutter;
   std::vector<KeyBinding> key_bindings;
+  int last_width = 0;
+  int last_height = 0;
 };
 static gboolean preview_key(GtkWidget* widget, GdkEventKey* event, gpointer data) {
   auto* windows = static_cast<Windows*>(data);
@@ -275,6 +277,27 @@ static void call(FlMethodChannel*, FlMethodCall* call, gpointer data) {
   }
   fl_method_call_respond_success(call, nullptr, nullptr);
 }
+static void report_window_size(Windows* windows) {
+  if (windows->closing || !gtk_widget_get_mapped(GTK_WIDGET(windows->main))) return;
+  GtkWidget* view = GTK_WIDGET(windows->flutter);
+  const int width = gtk_widget_get_allocated_width(view);
+  const int height = gtk_widget_get_allocated_height(view);
+  if (width <= 0 || height <= 0) return;
+  if (width == windows->last_width && height == windows->last_height) return;
+  windows->last_width = width;
+  windows->last_height = height;
+  g_autoptr(FlValue) size = fl_value_new_list();
+  fl_value_append_take(size, fl_value_new_int(width));
+  fl_value_append_take(size, fl_value_new_int(height));
+  fl_method_channel_invoke_method(windows->channel, "window_size_changed", size,
+                                 nullptr, nullptr, nullptr);
+}
+static void window_allocated(GtkWidget*, GtkAllocation*, gpointer data) {
+  report_window_size(static_cast<Windows*>(data));
+}
+static void main_mapped(GtkWidget*, gpointer data) {
+  report_window_size(static_cast<Windows*>(data));
+}
 static gboolean closing(GtkWidget*, GdkEvent*, gpointer data) {
   auto* windows = static_cast<Windows*>(data);
   if (windows->closing) return TRUE;
@@ -294,6 +317,8 @@ void nauvim_register_windows(FlView* view, GtkWindow* window, GtkOverlay* overla
   auto* windows = new Windows { window, overlay, channel,
       g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, nullptr), false, view, {} };
   fl_method_channel_set_method_call_handler(channel, call, windows, nullptr);
+  g_signal_connect_after(window, "size-allocate", G_CALLBACK(window_allocated), windows);
+  g_signal_connect_after(window, "map", G_CALLBACK(main_mapped), windows);
   g_signal_connect(window, "delete-event", G_CALLBACK(closing), windows);
   g_object_set_data_full(G_OBJECT(window), "nauvim-windows", windows, destroy);
 }

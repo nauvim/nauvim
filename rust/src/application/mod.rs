@@ -9,7 +9,7 @@ pub(crate) use error::Error;
 mod history;
 mod input;
 mod size;
-use size::GridSize;
+use size::{GridSize, WindowSize};
 
 mod updates;
 
@@ -38,6 +38,7 @@ pub(crate) struct Handle {
     input_epoch: watch::Receiver<CancellationToken>,
     stop: CancellationToken,
     stopped: watch::Receiver<bool>,
+    window_size: watch::Sender<Option<WindowSize>>,
     updates: Mutex<Option<mpsc::Receiver<UiUpdate>>>,
 }
 
@@ -57,6 +58,7 @@ fn spawn_with_history(
     let stop = CancellationToken::new();
     let run_stop = stop.clone();
     let (stopped_tx, stopped) = watch::channel(false);
+    let (window_size, observed_size) = watch::channel(None);
 
     thread::Builder::new()
         .name("nauvim-engine".into())
@@ -75,6 +77,7 @@ fn spawn_with_history(
                     receiver,
                     input_receiver,
                     input_epoch_tx,
+                    observed_size,
                     updates,
                 )),
                 Err(e) => {
@@ -94,6 +97,7 @@ fn spawn_with_history(
         input_epoch,
         stop,
         stopped,
+        window_size,
         updates: Mutex::new(Some(update_receiver)),
     })
 }
@@ -145,6 +149,12 @@ impl Handle {
     pub(crate) async fn resize(&self, width: u32, height: u32) -> Result<(), Error> {
         self.send(Command::Resize(GridSize::new(width, height)))
             .await
+    }
+
+    pub(crate) fn record_window_size(&self, width: u32, height: u32) {
+        if let Some(size) = WindowSize::new(width, height) {
+            self.window_size.send_replace(Some(size));
+        }
     }
 
     pub(crate) async fn focus(&self, focused: bool) -> Result<(), Error> {

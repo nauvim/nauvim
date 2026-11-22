@@ -28,3 +28,8 @@ abstract interface class NauvimEngine {
   /// The controller drains that stream separately before closing its window.
   Future<void> close();
 }
+
+/// Receives actual client-area dimensions in logical pixels for persistence.
+abstract interface class WindowSizeRecorder {
+  void recordWindowSize({required int width, required int height});
+}
