@@ -59,6 +59,7 @@ class _NauvimEditorState extends State<NauvimEditor> {
             w.kind != 'status' &&
             w.kind != 'cmdline_popup',
       );
+      final hasMessages = bottomWidgets.any((item) => item.kind == 'message');
       return EditorViewportRegion(
         controller: controller,
         metrics: appearance.editorMetrics,
@@ -92,55 +93,62 @@ class _NauvimEditorState extends State<NauvimEditor> {
               left: 0,
               right: 0,
               bottom: 0,
-              height: viewport.cellHeight,
               child: ColoredBox(
                 color: paintStyle.resolveBackground(model.frame?.background),
-                child: SingleChildScrollView(
-                  reverse: true,
-                  child: Column(
-                    children: [
-                      for (final item in bottomWidgets)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              left: appearance.widgetPadding.left,
-                              right: appearance.widgetPadding.right,
-                            ),
-                            child: item.kind == 'cmdline'
-                                ? CommandLine(
-                                    item: item,
-                                    model: model,
-                                    style: style,
-                                    active: identical(item, activeCommand),
-                                    popupLink: identical(item, activeCommand)
-                                        ? _commandLineLink
-                                        : null,
-                                    popupByteOffset:
-                                        identical(item, activeCommand)
-                                        ? commandPopup?.col.toInt()
-                                        : null,
-                                    popupWidth: popupWidth,
-                                    cursorColor: appearance.cursorColor,
-                                    cursorWidth:
-                                        appearance.commandLineCursorWidth,
-                                    paintStyle: paintStyle,
-                                  )
-                                : RichText(
-                                    text: TextSpan(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: viewport.cellHeight,
+                    maxHeight: hasMessages
+                        ? viewport.size.height + viewport.cellHeight
+                        : viewport.cellHeight,
+                  ),
+                  child: SingleChildScrollView(
+                    reverse: true,
+                    child: Column(
+                      children: [
+                        for (final item in bottomWidgets)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                left: appearance.widgetPadding.left,
+                                right: appearance.widgetPadding.right,
+                              ),
+                              child: item.kind == 'cmdline'
+                                  ? CommandLine(
+                                      item: item,
+                                      model: model,
                                       style: style,
-                                      children: [
-                                        highlightedChunks(
-                                          item.chunks,
-                                          model,
-                                          paintStyle: paintStyle,
-                                        ),
-                                      ],
+                                      active: identical(item, activeCommand),
+                                      popupLink: identical(item, activeCommand)
+                                          ? _commandLineLink
+                                          : null,
+                                      popupByteOffset:
+                                          identical(item, activeCommand)
+                                          ? commandPopup?.col.toInt()
+                                          : null,
+                                      popupWidth: popupWidth,
+                                      cursorColor: appearance.cursorColor,
+                                      cursorWidth:
+                                          appearance.commandLineCursorWidth,
+                                      paintStyle: paintStyle,
+                                    )
+                                  : RichText(
+                                      text: TextSpan(
+                                        style: style,
+                                        children: [
+                                          highlightedChunks(
+                                            item.chunks,
+                                            model,
+                                            paintStyle: paintStyle,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
