@@ -8,6 +8,7 @@ import json
 import os
 import pathlib
 import platform
+import queue
 import shutil
 import signal
 import subprocess
@@ -48,6 +49,7 @@ def main():
         fetched = threading.Event()
         redirected = threading.Event()
         blocked_request = threading.Event()
+        history = queue.Queue()
 
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
@@ -56,6 +58,19 @@ def main():
                     self.end_headers()
                     self.wfile.write(b"<h1>Nauvim preview</h1>")
                     fetched.set()
+                elif self.path in ("/push.html", "/replace.html", "/blur.html", "/keep.html", "/take-focus.html"):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                    self.wfile.write(
+                        b"<script>fetch('/history' + location.pathname + '/' + history.length)</script>"
+                    )
+                elif self.path.startswith("/history/"):
+                    page, length = self.path.removeprefix("/history/").split("/")
+                    history.put((page, int(length)))
+                    self.send_response(204)
+                    self.end_headers()
                 elif self.path == "/redirect":
                     self.send_response(302)
                     self.send_header("Location", blocked_origin + "/blocked")
@@ -164,30 +179,65 @@ def main():
                 prefix = ("local u=vim.api.nvim_list_uis()[1]; "
                           "local id=tonumber(vim.api.nvim_get_chan_info(u.chan).client.name:match('(%d+)$')); ")
 
-                def open_preview(path, *, focus, focusable):
+                def open_preview(path, *, focus, focusable, close_on_blur=False):
                     return lua(
                         "first", "(function() " + prefix +
                         "return vim.rpcrequest(u.chan,'nauvim-plugin/http.open_webview',id," +
                         json.dumps(origin + path) + ",{grid=1,top=1,left=1,height=3,width=16}," +
-                        json.dumps(focus) + "," + json.dumps(focusable) + ") end)()",
+                        ",".join(json.dumps(arg) for arg in (focus, focusable, close_on_blur)) + ") end)()",
                     )
 
-                def preview_notify(method, handle):
+                def preview_notify(method, handle, *arguments):
+                    parameters = ",".join([handle, *(json.dumps(arg) for arg in arguments)])
                     lua(
                         "first", "(function() " + prefix +
-                        f"return vim.rpcnotify(u.chan,'nauvim-plugin/http.{method}',id,{handle}) end)()",
+                        f"return vim.rpcnotify(u.chan,'nauvim-plugin/http.{method}',id,{parameters}) end)()",
                     )
+
+                def preview_history(page):
+                    try:
+                        loaded, length = history.get(timeout=15)
+                    except queue.Empty:
+                        raise RuntimeError(f"Native preview did not finish loading {page}") from None
+                    assert loaded == page, f"Expected {page}, loaded {loaded}"
+                    return length
+
+                def assert_no_preview_load(message):
+                    try:
+                        loaded, _ = history.get(timeout=1)
+                    except queue.Empty:
+                        return
+                    raise RuntimeError(f"{message}: {loaded}")
 
                 handle = open_preview("/index.html#fragment", focus=False, focusable=True)
                 assert fetched.wait(15), "Native preview did not fetch its URL"
                 preview_notify("focus_webview", handle)
+                preview_notify("navigate_webview", handle, origin + "/push.html", False, False)
+                length = preview_history("push.html")
+                preview_notify("navigate_webview", handle, origin + "/push.html", False, False)
+                assert_no_preview_load("Repeated navigation reloaded the page")
+                preview_notify("navigate_webview", handle, origin + "/replace.html", True, False)
+                assert preview_history("replace.html") == length, "Navigation appended a history entry"
                 preview_notify("clear", handle)
 
                 handle = open_preview("/redirect", focus=True, focusable=False)
                 assert redirected.wait(15), "Native preview did not fetch the redirect"
                 assert not blocked_request.wait(3), "Native preview followed a disallowed redirect"
                 preview_notify("clear", handle)
-                print("Opened and cleared native HTTP previews and blocked a redirect", flush=True)
+                print("Opened, navigated, and cleared native HTTP previews and blocked a redirect", flush=True)
+
+                blur = open_preview("/blur.html", focus=True, focusable=True, close_on_blur=True)
+                preview_history("blur.html")
+                keep = open_preview("/keep.html", focus=False, focusable=True)
+                preview_history("keep.html")
+                preview_notify("navigate_webview", keep, origin + "/take-focus.html", False, True)
+                preview_history("take-focus.html")
+                preview_notify("navigate_webview", blur, origin + "/push.html", False, False)
+                assert_no_preview_load("Blurred preview stayed open and navigated")
+                preview_notify("navigate_webview", keep, origin + "/push.html", False, False)
+                preview_history("push.html")
+                preview_notify("clear", keep)
+                print("Closed a native preview after moving focus", flush=True)
 
                 lua("first", "(function() " + prefix +
                     "vim.rpcnotify(u.chan,'nauvim-plugin/client.connect',id,'second'); "

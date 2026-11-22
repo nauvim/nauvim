@@ -87,9 +87,29 @@ private struct PreviewKeyBinding {
   }
 }
 
+private struct PreviewNavigation: Equatable {
+  let url: URL
+  let replaceHistory: Bool
+  let focus: Bool
+}
+
+private final class RequestedPreviewNavigation {
+  let options: PreviewNavigation
+  var navigation: WKNavigation?
+  var accepted = false
+  var finished = false
+  var committedURL: URLComponents?
+
+  init(_ options: PreviewNavigation) {
+    self.options = options
+  }
+}
+
 private class PreviewWebView: WKWebView {
   var handle: Int64 = 0
   var focusable = false
+  var closeOnBlur = false
+  var requestedNavigation: RequestedPreviewNavigation?
   var handleKey: ((NSEvent) -> Bool)?
 
   override var acceptsFirstResponder: Bool { focusable && super.acceptsFirstResponder }
@@ -126,7 +146,12 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
        }) {
       return false
     }
-    return super.makeFirstResponder(responder)
+    let focusedPreview = webviews.values.first { $0.closeOnBlur && previewHasFocus($0) }
+    let accepted = super.makeFirstResponder(responder)
+    if let focusedPreview, !previewHasFocus(focusedPreview) {
+      closePreview(focusedPreview.handle, notify: true)
+    }
+    return accepted
   }
 
   private func previewHasFocus(_ preview: PreviewWebView) -> Bool {
@@ -137,6 +162,21 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
   private func restoreEditorFocus(_ preview: PreviewWebView) {
     if previewHasFocus(preview) {
       makeFirstResponder(contentViewController?.view)
+    }
+  }
+
+  private func focusPreview(_ view: PreviewWebView) -> Bool {
+    view.focusable && !view.isHidden && makeFirstResponder(view) && previewHasFocus(view)
+  }
+
+  private func closePreview(_ handle: Int64, notify: Bool = false) {
+    guard let view = webviews.removeValue(forKey: handle) else { return }
+    restoreEditorFocus(view)
+    view.navigationDelegate = nil
+    view.stopLoading()
+    view.removeFromSuperview()
+    if notify {
+      channel?.invokeMethod("close_webview_requested", arguments: handle)
     }
   }
 
@@ -183,6 +223,12 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
 
   func windowDidResize(_ notification: Notification) {
     reportWindowSize()
+  }
+
+  func windowDidResignKey(_ notification: Notification) {
+    if let view = webviews.values.first(where: { $0.closeOnBlur && previewHasFocus($0) }) {
+      closePreview(view.handle, notify: true)
+    }
   }
 
   private func reportWindowSize() {
@@ -292,9 +338,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
                 let action = binding["action"] as? String else { return nil }
           return PreviewKeyBinding(key: key, modifiers: modifiers, action: action)
         }
-        guard let handle = args["handle"] as? Int64,
-              let urlString = args["url"] as? String,
-              let url = URL(string: urlString), ["http", "https"].contains(url.scheme ?? "") else {
+        guard let handle = args["handle"] as? Int64, let url = Self.previewURL(args["url"]) else {
           result(FlutterError(code: "url", message: "Invalid HTTP URL", details: nil)); return
         }
         let view: PreviewWebView
@@ -303,6 +347,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
           let preview = PreviewWebView(frame: .zero)
           preview.handle = handle
           preview.focusable = args["focusable"] as? Bool ?? false
+          preview.closeOnBlur = args["close_on_blur"] as? Bool ?? false
+          if #available(macOS 13.3, *) { preview.isInspectable = true }
           preview.handleKey = { [weak self, weak preview, weak controller] event in
             guard let self = self, let preview = preview, let controller = controller else { return false }
             return self.previewKey(event, view: preview, handle: handle, editor: controller.view)
@@ -311,7 +357,11 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
           view.navigationDelegate = self
           self.webviews[handle] = view
           controller.view.addSubview(view)
-          view.load(URLRequest(url: url))
+          if view.load(URLRequest(url: url)) == nil {
+            self.closePreview(handle)
+            result(FlutterError(code: "preview_navigation", message: "WebKit declined the navigation", details: nil))
+            return
+          }
         }
         let x = args["x"] as? Double ?? 0
         let y = args["y"] as? Double ?? 0
@@ -319,10 +369,23 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
         let height = args["height"] as? Double ?? 0
         view.frame = NSRect(x: x, y: controller.view.bounds.height - y - height, width: width, height: height)
         view.isHidden = false
+      case "navigate_webview":
+        guard let handle = args["handle"] as? Int64, let view = self.webviews[handle] else {
+          result(FlutterError(code: "preview_navigation", message: "The preview is unavailable", details: nil))
+          return
+        }
+        guard let url = Self.previewURL(args["url"]) else {
+          result(FlutterError(code: "url", message: "Invalid HTTP URL", details: nil))
+          return
+        }
+        let options = PreviewNavigation(url: url,
+                                        replaceHistory: args["replace_history"] as? Bool ?? false,
+                                        focus: args["focus"] as? Bool ?? false)
+        self.navigatePreview(view, options: options, result: result)
+        return
       case "focus_webview":
         guard let handle = args["handle"] as? Int64,
-              let view = self.webviews[handle], view.focusable, !view.isHidden,
-              self.makeFirstResponder(view), self.previewHasFocus(view) else {
+              let view = self.webviews[handle], self.focusPreview(view) else {
           result(FlutterError(code: "preview_focus", message: "The preview cannot receive focus", details: nil))
           return
         }
@@ -333,12 +396,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
         }
       case "close_webview":
         if let handle = args["handle"] as? Int64 {
-          if let view = self.webviews.removeValue(forKey: handle) {
-            self.restoreEditorFocus(view)
-            view.navigationDelegate = nil
-            view.stopLoading()
-            view.removeFromSuperview()
-          }
+          self.closePreview(handle)
         }
       default: result(FlutterMethodNotImplemented); return
       }
@@ -346,6 +404,86 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     }
     super.awakeFromNib()
   }
+
+  private static func previewURL(_ value: Any?) -> URL? {
+    guard let value = value as? String, let url = URL(string: value),
+          let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+          let host = url.host, !host.isEmpty else { return nil }
+    return url
+  }
+
+  private static func navigationAddress(_ url: URL) -> URLComponents? {
+    guard var address = URLComponents(url: url.standardized, resolvingAgainstBaseURL: false) else {
+      return nil
+    }
+    address.scheme = address.scheme?.lowercased()
+    address.host = address.host?.lowercased()
+    if address.path.isEmpty { address.path = "/" }
+    if (address.scheme == "http" && address.port == 80) ||
+       (address.scheme == "https" && address.port == 443) {
+      address.port = nil
+    }
+    return address
+  }
+
+  private func navigatePreview(_ view: PreviewWebView, options: PreviewNavigation, result: @escaping FlutterResult) {
+    let current = view.backForwardList.currentItem.flatMap { Self.navigationAddress($0.url) }
+    if let active = view.requestedNavigation, active.options == options,
+       active.committedURL == nil || active.committedURL == current {
+      result(nil)
+      return
+    }
+
+    let request = RequestedPreviewNavigation(options)
+    view.requestedNavigation = request
+    if options.replaceHistory && view.backForwardList.currentItem != nil {
+      // Use WebKit's location replacement so cross-origin targets retain their normal policy checks.
+      view.callAsyncJavaScript("location.replace(url); return true;", arguments: ["url": options.url.absoluteString],
+                               in: nil, in: .defaultClient) { [weak view] evaluation in
+        switch evaluation {
+        case .success:
+          result(nil)
+        case .failure(let error):
+          if let view, view.requestedNavigation === request { view.requestedNavigation = nil }
+          result(FlutterError(code: "preview_history", message: error.localizedDescription, details: nil))
+        }
+      }
+      return
+    }
+    guard let navigation = view.load(URLRequest(url: options.url)) else {
+      view.requestedNavigation = nil
+      result(FlutterError(code: "preview_navigation", message: "WebKit declined the navigation", details: nil))
+      return
+    }
+    request.navigation = navigation
+    result(nil)
+  }
+
+  private func isFragmentNavigation(_ url: URL, in view: PreviewWebView) -> Bool {
+    guard let current = view.backForwardList.currentItem?.url,
+          var from = Self.navigationAddress(current), var to = Self.navigationAddress(url),
+          from.fragment != to.fragment else { return false }
+    from.fragment = nil
+    to.fragment = nil
+    return from == to
+  }
+
+  private func focusAfterAccepting(_ request: RequestedPreviewNavigation, in view: PreviewWebView) {
+    guard request.options.focus, view.focusable else { return }
+    channel?.invokeMethod("webview_can_focus", arguments: view.handle) { [weak self, weak view] result in
+      guard let self, let view, self.webviews[view.handle] === view,
+            view.requestedNavigation === request else { return }
+      guard let allowed = result as? Bool else {
+        let message = (result as? FlutterError)?.message ?? "Unable to check whether the preview can receive focus"
+        self.reportPreviewError(view, message)
+        return
+      }
+      if allowed && !self.focusPreview(view) {
+        self.reportPreviewError(view, "The preview cannot receive focus")
+      }
+    }
+  }
+
   func requestClose() {
     guard !isCleanupComplete && !closeRequested else { return }
     closeRequested = true
@@ -378,9 +516,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     case .goBack: view.goBack()
     case .goForward: view.goForward()
     case .focusEditor: makeFirstResponder(editor)
-    case .close:
-      channel?.invokeMethod("close_webview_requested", arguments: handle)
-      makeFirstResponder(editor)
+    case .close: closePreview(handle, notify: true)
     }
     return true
   }
@@ -402,14 +538,57 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
       decisionHandler(.cancel)
       return
     }
+    let request = view.requestedNavigation
+    let requestedTarget = request.map {
+      if $0.accepted { return false }
+      return $0.options.url == url || Self.navigationAddress($0.options.url).map {
+        $0 == Self.navigationAddress(url)
+      } == true
+    } ?? false
+    let continuesRequest = request.map {
+      $0.accepted && !$0.finished && navigationAction.navigationType == .other
+    } ?? false
     let args: [String: Any] = ["handle": view.handle, "url": url.absoluteString]
     channel.invokeMethod("webview_allows_navigation", arguments: args) { [weak self, weak view] result in
-      guard let self, let view, self.webviews[view.handle] === view,
-            result as? Bool == true else {
+      guard let self, let view, self.webviews[view.handle] === view else {
         decisionHandler(.cancel)
         return
       }
+      let sameRequest = view.requestedNavigation === request
+      guard result as? Bool == true, !requestedTarget || sameRequest else {
+        if sameRequest && (requestedTarget || continuesRequest) { view.requestedNavigation = nil }
+        decisionHandler(.cancel)
+        return
+      }
+      if let request, sameRequest {
+        if requestedTarget {
+          request.accepted = true
+          // WebKit does not send the main-frame completion callback for fragment changes.
+          request.finished = self.isFragmentNavigation(url, in: view)
+          decisionHandler(.allow)
+          self.focusAfterAccepting(request, in: view)
+          return
+        }
+        if !continuesRequest && (request.accepted || navigationAction.navigationType != .other) {
+          view.requestedNavigation = nil
+        }
+      }
       decisionHandler(.allow)
+    }
+  }
+
+  func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+    if let view = webView as? PreviewWebView, let request = view.requestedNavigation,
+       request.accepted, !request.finished, request.navigation == nil {
+      request.navigation = navigation
+    }
+  }
+
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    if let view = webView as? PreviewWebView, let request = view.requestedNavigation,
+       let navigation, request.navigation === navigation {
+      request.finished = true
+      request.committedURL = view.backForwardList.currentItem.flatMap { Self.navigationAddress($0.url) }
     }
   }
 
@@ -422,18 +601,23 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     } else { completionHandler(.performDefaultHandling, nil) }
   }
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-    reportNavigationError(webView, error)
+    reportNavigationError(webView, navigation: navigation, error: error)
   }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-    reportNavigationError(webView, error)
+    reportNavigationError(webView, navigation: navigation, error: error)
   }
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+    (webView as? PreviewWebView)?.requestedNavigation = nil
     reportPreviewError(webView, "The preview web process terminated")
   }
-  private func reportNavigationError(_ webView: WKWebView, _ error: Error) {
+  private func reportNavigationError(_ webView: WKWebView, navigation: WKNavigation?, error: Error) {
+    if let view = webView as? PreviewWebView, let navigation,
+       view.requestedNavigation?.navigation === navigation {
+      view.requestedNavigation = nil
+    }
     let failure = error as NSError
     if failure.domain != NSURLErrorDomain || failure.code != NSURLErrorCancelled {
-      reportPreviewError(webView, "Open preview: \(error.localizedDescription)")
+      reportPreviewError(webView, "Navigate web preview: \(error.localizedDescription)")
     }
   }
   private func reportPreviewError(_ webView: WKWebView, _ message: String) {

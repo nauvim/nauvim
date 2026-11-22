@@ -630,9 +630,9 @@ async fn live_preview_checks_navigation_and_tracks_focus_and_close() {
         local id = tonumber(name:match('(%d+)$'))
         local position = {grid=1, top=1, left=2, height=3, width=4}
         local handle = vim.rpcrequest(chan, 'nauvim-plugin/http.open_webview',
-            id, 'https://example.test/preview', position, false, true)
-        _G.preview_notify = function(method)
-            vim.rpcnotify(chan, 'nauvim-plugin/http.' .. method, id, handle)
+            id, 'https://example.test/preview', position, false, true, true)
+        _G.preview_notify = function(method, ...)
+            vim.rpcnotify(chan, 'nauvim-plugin/http.' .. method, id, handle, ...)
             return true
         end
         return handle
@@ -657,12 +657,15 @@ async fn live_preview_checks_navigation_and_tracks_focus_and_close() {
     );
     assert!(!preview.focus);
     assert!(preview.focusable);
+    assert!(preview.close_on_blur);
 
     let webview = preview.webview.unwrap();
     assert!(!webview.can_focus().await);
+    assert!(!webview.can_navigate().await);
     assert!(webview.allows_navigation(preview.url).await);
     assert!(webview.opened().await);
     assert!(webview.can_focus().await);
+    assert!(webview.can_navigate().await);
     assert!(
         !webview
             .allows_navigation("https://other.test/redirect".into())
@@ -678,11 +681,24 @@ async fn live_preview_checks_navigation_and_tracks_focus_and_close() {
     assert_eq!(focus.handle, handle);
     assert!(focus.webview.is_none());
 
+    host.evaluate(r#"luaeval("_G.preview_notify('navigate_webview', 'https://example.test/next', true, true)")"#);
+    let navigation = receive(&mut updates, "navigate_webview")
+        .await
+        .window
+        .unwrap();
+    assert_eq!(navigation.handle, handle);
+    assert_eq!(navigation.url, "https://example.test/next");
+    assert!(navigation.replace_history);
+    assert!(navigation.focus);
+    let registration = navigation.webview.unwrap();
+    assert!(registration.can_navigate().await);
+
     host.evaluate(r#"luaeval("_G.preview_notify('clear')")"#);
     let close = receive(&mut updates, "close_webview").await.window.unwrap();
     assert_eq!(close.handle, handle);
     assert!(close.webview.is_none());
     assert!(!webview.can_focus().await);
+    assert!(!registration.can_navigate().await);
     assert!(!webview.opened().await);
 
     app.close().await.unwrap();

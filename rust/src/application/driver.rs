@@ -9,7 +9,7 @@ use super::input::{
     HostInput, Input, QueuedInput, completed, reset_input, start_input, stop_input,
 };
 use super::size::{GridSize, WindowSize};
-use super::updates::{Updates, message, open_window, window_action};
+use super::updates::{Updates, message, navigate_window, open_window, window_action};
 
 use nauvim_core::{Engine, EngineEvent, Error, HostSelection};
 use tokio::sync::{mpsc, watch};
@@ -227,10 +227,13 @@ pub(super) async fn run(
                         remember(history.as_ref(), Some(&host), &updates).await;
                         connecting(Some(host))
                     }
-                    EngineEvent::OpenWebview { handle, url, position, focus, focusable, window } => {
-                        open_window(handle, url, position, focus, focusable, window)
+                    EngineEvent::OpenWebview { handle, url, position, focus, focusable, close_on_blur, window } => {
+                        open_window(handle, url, position, focus, focusable, close_on_blur, window)
                     }
                     EngineEvent::FocusWebview { handle } => window_action("focus_webview", handle),
+                    EngineEvent::NavigateWebview { handle, url, replace_history, focus, window } => {
+                        navigate_window(handle, url, replace_history, focus, window)
+                    }
                     EngineEvent::CloseWebview { handle } => window_action("close_webview", handle),
                     EngineEvent::Shutdown => break,
                 };

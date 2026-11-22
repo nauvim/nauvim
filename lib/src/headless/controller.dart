@@ -143,6 +143,10 @@ final class NauvimController extends ChangeNotifier {
         await _guard(() async {
           event.allowed = await _previews.allowsNavigation(handle, url);
         });
+      case PreviewFocusRequested(:final handle):
+        await _guard(() async {
+          event.allowed = await _previews.canFocus(handle);
+        });
       case PreviewFailure(:final handle, :final message):
         await _guard(() => _previews.reportFailure(handle, message));
     }
@@ -338,6 +342,10 @@ final class NauvimController extends ChangeNotifier {
       case 'focus_webview':
         if (update.window case final window? when !closing) {
           _previews.focus(window.handle);
+        }
+      case 'navigate_webview':
+        if (update.window case final window? when !closing) {
+          unawaited(_guard(() => _previews.navigate(window)));
         }
       case 'shutdown':
         _finishUpdates();

@@ -21,6 +21,9 @@ abstract class DisplayWebview implements RustOpaqueInterface {
   /// Checks whether a focus request still applies to this open preview.
   Future<bool> canFocus();
 
+  /// Checks whether the preview is still open on a live attachment.
+  Future<bool> canNavigate();
+
   /// Acknowledges native closure or failed construction.
   Future<void> closed();
 
@@ -544,9 +547,11 @@ class DisplayWidget {
           completions == other.completions;
 }
 
-/// A native preview positioned in cells relative to its Neovim grid.
+/// A native preview update.
 ///
-/// Focus and close updates identify an existing preview by handle alone.
+/// Open updates position the preview in cells relative to its Neovim grid.
+/// Navigation updates carry the target URL, history and focus options, and
+/// the preview registration. Focus and close updates carry only the handle.
 class DisplayWindow {
   final int handle;
   final String url;
@@ -557,6 +562,8 @@ class DisplayWindow {
   final int width;
   final bool focus;
   final bool focusable;
+  final bool closeOnBlur;
+  final bool replaceHistory;
   final DisplayWebview? webview;
 
   const DisplayWindow({
@@ -569,6 +576,8 @@ class DisplayWindow {
     required this.width,
     required this.focus,
     required this.focusable,
+    required this.closeOnBlur,
+    required this.replaceHistory,
     this.webview,
   });
 
@@ -586,6 +595,8 @@ class DisplayWindow {
       width.hashCode ^
       focus.hashCode ^
       focusable.hashCode ^
+      closeOnBlur.hashCode ^
+      replaceHistory.hashCode ^
       webview.hashCode;
 
   @override
@@ -602,6 +613,8 @@ class DisplayWindow {
           width == other.width &&
           focus == other.focus &&
           focusable == other.focusable &&
+          closeOnBlur == other.closeOnBlur &&
+          replaceHistory == other.replaceHistory &&
           webview == other.webview;
 }
 

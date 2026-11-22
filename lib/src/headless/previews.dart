@@ -55,6 +55,41 @@ final class Previews {
     if (window != null) _enqueue(handle, () => _focus(window));
   }
 
+  Future<bool> canFocus(int handle) async {
+    final window = _requests[handle];
+    return window != null && await _canFocus(window);
+  }
+
+  Future<void> navigate(DisplayWindow navigation) async {
+    final handle = navigation.handle;
+    final window = _requests[handle];
+    final attachment = _attachment;
+    final unavailable = 'Webview $handle is unavailable for navigation';
+    if (window == null || !_created.contains(handle)) {
+      return _reportFailure(navigation, unavailable);
+    }
+
+    _enqueue(handle, () async {
+      if (await navigation.webview?.canNavigate() != true ||
+          attachment != _attachment ||
+          !_created.contains(handle) ||
+          !identical(_requests[handle], window)) {
+        await _reportFailure(navigation, unavailable);
+        return;
+      }
+      try {
+        await _platform.navigatePreview(
+          handle,
+          url: navigation.url,
+          replaceHistory: navigation.replaceHistory,
+          focus: navigation.focus && window.focusable,
+        );
+      } catch (e) {
+        await _reportFailure(navigation, 'Navigate web preview: $e');
+      }
+    });
+  }
+
   Future<bool> allowsNavigation(int handle, String url) async {
     final window = _requests[handle];
     final attachment = _attachment;
@@ -158,23 +193,25 @@ final class Previews {
   }
 
   Future<void> _focus(DisplayWindow window) async {
+    if (!await _canFocus(window)) return;
+    try {
+      await _platform.focusPreview(window.handle);
+    } catch (e) {
+      await _reportFailure(window, 'Focus web preview: $e');
+    }
+  }
+
+  Future<bool> _canFocus(DisplayWindow window) async {
     final handle = window.handle;
     final attachment = _attachment;
     if (!window.focusable ||
         !_created.contains(handle) ||
         !identical(_requests[handle], window)) {
-      return;
+      return false;
     }
-    if (await window.webview?.canFocus() != true ||
-        attachment != _attachment ||
-        !identical(_requests[handle], window)) {
-      return;
-    }
-    try {
-      await _platform.focusPreview(handle);
-    } catch (e) {
-      await _reportFailure(window, 'Focus web preview: $e');
-    }
+    return await window.webview?.canFocus() == true &&
+        attachment == _attachment &&
+        identical(_requests[handle], window);
   }
 
   Future<void> _reportFailure(DisplayWindow window, String message) async {

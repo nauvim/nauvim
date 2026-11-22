@@ -185,5 +185,9 @@ chords retain the browser's behavior.
 | `close` | Closes that preview and returns focus to the editor | `Ctrl-w` |
 
 The host plugin can open a preview without moving keyboard focus. A preview
-opened with `focusable = false` cannot receive keyboard focus. The host plugin
-can open a new preview after the original closes.
+opened with `focusable = false` cannot receive keyboard focus. A preview opened
+with `close_on_blur = true` closes when it loses focus.
+
+On Linux, select **Inspect Element** in the preview's context menu. On macOS
+13.3 or later, open the inspector from Safari's **Develop** menu.
+[WebKit Inspector documentation](https://webkit.org/blog/13936/enabling-the-inspection-of-web-content-in-apps/)

@@ -47,6 +47,10 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
                   );
                   await handler(event);
                   return event.allowed;
+                case 'webview_can_focus':
+                  final event = PreviewFocusRequested(call.arguments as int);
+                  await handler(event);
+                  return event.allowed;
                 case 'webview_error':
                   final args = call.arguments as Map;
                   await handler(
@@ -179,6 +183,7 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
     'handle': window.handle,
     'url': window.url,
     'focusable': window.focusable,
+    'close_on_blur': window.closeOnBlur,
     'x': rectangle.left,
     'y': rectangle.top,
     'width': rectangle.width,
@@ -201,6 +206,19 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
   @override
   Future<void> focusPreview(int handle) =>
       _channel.invokeMethod('focus_webview', {'handle': handle});
+
+  @override
+  Future<void> navigatePreview(
+    int handle, {
+    required String url,
+    required bool replaceHistory,
+    required bool focus,
+  }) => _channel.invokeMethod('navigate_webview', {
+    'handle': handle,
+    'url': url,
+    'replace_history': replaceHistory,
+    'focus': focus,
+  });
 
   @override
   Future<void> closePreview(int handle) =>

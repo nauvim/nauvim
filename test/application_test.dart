@@ -112,6 +112,18 @@ class TestPlatform implements NauvimPlatform {
   @override
   Future<void> focusPreview(int handle) => native.focusPreview(handle);
   @override
+  Future<void> navigatePreview(
+    int handle, {
+    required String url,
+    required bool replaceHistory,
+    required bool focus,
+  }) => native.navigatePreview(
+    handle,
+    url: url,
+    replaceHistory: replaceHistory,
+    focus: focus,
+  );
+  @override
   Future<void> closePreview(int handle) => native.closePreview(handle);
   @override
   Future<void> closeWindow() => native.closeWindow();
@@ -423,6 +435,8 @@ void main() {
         width: 5,
         focus: false,
         focusable: true,
+        closeOnBlur: false,
+        replaceHistory: false,
       );
       await emit(tester, app, update('open_webview', window: preview));
       await emit(tester, app, update('close_webview', window: preview));

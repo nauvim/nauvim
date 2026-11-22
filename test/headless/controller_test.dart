@@ -81,6 +81,7 @@ final class Platform implements NauvimPlatform {
   Completer<List<String>>? fontGate;
   Completer<void>? previewGate;
   Completer<void>? windowGate;
+  Object? navigationError;
 
   @override
   void setEventHandler(Future<void> Function(NauvimPlatformEvent)? handler) =>
@@ -122,6 +123,17 @@ final class Platform implements NauvimPlatform {
   @override
   Future<void> focusPreview(int handle) async => calls.add(('focus', handle));
   @override
+  Future<void> navigatePreview(
+    int handle, {
+    required String url,
+    required bool replaceHistory,
+    required bool focus,
+  }) async {
+    calls.add(('navigate', (handle, url, replaceHistory, focus)));
+    if (navigationError case final error?) throw error;
+  }
+
+  @override
   Future<void> closePreview(int handle) async => calls.add(('clear', handle));
   @override
   Future<void> closeWindow() async => calls.add(('exit', null));
@@ -132,6 +144,7 @@ final class Platform implements NauvimPlatform {
 final class Webview implements DisplayWebview {
   final calls = <String>[];
   final allowedUrl = 'https://localhost/preview';
+  bool canAcceptNavigation = true;
 
   @override
   bool isDisposed = false;
@@ -155,6 +168,12 @@ final class Webview implements DisplayWebview {
   Future<bool> canFocus() async {
     calls.add('can_focus');
     return true;
+  }
+
+  @override
+  Future<bool> canNavigate() async {
+    calls.add('can_navigate');
+    return canAcceptNavigation;
   }
 
   @override
@@ -185,6 +204,28 @@ const preview = DisplayWindow(
   width: 5,
   focus: false,
   focusable: true,
+  closeOnBlur: false,
+  replaceHistory: false,
+);
+
+const nextPreviewUrl = 'https://localhost/next#section';
+
+Update navigatePreview(Webview webview) => Update(
+  kind: 'navigate_webview',
+  window: DisplayWindow(
+    handle: preview.handle,
+    url: nextPreviewUrl,
+    grid: 0,
+    top: 0,
+    left: 0,
+    height: 0,
+    width: 0,
+    focus: true,
+    focusable: false,
+    closeOnBlur: false,
+    replaceHistory: true,
+    webview: webview,
+  ),
 );
 
 DisplayFrame frame({
@@ -680,6 +721,8 @@ void main() {
         width: 5,
         focus: false,
         focusable: true,
+        closeOnBlur: false,
+        replaceHistory: false,
         webview: webview,
       );
       final opening = Completer<void>();
@@ -758,6 +801,8 @@ void main() {
         width: 5,
         focus: true,
         focusable: focusable,
+        closeOnBlur: false,
+        replaceHistory: false,
         webview: webview,
       );
       engine.events.add(Update(kind: 'open_webview', window: window));
@@ -772,6 +817,87 @@ void main() {
         expect(platform.calls.last.$1, 'open');
       }
     }
+  });
+
+  test(
+    'navigates a created preview and checks focus after acceptance',
+    () async {
+      final opened = Webview();
+      final navigating = Webview();
+      final window = DisplayWindow(
+        handle: preview.handle,
+        url: opened.allowedUrl,
+        grid: 1,
+        top: 2,
+        left: 1,
+        height: 3,
+        width: 5,
+        focus: false,
+        focusable: true,
+        closeOnBlur: false,
+        replaceHistory: false,
+        webview: opened,
+      );
+      engine.events.add(Update(kind: 'frame', frame: frame()));
+      controller.updateViewport(viewport(controller));
+      engine.events.add(Update(kind: 'open_webview', window: window));
+      await settle();
+
+      engine.events.add(navigatePreview(navigating));
+      await settle();
+      expect(platform.calls.last, (
+        'navigate',
+        (47, nextPreviewUrl, true, true),
+      ));
+      expect(navigating.calls, ['can_navigate']);
+
+      final focus = PreviewFocusRequested(47);
+      await platform.handler!(focus);
+      expect(focus.allowed, isTrue);
+      expect(opened.calls, ['opened', 'can_focus']);
+
+      platform.navigationError = StateError('Navigation rejected');
+      engine.events.add(navigatePreview(navigating));
+      await settle();
+      expect(platform.calls.last.$1, 'navigate');
+      expect(
+        navigating.calls.last,
+        'Navigate web preview: Bad state: Navigation rejected',
+      );
+
+      navigating.canAcceptNavigation = false;
+      final count = platform.calls.length;
+      engine.events.add(navigatePreview(navigating));
+      await settle();
+      expect(platform.calls, hasLength(count));
+      expect(navigating.calls.last, 'Webview 47 is unavailable for navigation');
+
+      await platform.handler!(const PreviewCloseRequested(47));
+      final staleFocus = PreviewFocusRequested(47);
+      await platform.handler!(staleFocus);
+      expect(staleFocus.allowed, isFalse);
+      await settle();
+      expect(platform.calls.last, ('clear', 47));
+      expect(opened.calls.last, 'closed');
+    },
+  );
+
+  test('rejects navigation while preview creation is pending', () async {
+    final opening = Completer<void>();
+    final navigating = Webview();
+    platform.previewGate = opening;
+    engine.events.add(Update(kind: 'frame', frame: frame()));
+    controller.updateViewport(viewport(controller));
+    engine.events.add(const Update(kind: 'open_webview', window: preview));
+    await settle();
+
+    engine.events.add(navigatePreview(navigating));
+    await settle();
+    expect(navigating.calls, ['Webview 47 is unavailable for navigation']);
+
+    opening.complete();
+    await settle();
+    expect(platform.calls.single.$1, 'open');
   });
 
   test(

@@ -85,9 +85,11 @@ pub struct DisplayMargins {
     pub right: DisplayLength,
 }
 
-/// A native preview positioned in cells relative to its Neovim grid.
+/// A native preview update.
 ///
-/// Focus and close updates identify an existing preview by handle alone.
+/// Open updates position the preview in cells relative to its Neovim grid.
+/// Navigation updates carry the target URL, history and focus options, and
+/// the preview registration. Focus and close updates carry only the handle.
 #[derive(Default)]
 pub struct DisplayWindow {
     pub handle: i64,
@@ -99,6 +101,8 @@ pub struct DisplayWindow {
     pub width: u16,
     pub focus: bool,
     pub focusable: bool,
+    pub close_on_blur: bool,
+    pub replace_history: bool,
     pub webview: Option<DisplayWebview>,
 }
 
@@ -131,6 +135,11 @@ impl DisplayWebview {
     /// Checks whether a focus request still applies to this open preview.
     pub async fn can_focus(&self) -> bool {
         self.0.can_focus()
+    }
+
+    /// Checks whether the preview is still open on a live attachment.
+    pub async fn can_navigate(&self) -> bool {
+        self.0.can_navigate()
     }
 
     /// Reports a native preview error through the engine's updates.

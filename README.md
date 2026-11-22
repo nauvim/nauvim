@@ -50,5 +50,5 @@ page. Closing Nauvim leaves host Neovim processes running for reattachment.
 - [Development guide](docs/development.md) for running and testing changes.
 - [Flutter design guide](docs/architecture.md) and [Rust architecture](rust/README.md)
   for changing the frontend.
-- [Nauvim specification v1.0.0](https://github.com/nauvim/nauvim-spec/blob/v1.0.0/specification.md)
+- [Nauvim specification v1.0.1](https://github.com/nauvim/nauvim-spec/blob/v1.0.1/specification.md)
   for shared session, configuration, and plugin contracts.
