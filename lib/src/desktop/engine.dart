@@ -3,7 +3,7 @@ import '../headless/engine.dart';
 import '../headless/protocol.dart';
 
 /// Forwards session operations to the opaque Rust application.
-final class RustNauvimEngine implements NauvimEngine {
+final class RustNauvimEngine implements NauvimEngine, WindowSizeRecorder {
   const RustNauvimEngine(this.application);
   final Application application;
 
@@ -30,6 +30,9 @@ final class RustNauvimEngine implements NauvimEngine {
   @override
   Future<void> resize({required int width, required int height}) =>
       application.resize(width: width, height: height);
+  @override
+  void recordWindowSize({required int width, required int height}) =>
+      application.recordWindowSize(width: width, height: height);
   @override
   Future<void> focus({required bool focused}) =>
       application.focus(focused: focused);

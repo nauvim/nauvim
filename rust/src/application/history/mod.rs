@@ -1,6 +1,8 @@
-//! Persists the last destination independently of configuration and host sessions.
+//! Persists application state independently of configuration and host sessions.
 
-use rusqlite::{Connection, OptionalExtension as _, TransactionBehavior};
+use super::size::WindowSize;
+
+use rusqlite::{Connection, OptionalExtension as _, TransactionBehavior, params};
 
 use std::fmt;
 use std::fs;
@@ -9,7 +11,7 @@ use std::path::Path;
 use std::time::Duration;
 
 const APPLICATION_ID: i64 = 0x4e41_5553;
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 #[derive(Debug)]
 pub(super) enum Error {
@@ -26,7 +28,7 @@ impl fmt::Display for Error {
             Self::Sqlite(e) => e.fmt(f),
             Self::Invalid(reason) => f.write_str(reason),
             Self::Version(version) => {
-                write!(f, "unsupported host selection schema version {version}")
+                write!(f, "unsupported application state schema version {version}")
             }
         }
     }
@@ -97,15 +99,26 @@ impl History {
                 ) STRICT;",
             )?;
             tx.pragma_update(None, "application_id", APPLICATION_ID)?;
-            tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         } else {
             if application != APPLICATION_ID {
                 return Err(Error::Invalid("database belongs to another application"));
             }
-            if version != SCHEMA_VERSION {
+            if version != 1 && version != SCHEMA_VERSION {
                 return Err(Error::Version(version));
             }
             tx.prepare("SELECT id, alias FROM selection LIMIT 0")?;
+        }
+        if version < SCHEMA_VERSION {
+            tx.execute_batch(
+                "CREATE TABLE window_size (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    width INTEGER NOT NULL CHECK (width BETWEEN 1 AND 4294967295),
+                    height INTEGER NOT NULL CHECK (height BETWEEN 1 AND 4294967295)
+                ) STRICT;",
+            )?;
+            tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+        } else {
+            tx.prepare("SELECT id, width, height FROM window_size LIMIT 0")?;
         }
         tx.commit()?;
         Ok(Self(conn))
@@ -135,6 +148,32 @@ impl History {
              ON CONFLICT (id) DO UPDATE SET alias = excluded.alias",
         )?;
         stmt.execute([alias])?;
+        Ok(())
+    }
+
+    pub(super) fn load_window_size(&self) -> Result<Option<WindowSize>, Error> {
+        let size = self
+            .0
+            .query_row(
+                "SELECT width, height FROM window_size WHERE id = 1",
+                [],
+                |row| Ok(WindowSize::new(row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+
+        match size {
+            None => Ok(None),
+            Some(Some(size)) => Ok(Some(size)),
+            Some(None) => Err(Error::Invalid("stored window dimensions must be positive")),
+        }
+    }
+
+    pub(super) fn save_window_size(&self, size: WindowSize) -> Result<(), Error> {
+        self.0.execute(
+            "INSERT INTO window_size (id, width, height) VALUES (1, ?1, ?2)
+             ON CONFLICT (id) DO UPDATE SET width = excluded.width, height = excluded.height",
+            params![size.width.get(), size.height.get()],
+        )?;
         Ok(())
     }
 }

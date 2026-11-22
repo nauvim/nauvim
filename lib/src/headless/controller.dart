@@ -131,6 +131,10 @@ final class NauvimController extends ChangeNotifier {
     switch (event) {
       case WindowCloseRequested():
         await close();
+      case WindowSizeChanged(:final width, :final height):
+        if (_engine case final WindowSizeRecorder recorder when !closing) {
+          recorder.recordWindowSize(width: width, height: height);
+        }
       case PlatformFailure(:final message):
         reportError(message);
       case PreviewCloseRequested(:final handle):

@@ -244,7 +244,7 @@ async fn storage_failure_does_not_prevent_host_selection() {
             .await
             .message
             .unwrap()
-            .contains("last selected host database")
+            .contains("application state database")
     );
     app.connect("local_alias".into(), 80, 24).await.unwrap();
     receive(&mut updates, "connecting").await;
@@ -260,6 +260,95 @@ async fn storage_failure_does_not_prevent_host_selection() {
         fs::read(root.path().join("state.sqlite3")).unwrap(),
         b"damaged database"
     );
+}
+
+#[tokio::test]
+async fn restores_the_last_client_area_only_when_startup_size_is_nil() {
+    use crate::api::display::{DisplayLength, DisplayLengthUnit, DisplayStartupMode};
+
+    let root = tempfile::tempdir().unwrap();
+    let config_path = root.path().join("init.lua");
+    let path = config_path.to_string_lossy().into_owned();
+
+    fs::write(&config_path, "return {}").unwrap();
+    let app = spawn(Some(path.clone())).unwrap();
+    let mut updates = app.take_updates().await.unwrap();
+    assert!(
+        receive(&mut updates, "ready")
+            .await
+            .window_options
+            .is_none()
+    );
+    app.record_window_size(800, 600);
+    app.record_window_size(931, 677);
+    app.record_window_size(0, 0);
+    app.close().await.unwrap();
+    receive(&mut updates, "shutdown").await;
+
+    let restored = spawn(Some(path.clone())).unwrap();
+    let mut updates = restored.take_updates().await.unwrap();
+    let options = receive(&mut updates, "ready").await.window_options.unwrap();
+    assert_eq!(
+        (options.width.unwrap().value, options.height.unwrap().value),
+        (931.0, 677.0),
+    );
+    restored.close().await.unwrap();
+
+    let px = |value| {
+        Some(DisplayLength {
+            value,
+            unit: DisplayLengthUnit::Px,
+        })
+    };
+    for (window, expected, width, height) in [
+        ("{opacity=0.75}", "restore", px(931.0), px(677.0)),
+        (
+            "{opacity=0.75,startup_size=nil}",
+            "restore",
+            px(931.0),
+            px(677.0),
+        ),
+        (
+            "{opacity=0.75,startup_size={width=720}}",
+            "windowed",
+            px(720.0),
+            None,
+        ),
+        ("{opacity=0.75,startup_size={}}", "windowed", None, None),
+        (
+            "{opacity=0.75,startup_size='fullscreen'}",
+            "fullscreen",
+            None,
+            None,
+        ),
+        (
+            "{opacity=0.75,startup_size='maximized'}",
+            "maximized",
+            None,
+            None,
+        ),
+    ] {
+        fs::write(
+            &config_path,
+            format!("return {{ui_opts={{['com.naughie.nauvim.flutter']={{window={window}}}}}}}"),
+        )
+        .unwrap();
+        let app = spawn(Some(path.clone())).unwrap();
+        let mut updates = app.take_updates().await.unwrap();
+        let options = receive(&mut updates, "ready").await.window_options.unwrap();
+        let mode = match options.startup_mode {
+            None => "restore",
+            Some(DisplayStartupMode::Windowed) => "windowed",
+            Some(DisplayStartupMode::Fullscreen) => "fullscreen",
+            Some(DisplayStartupMode::Maximized) => "maximized",
+        };
+        assert_eq!(
+            (mode, options.width, options.height, options.opacity),
+            (expected, width, height, Some(0.75)),
+            "{window}"
+        );
+        app.close().await.unwrap();
+    }
 }
 
 #[tokio::test]
@@ -467,6 +556,7 @@ fn input_endpoint() -> (
     let (epoch_tx, input_epoch) = watch::channel(CancellationToken::new());
     let (_updates, updates) = mpsc::channel(1);
     let (_stopped, stopped) = watch::channel(true);
+    let (window_size, _) = watch::channel(None);
     (
         Handle {
             commands,
@@ -474,6 +564,7 @@ fn input_endpoint() -> (
             input_epoch,
             stop: CancellationToken::new(),
             stopped,
+            window_size,
             updates: Mutex::new(Some(updates)),
         },
         receiver,

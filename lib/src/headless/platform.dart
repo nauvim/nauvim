@@ -12,6 +12,11 @@ final class WindowCloseRequested extends NauvimPlatformEvent {
   const WindowCloseRequested();
 }
 
+final class WindowSizeChanged extends NauvimPlatformEvent {
+  const WindowSizeChanged(this.width, this.height);
+  final int width, height;
+}
+
 final class PlatformFailure extends NauvimPlatformEvent {
   const PlatformFailure(this.message);
   final String message;

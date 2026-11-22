@@ -120,6 +120,10 @@ these metrics into cells and baselines.
 a connection. Its single selection row distinguishes a null alias for the
 default local host from a named alias. An empty table indicates no saved
 destination. A storage failure leaves host connections available.
+The same database stores a single client-area size in whole logical pixels.
+The engine retains the latest native size and writes it during orderly
+shutdown. Schema version 2 adds the window size table in a transaction while
+preserving the destination from version 1.
 
 `fonts/cache` keys prepared faces by source content, selected face index, platform,
 architecture, and font-processing revision. Advance that revision when changes
@@ -129,7 +133,7 @@ entries and 64 MiB of payload, evicting the least recently used. That limit
 applies to payload, while SQLite manages the database file and journal.
 
 Both stores use bundled SQLite with a 25 ms busy timeout. Their application IDs
-are `0x4e415553` for host selection and `0x4e415546` for the font cache. Each
+are `0x4e415553` for application state and `0x4e415546` for the font cache. Each
 checks its schema version with `user_version` and preserves foreign or
 unsupported databases. The [saved data guide](../docs/persistence.md) lists paths
 and reset instructions.

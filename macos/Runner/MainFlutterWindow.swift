@@ -113,6 +113,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
   private var startupModePending = false
   private var startupOpacity: CGFloat = 1
   private var applyingStartupZoom = false
+  private var windowConfigured = false
+  private var lastWindowSize: NSSize?
 
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
@@ -174,7 +176,21 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
       }
     default: break
     }
+    windowConfigured = true
     if !startupModePending { alphaValue = startupOpacity }
+    reportWindowSize()
+  }
+
+  func windowDidResize(_ notification: Notification) {
+    reportWindowSize()
+  }
+
+  private func reportWindowSize() {
+    guard windowConfigured && !startupModePending && isVisible else { return }
+    let size = contentRect(forFrameRect: frame).size
+    guard size != lastWindowSize, let channel = channel else { return }
+    lastWindowSize = size
+    channel.invokeMethod("window_size_changed", arguments: [Double(size.width), Double(size.height)])
   }
 
   func windowDidEnterFullScreen(_ notification: Notification) {
@@ -189,6 +205,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     guard startupModePending else { return }
     startupModePending = false
     alphaValue = startupOpacity
+    reportWindowSize()
   }
 
   override func awakeFromNib() {

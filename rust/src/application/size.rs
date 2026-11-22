@@ -24,6 +24,22 @@ impl GridSize {
     }
 }
 
+/// Positive client-area dimensions in logical pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct WindowSize {
+    pub(super) width: NonZeroU32,
+    pub(super) height: NonZeroU32,
+}
+
+impl WindowSize {
+    pub(super) fn new(width: u32, height: u32) -> Option<Self> {
+        Some(Self {
+            width: NonZeroU32::new(width)?,
+            height: NonZeroU32::new(height)?,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,4 +1,4 @@
-use crate::api::display::{DisplayDestination, UiUpdate};
+use crate::api::display::{DisplayDestination, DisplayLength, DisplayLengthUnit, UiUpdate};
 use crate::configuration;
 use crate::display::Presenter;
 
@@ -8,7 +8,7 @@ use super::history::History;
 use super::input::{
     HostInput, Input, QueuedInput, completed, reset_input, start_input, stop_input,
 };
-use super::size::GridSize;
+use super::size::{GridSize, WindowSize};
 use super::updates::{Updates, message, open_window, window_action};
 
 use nauvim_core::{Engine, EngineEvent, Error, HostSelection};
@@ -26,9 +26,10 @@ pub(super) async fn run(
     mut commands: mpsc::Receiver<Command>,
     mut input: mpsc::Receiver<QueuedInput>,
     input_epoch: watch::Sender<CancellationToken>,
+    observed_size: watch::Receiver<Option<WindowSize>>,
     updates: Updates,
 ) {
-    let (config, options) = match configuration::load(path.as_deref().map(Path::new)) {
+    let (config, mut options) = match configuration::load(path.as_deref().map(Path::new)) {
         Ok(config) => config,
         Err(e) => {
             let _ = updates.send(message("welcome", Some(e.to_string()))).await;
@@ -43,7 +44,7 @@ pub(super) async fn run(
     {
         Ok(history) => Some(history),
         Err(e) => {
-            history_error = Some(format!("Open the last selected host database: {e}"));
+            history_error = Some(format!("Open the application state database: {e}"));
             None
         }
     };
@@ -54,6 +55,28 @@ pub(super) async fn run(
             None
         }
     });
+
+    let mut window_error = None;
+    if let Some(history) = &history
+        && options
+            .window
+            .as_ref()
+            .is_none_or(|window| window.startup_mode.is_none())
+    {
+        match history.load_window_size() {
+            Ok(Some(size)) => {
+                let window = options.window.get_or_insert_default();
+                let pixels = |value| DisplayLength {
+                    value: f64::from(value),
+                    unit: DisplayLengthUnit::Px,
+                };
+                window.width = Some(pixels(size.width.get()));
+                window.height = Some(pixels(size.height.get()));
+            }
+            Ok(None) => (),
+            Err(e) => window_error = Some(format!("Restore the last window size: {e}")),
+        }
+    }
 
     let startup = UiUpdate {
         kind: "ready".into(),
@@ -70,7 +93,7 @@ pub(super) async fn run(
     if updates.send(startup).await.is_err() {
         return;
     }
-    if let Some(error) = history_error {
+    for error in [history_error, window_error].into_iter().flatten() {
         let _ = updates.send(message("error", Some(error))).await;
     }
 
@@ -246,6 +269,17 @@ pub(super) async fn run(
     stop_input(task.as_mut(), &mut input);
     commands.close();
     input.close();
+    let last_size = *observed_size.borrow();
+    if let (Some(history), Some(size)) = (&history, last_size)
+        && let Err(e) = history.save_window_size(size)
+    {
+        updates
+            .final_update(message(
+                "error",
+                Some(format!("Save the last window size: {e}")),
+            ))
+            .await;
+    }
     finish(&mut engine, &updates).await;
 }
 

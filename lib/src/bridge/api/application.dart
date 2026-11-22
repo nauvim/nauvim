@@ -46,6 +46,10 @@ abstract class Application implements RustOpaqueInterface {
   /// Pastes from the clipboard backend selected by core.
   Future<void> paste();
 
+  /// Records the latest client-area size in logical pixels for orderly shutdown.
+  /// Ignores measurements with a zero dimension.
+  void recordWindowSize({required int width, required int height});
+
   /// Updates viewport dimensions in grid cells, clamping each zero to one.
   Future<void> resize({required int width, required int height});
 
