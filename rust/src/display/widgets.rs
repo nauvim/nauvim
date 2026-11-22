@@ -52,13 +52,13 @@ pub(super) fn project(state: &State, dismissed: Option<&Messages>) -> (Vec<Displ
             widgets.push(text_widget("message", &message.content));
         }
     }
-    for content in [
-        &state.messages.showmode,
-        &state.messages.showcmd,
-        &state.messages.ruler,
+    for (kind, content) in [
+        ("status", &state.messages.showmode),
+        ("showcmd", &state.messages.showcmd),
+        ("status", &state.messages.ruler),
     ] {
         if !content.is_empty() {
-            widgets.push(text_widget("status", content));
+            widgets.push(text_widget(kind, content));
         }
     }
     if let Some(history) = &state.messages.history {

@@ -79,7 +79,7 @@ fn dismisses_messages_on_input_without_mutating_history_or_replaying_events() {
             .as_ref()
             .unwrap()
             .iter()
-            .any(|w| w.kind == "status")
+            .any(|w| w.kind == "showcmd")
     );
     assert_eq!(state.messages.visible.len(), 2);
     assert!(state.messages.visible.iter().all(|message| message.history));

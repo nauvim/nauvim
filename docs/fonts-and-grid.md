@@ -64,8 +64,10 @@ bearings, fallback size or explicit line spacing. Other glyphs use their fonts.
 
 The measured canvas is always a positive integer number of cells in each
 dimension. The default design reserves exactly one additional cell row directly
-below it for command input and messages. This reservation stays constant when
-messages appear or disappear. It does not alter `cmdheight`.
+below it for command input and messages. Pending command keys from `msg_showcmd`
+appear in this bottom row. When their text needs more lines, the message area
+extends upward over the grid. Scroll inside it to read lines that exceed the
+available height. The reserved row stays constant and does not alter `cmdheight`.
 
 Initial dimensions and margins come from the frontend's selected UI opts. Integer
 and `px` values use logical pixels; `em` values resolve at startup using the

@@ -51,12 +51,17 @@ class _NauvimEditorState extends State<NauvimEditor> {
       final commandPopup = model.widgets
           .where((w) => w.kind == 'cmdline_popup')
           .firstOrNull;
+      final pendingCommands = activeCommand == null
+          ? model.widgets.where((w) => w.kind == 'showcmd')
+          : const <DisplayWidget>[];
+      final hasPendingCommands = pendingCommands.isNotEmpty;
       final bottomWidgets = model.widgets.where(
         (w) =>
             w.kind != 'popup' &&
             w.kind != 'tabs' &&
             w.kind != 'buffers' &&
             w.kind != 'status' &&
+            w.kind != 'showcmd' &&
             w.kind != 'cmdline_popup',
       );
       return EditorViewportRegion(
@@ -92,55 +97,66 @@ class _NauvimEditorState extends State<NauvimEditor> {
               left: 0,
               right: 0,
               bottom: 0,
-              height: viewport.cellHeight,
-              child: ColoredBox(
-                color: paintStyle.resolveBackground(model.frame?.background),
-                child: SingleChildScrollView(
-                  reverse: true,
-                  child: Column(
-                    children: [
-                      for (final item in bottomWidgets)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              left: appearance.widgetPadding.left,
-                              right: appearance.widgetPadding.right,
-                            ),
-                            child: item.kind == 'cmdline'
-                                ? CommandLine(
-                                    item: item,
-                                    model: model,
-                                    style: style,
-                                    active: identical(item, activeCommand),
-                                    popupLink: identical(item, activeCommand)
-                                        ? _commandLineLink
-                                        : null,
-                                    popupByteOffset:
-                                        identical(item, activeCommand)
-                                        ? commandPopup?.col.toInt()
-                                        : null,
-                                    popupWidth: popupWidth,
-                                    cursorColor: appearance.cursorColor,
-                                    cursorWidth:
-                                        appearance.commandLineCursorWidth,
-                                    paintStyle: paintStyle,
-                                  )
-                                : RichText(
-                                    text: TextSpan(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: viewport.cellHeight,
+                  maxHeight: hasPendingCommands
+                      ? viewport.size.height + viewport.cellHeight
+                      : viewport.cellHeight,
+                ),
+                child: ColoredBox(
+                  color: paintStyle.resolveBackground(model.frame?.background),
+                  child: SingleChildScrollView(
+                    key: ValueKey(hasPendingCommands),
+                    reverse: true,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final item in bottomWidgets.followedBy(
+                          pendingCommands,
+                        ))
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                left: appearance.widgetPadding.left,
+                                right: appearance.widgetPadding.right,
+                              ),
+                              child: item.kind == 'cmdline'
+                                  ? CommandLine(
+                                      item: item,
+                                      model: model,
                                       style: style,
-                                      children: [
-                                        highlightedChunks(
-                                          item.chunks,
-                                          model,
-                                          paintStyle: paintStyle,
-                                        ),
-                                      ],
+                                      active: identical(item, activeCommand),
+                                      popupLink: identical(item, activeCommand)
+                                          ? _commandLineLink
+                                          : null,
+                                      popupByteOffset:
+                                          identical(item, activeCommand)
+                                          ? commandPopup?.col.toInt()
+                                          : null,
+                                      popupWidth: popupWidth,
+                                      cursorColor: appearance.cursorColor,
+                                      cursorWidth:
+                                          appearance.commandLineCursorWidth,
+                                      paintStyle: paintStyle,
+                                    )
+                                  : RichText(
+                                      text: TextSpan(
+                                        style: style,
+                                        children: [
+                                          highlightedChunks(
+                                            item.chunks,
+                                            model,
+                                            paintStyle: paintStyle,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

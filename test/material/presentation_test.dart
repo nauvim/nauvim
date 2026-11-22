@@ -1,3 +1,5 @@
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nauvim_flutter/nauvim.dart';
@@ -225,6 +227,150 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('expands showcmd upward and scrolls to earlier lines', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(560, 480);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final engine = FakeEngine();
+    final controller = NauvimController(
+      engine: engine,
+      platform: FakePlatform(),
+    );
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+      await engine.events.close();
+    });
+    await tester.pumpWidget(NauvimMaterialApp(controller: controller));
+    engine.emit(const UiUpdate(kind: 'ready', hosts: [], fonts: []));
+    await tester.pump();
+    await tester.pump();
+
+    DisplayWidget message(String kind, String text) => DisplayWidget(
+      kind: kind,
+      grid: 1,
+      row: 0,
+      col: 0,
+      selected: text.length,
+      chunks: [DisplayChunk(text: text, highlight: 0)],
+      items: const [],
+      handles: const [],
+    );
+
+    Future<void> display(String? showcmd, {String? command}) async {
+      engine.emit(
+        UiUpdate(
+          kind: 'frame',
+          frame: editorFrame(
+            widgets: [
+              if (command != null) message('cmdline', command),
+              if (showcmd != null) message('showcmd', showcmd),
+            ],
+          ),
+          hosts: const [],
+          fonts: const [],
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+    }
+
+    const earliest = 'earliest command';
+    const latest = 'latest command';
+    Finder paragraph(String text) => find.text(text, findRichText: true);
+    Finder scrollable(String text) =>
+        find.ancestor(of: paragraph(text), matching: find.byType(Scrollable));
+    Rect lineBounds(String text, String line) {
+      final render = tester.renderObject<RenderParagraph>(paragraph(text));
+      final offset = text.indexOf(line);
+      final box = render
+          .getBoxesForSelection(
+            TextSelection(
+              baseOffset: offset,
+              extentOffset: offset + line.length,
+            ),
+          )
+          .single;
+      return box.toRect().shift(render.localToGlobal(Offset.zero));
+    }
+
+    final surface = find.byType(EditorSurface);
+
+    await display(latest);
+    final bottomRow = tester.getRect(scrollable(latest));
+    final editor = tester.getRect(surface);
+    expect(bottomRow.top, editor.bottom);
+    expect(bottomRow.bottom, tester.getRect(find.byType(NauvimEditor)).bottom);
+    final latestBottom = lineBounds(latest, latest).bottom;
+    final oneLineHeight = tester.getSize(paragraph(latest)).height;
+    final resizes = List.of(engine.resizes);
+
+    final wrapped = List.filled(24, 'wrapped command').join(' ');
+    final fits = '$earliest\n$wrapped\n$latest';
+    await display(fits);
+    final expanded = tester.getRect(scrollable(fits));
+    expect(expanded.bottom, bottomRow.bottom);
+    expect(expanded.top, lessThan(bottomRow.top));
+    expect(expanded.top, greaterThan(editor.top));
+    expect(expanded.contains(lineBounds(fits, earliest).center), isTrue);
+    expect(
+      tester.getSize(paragraph(fits)).height,
+      greaterThan(3 * oneLineHeight),
+    );
+    expect(lineBounds(fits, latest).bottom, closeTo(latestBottom, 0.01));
+    expect(
+      tester.state<ScrollableState>(scrollable(fits)).position.maxScrollExtent,
+      0,
+    );
+
+    final overflow = [
+      earliest,
+      for (var i = 0; i < 80; i++) 'command $i',
+      latest,
+    ].join('\n');
+    await display(overflow);
+    final capped = tester.getRect(scrollable(overflow));
+    expect(capped.top, editor.top);
+    expect(capped.bottom, bottomRow.bottom);
+    expect(capped.contains(lineBounds(overflow, earliest).center), isFalse);
+    expect(lineBounds(overflow, latest).bottom, closeTo(latestBottom, 0.01));
+
+    final position = tester
+        .state<ScrollableState>(scrollable(overflow))
+        .position;
+    expect(position.maxScrollExtent, greaterThan(0));
+    await tester.sendEventToBinding(
+      PointerScrollEvent(
+        position: capped.center,
+        scrollDelta: Offset(0, -position.maxScrollExtent),
+      ),
+    );
+    await tester.pump();
+    expect(capped.contains(lineBounds(overflow, earliest).center), isTrue);
+    expect(capped.contains(lineBounds(overflow, latest).center), isFalse);
+
+    await display(null);
+    expect(paragraph(overflow), findsNothing);
+    final editorScroll = find.descendant(
+      of: find.byType(NauvimEditor),
+      matching: find.byType(Scrollable),
+    );
+    expect(tester.getRect(editorScroll), bottomRow);
+
+    await display(fits, command: ':checkhealth');
+    expect(paragraph(fits), findsNothing);
+    expect(find.byType(CommandLine), findsOneWidget);
+    expect(tester.getRect(editorScroll.first), bottomRow);
+    expect(tester.getRect(surface), editor);
+    expect(engine.resizes, resizes);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'changes the theme without replacing editor state or session logic',

@@ -64,7 +64,6 @@ class NauvimStatus extends StatelessWidget {
     listenable: controller.editor,
     builder: (context, _) {
       final model = controller.editor;
-      // Pending command keys are already visible in the active command line.
       if (model.widgets.any((item) => item.kind == 'cmdline')) {
         return const SizedBox.shrink();
       }
