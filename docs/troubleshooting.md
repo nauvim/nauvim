@@ -33,10 +33,10 @@ Check the error display, then select the host again.
 
 ### Blank buffers after reattachment
 
-Neovim v0.12.6 can show a statusline with blank buffers after reattachment.
-The buffers remain open in Neovim. Nauvim restores the initial contents when
-it is the only attached UI.
-[Neovim issue #30583](https://github.com/neovim/neovim/issues/30583)
+Nauvim uses the saved [UI checkpoint](persistence.md#session-ui-checkpoints)
+to restore the buffer contents and window layout when you reattach to the
+same Neovim process.
 
-If the buffers are blank, detach any other UIs from the same Neovim process.
-Then detach and reconnect Nauvim.
+When no matching checkpoint is available, Neovim v0.12.6 can show a statusline
+with blank buffers after reattachment. The buffers remain open in Neovim.
+[Neovim issue #30583](https://github.com/neovim/neovim/issues/30583)

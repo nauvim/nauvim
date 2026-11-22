@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 /// Positive Neovim grid counts, independent of logical window pixels.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct GridSize {
     width: NonZeroU32,
     height: NonZeroU32,

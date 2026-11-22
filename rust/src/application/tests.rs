@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::api::display::{DisplayFrame, DisplayRow};
+
 use tokio::net::UnixListener;
 use tokio::time::{Duration, timeout};
 
@@ -23,19 +25,23 @@ struct Host {
 
 impl Host {
     fn evaluate(&self, expression: &str) -> String {
-        let output = ProcessCommand::new(&self.nvim)
-            .arg("--server")
-            .arg(&self.socket)
-            .args(["--remote-expr", expression])
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        String::from_utf8(output.stdout).unwrap().trim().to_owned()
+        evaluate_host(&self.nvim, &self.socket, expression)
     }
+}
+
+fn evaluate_host(nvim: &Path, socket: &Path, expression: &str) -> String {
+    let output = ProcessCommand::new(nvim)
+        .arg("--server")
+        .arg(socket)
+        .args(["--remote-expr", expression])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).unwrap().trim().to_owned()
 }
 
 impl Drop for Host {
@@ -57,8 +63,16 @@ async fn live_application(root: &Path) -> (Host, Handle, mpsc::Receiver<UiUpdate
         socket: root.join("host.sock"),
     };
     let config = root.join("init.lua");
+    write_live_configuration(&config, &host);
+    let (app, mut updates) = start_live_application(&config).await;
+    receive(&mut updates, "frame").await;
+
+    (host, app, updates)
+}
+
+fn write_live_configuration(config: &Path, host: &Host) {
     fs::write(
-        &config,
+        config,
         format!(
             r#"return {{
                 default_host = 'test',
@@ -75,13 +89,15 @@ async fn live_application(root: &Path) -> (Host, Handle, mpsc::Receiver<UiUpdate
         ),
     )
     .unwrap();
+}
+
+async fn start_live_application(config: &Path) -> (Handle, mpsc::Receiver<UiUpdate>) {
     let app = spawn(Some(config.to_string_lossy().into_owned())).unwrap();
     let mut updates = app.take_updates().await.unwrap();
     receive(&mut updates, "ready").await;
     app.start(80, 24).await.unwrap();
-    receive(&mut updates, "frame").await;
 
-    (host, app, updates)
+    (app, updates)
 }
 
 async fn receive(updates: &mut mpsc::Receiver<UiUpdate>, kind: &str) -> UiUpdate {
@@ -95,6 +111,54 @@ async fn receive(updates: &mut mpsc::Receiver<UiUpdate>, kind: &str) -> UiUpdate
     })
     .await
     .expect("The expected application update did not arrive")
+}
+
+async fn wait_for_frame(
+    updates: &mut mpsc::Receiver<UiUpdate>,
+    expected: &str,
+    mut matches: impl FnMut(&DisplayFrame) -> bool,
+) -> DisplayFrame {
+    timeout(Duration::from_secs(3), async {
+        loop {
+            let update = updates.recv().await.unwrap();
+            if update.kind == "error"
+                && update
+                    .message
+                    .as_deref()
+                    .is_some_and(|s| s.starts_with("Detect clipboard backend:"))
+            {
+                continue;
+            }
+            assert_ne!(update.kind, "welcome", "{:?}", update.message);
+            assert_ne!(update.kind, "error", "{:?}", update.message);
+
+            if let Some(frame) = update.frame
+                && matches(&frame)
+            {
+                return frame;
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("Expected {expected}"))
+}
+
+fn row_has_text(row: &DisplayRow, text: &str) -> bool {
+    row.row == 0
+        && row
+            .cells
+            .iter()
+            .map(|cell| cell.text.as_str())
+            .collect::<String>()
+            .starts_with(text)
+}
+
+fn visible_row<'f>(frame: &'f DisplayFrame, text: &str) -> Option<&'f DisplayRow> {
+    frame.rows.iter().find(|row| {
+        row.grid != 1
+            && row_has_text(row, text)
+            && frame.grids.iter().any(|g| g.id == row.grid && !g.hidden)
+    })
 }
 
 #[tokio::test]
@@ -708,10 +772,11 @@ async fn live_preview_checks_navigation_and_tracks_focus_and_close() {
 #[tokio::test]
 #[ignore = "Requires NVIM_BIN pointing to Neovim v0.12.6 and local Unix sockets"]
 async fn live_switches_tabs_after_reattachment() {
-    use crate::api::display::DisplayFrame;
+    use std::collections::BTreeMap;
 
     async fn visible_buffer(
         updates: &mut mpsc::Receiver<UiUpdate>,
+        rows: &mut BTreeMap<i64, String>,
         text: &str,
     ) -> (i64, DisplayFrame) {
         timeout(Duration::from_secs(3), async {
@@ -723,18 +788,25 @@ async fn live_switches_tabs_after_reattachment() {
                 let Some(frame) = update.frame else {
                     continue;
                 };
-                if let Some(row) = frame.rows.iter().find(|row| {
-                    row.grid != 1
-                        && row.row == 0
-                        && row
-                            .cells
-                            .iter()
-                            .map(|cell| cell.text.as_str())
-                            .collect::<String>()
-                            .starts_with(text)
-                        && frame.grids.iter().any(|g| g.id == row.grid && !g.hidden)
-                }) {
-                    return (row.grid, frame);
+                for grid in &frame.removed_grids {
+                    rows.remove(grid);
+                }
+                for row in frame
+                    .rows
+                    .iter()
+                    .filter(|row| row.grid != 1 && row.row == 0)
+                {
+                    rows.insert(
+                        row.grid,
+                        row.cells.iter().map(|cell| cell.text.as_str()).collect(),
+                    );
+                }
+                if let Some(grid) = frame
+                    .grids
+                    .iter()
+                    .find(|g| !g.hidden && rows.get(&g.id).is_some_and(|row| row.starts_with(text)))
+                {
+                    return (grid.id, frame);
                 }
             }
         })
@@ -745,27 +817,29 @@ async fn live_switches_tabs_after_reattachment() {
     let root = tempfile::tempdir().unwrap();
     let (host, app, mut updates) = live_application(root.path()).await;
     let pid = host.evaluate("getpid()");
+    let mut rows = BTreeMap::new();
 
     app.input("ifirst tab buffer<Esc>".into()).await.unwrap();
-    visible_buffer(&mut updates, "first tab buffer").await;
+    visible_buffer(&mut updates, &mut rows, "first tab buffer").await;
     for (keys, text) in [
         (":tabnew<CR>isecond tab buffer<Esc>", "second tab buffer"),
         (":tabnew<CR>ithird tab buffer<Esc>", "third tab buffer"),
     ] {
         app.input(keys.into()).await.unwrap();
-        visible_buffer(&mut updates, text).await;
+        visible_buffer(&mut updates, &mut rows, text).await;
     }
 
     app.input(":detach<CR>".into()).await.unwrap();
     assert_eq!(receive(&mut updates, "welcome").await.message, None);
+    rows.clear();
 
     app.connect("test".into(), 80, 24).await.unwrap();
-    let (mut previous_grid, _) = visible_buffer(&mut updates, "third tab buffer").await;
+    let (mut previous_grid, _) = visible_buffer(&mut updates, &mut rows, "third tab buffer").await;
     assert_eq!(host.evaluate("tabpagenr()"), "3");
 
     for (text, tab) in [("first tab buffer", "1"), ("second tab buffer", "2")] {
         app.input(":tabnext<CR>".into()).await.unwrap();
-        let (grid, frame) = visible_buffer(&mut updates, text).await;
+        let (grid, frame) = visible_buffer(&mut updates, &mut rows, text).await;
         assert_ne!(grid, previous_grid);
         assert!(
             frame
@@ -783,6 +857,259 @@ async fn live_switches_tabs_after_reattachment() {
 
     app.close().await.unwrap();
     receive(&mut updates, "shutdown").await;
+}
+
+#[tokio::test]
+#[ignore = "Requires NVIM_BIN pointing to Neovim v0.12.6 and local Unix sockets"]
+async fn live_restores_inactive_floats_in_a_new_client() {
+    use tokio::process::Command;
+
+    use std::env;
+
+    const TEST_ROOT: &str = "NAUVIM_INACTIVE_FLOAT_TEST_ROOT";
+    const CLIENT_RUN: &str = "NAUVIM_INACTIVE_FLOAT_CLIENT_RUN";
+    const ACTIVE_TEXT: &str = "active tab buffer";
+    const FLOAT_TEXT: &str = "float text";
+    const SNAPSHOT: &str = r#"luaeval("(function()
+        local api = vim.api
+        return vim.inspect({
+            vim.fn.getpid(),
+            api.nvim_get_current_tabpage(),
+            api.nvim_get_current_win(),
+            api.nvim_tabpage_get_win(vim.g.float_tab),
+            api.nvim_win_get_config(vim.g.float_window),
+            {vim.o.cmdheight, vim.o.laststatus, vim.o.guifont,
+                vim.o.scrolloff, vim.o.sidescrolloff}
+        })
+    end)()")"#;
+
+    fn has_focus_highlight(row: &DisplayRow) -> bool {
+        row.cells[0].highlight != row.cells[6].highlight
+    }
+
+    let nvim = PathBuf::from(env::var_os("NVIM_BIN").expect("Set NVIM_BIN for this live test"));
+    let Some(root) = env::var_os(TEST_ROOT).map(PathBuf::from) else {
+        let executable = env::current_exe().unwrap();
+        let (_, module) = module_path!().split_once("::").unwrap();
+        let name = format!("{module}::live_restores_inactive_floats_in_a_new_client");
+
+        for seed_run in ["plain float", "WinLeave highlight clear"] {
+            let root = tempfile::tempdir().unwrap();
+            let host = Host {
+                nvim: nvim.clone(),
+                socket: root.path().join("host.sock"),
+            };
+            write_live_configuration(&root.path().join("init.lua"), &host);
+
+            for run in [seed_run, "restore"] {
+                let mut client = Command::new(&executable);
+                client
+                    .args(["--ignored", "--exact", &name])
+                    .env(TEST_ROOT, root.path())
+                    .env(CLIENT_RUN, run)
+                    .kill_on_drop(true);
+
+                let output = timeout(Duration::from_secs(20), client.output())
+                    .await
+                    .unwrap_or_else(|_| panic!("{seed_run}: client timed out during {run}"))
+                    .unwrap();
+                assert!(
+                    output.status.success()
+                        && String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+                    "{seed_run}: client failed during {run}\n{}\n{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                assert_eq!(host.evaluate("len(nvim_list_uis())"), "0");
+            }
+        }
+        return;
+    };
+
+    let run = env::var(CLIENT_RUN).unwrap();
+    let socket = root.join("host.sock");
+    let evaluate = |expression| evaluate_host(&nvim, &socket, expression);
+    let snapshot = SNAPSHOT.replace('\n', " ");
+    let snapshot_path = root.join("host-state.txt");
+    let (app, mut updates) = start_live_application(&root.join("init.lua")).await;
+    let first_frame = wait_for_frame(&mut updates, "the first frame before input", |_| true).await;
+
+    if run == "restore" {
+        assert!(first_frame.full);
+        assert!(visible_row(&first_frame, ACTIVE_TEXT).is_some());
+        assert_eq!(
+            evaluate(&snapshot),
+            fs::read_to_string(snapshot_path).unwrap()
+        );
+
+        let row = first_frame
+            .rows
+            .iter()
+            .find(|row| row_has_text(row, FLOAT_TEXT))
+            .expect("The first frame should retain the inactive float's cells");
+        let grid = row.grid;
+        assert!(first_frame.grids.iter().any(|g| g.id == grid && g.hidden));
+
+        app.input(":tabnext<CR>".into()).await.unwrap();
+        let mut text_without_highlight = !has_focus_highlight(row);
+        wait_for_frame(
+            &mut updates,
+            "the retained float and its cursor after switching tabs",
+            |frame| {
+                if let Some(row) = frame.rows.iter().find(|r| r.grid == grid && r.row == 0) {
+                    text_without_highlight =
+                        row_has_text(row, FLOAT_TEXT) && !has_focus_highlight(row);
+                }
+                text_without_highlight
+                    && frame
+                        .cursor
+                        .as_ref()
+                        .is_some_and(|cursor| cursor.grid == grid)
+                    && frame.grids.iter().any(|g| {
+                        g.id == grid
+                            && !g.hidden
+                            && (g.width, g.height, g.row, g.col) == (60, 15, 5.0, 10.0)
+                    })
+            },
+        )
+        .await;
+        assert_eq!(evaluate("tabpagenr()"), "1");
+        assert_eq!(evaluate("win_getid() == g:float_window"), "1");
+    } else {
+        let highlight = run == "WinLeave highlight clear";
+        let source = r#"(function(clear_on_leave)
+            local api = vim.api
+            local buf = api.nvim_create_buf(false, true)
+            api.nvim_buf_set_lines(buf, 0, -1, false, {'float text'})
+            vim.g.float_tab = api.nvim_get_current_tabpage()
+            vim.g.float_window = api.nvim_open_win(buf, true, {
+                relative = 'editor', width = 60, height = 15, row = 5, col = 10,
+                style = 'minimal', border = 'none', focusable = true,
+            })
+            if clear_on_leave then
+                local ns = api.nvim_create_namespace('float-repro-focus')
+                api.nvim_buf_set_extmark(buf, ns, 0, 0, {end_col = 5, hl_group = 'Visual'})
+                api.nvim_create_autocmd('WinLeave', {
+                    buffer = buf,
+                    callback = function()
+                        api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+                    end,
+                })
+            end
+            return true
+        end)(_A)"#;
+        let clear = if highlight { "v:true" } else { "v:false" };
+        let setup = format!("luaeval(\"{}\", {clear})", source.replace('\n', " "));
+        assert_eq!(evaluate(&setup), "true");
+        wait_for_frame(
+            &mut updates,
+            "the visible float with its initial highlighting",
+            |frame| {
+                visible_row(frame, FLOAT_TEXT)
+                    .is_some_and(|row| has_focus_highlight(row) == highlight)
+            },
+        )
+        .await;
+
+        app.input(format!(":tabnew<CR>i{ACTIVE_TEXT}<Esc>"))
+            .await
+            .unwrap();
+        wait_for_frame(
+            &mut updates,
+            "the active tab's buffer before detaching",
+            |frame| visible_row(frame, ACTIVE_TEXT).is_some(),
+        )
+        .await;
+        assert_eq!(evaluate("tabpagenr()"), "2");
+        fs::write(snapshot_path, evaluate(&snapshot)).unwrap();
+
+        app.input(":detach<CR>".into()).await.unwrap();
+        assert_eq!(receive(&mut updates, "welcome").await.message, None);
+    }
+
+    app.close().await.unwrap();
+    receive(&mut updates, "shutdown").await;
+}
+
+#[tokio::test]
+#[ignore = "Requires NVIM_BIN pointing to Neovim v0.12.6 and local Unix sockets"]
+async fn live_uses_a_fresh_frame_when_an_alias_points_to_another_session() {
+    use tokio::process::Command;
+    use tokio::time::sleep;
+
+    let root = tempfile::tempdir().unwrap();
+    let (host, app, mut updates) = live_application(root.path()).await;
+    let pid = host.evaluate("getpid()");
+    let old_buffer = host.evaluate("bufnr()");
+    let old_text = "previous host buffer";
+    app.input(format!("i{old_text}<Esc>")).await.unwrap();
+    wait_for_frame(&mut updates, "the previous host's buffer", |frame| {
+        visible_row(frame, old_text).is_some()
+    })
+    .await;
+    app.input(":tabnew<CR>iactive tab<Esc>".into())
+        .await
+        .unwrap();
+    wait_for_frame(&mut updates, "the previous host's active tab", |frame| {
+        visible_row(frame, "active tab").is_some()
+    })
+    .await;
+    app.close().await.unwrap();
+    receive(&mut updates, "shutdown").await;
+
+    let replacement = Host {
+        nvim: host.nvim.clone(),
+        socket: root.path().join("replacement.sock"),
+    };
+    let mut process = Command::new(&replacement.nvim)
+        .args(["--headless", "-u", "NONE", "-i", "NONE", "-n", "--listen"])
+        .arg(&replacement.socket)
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    timeout(Duration::from_secs(3), async {
+        while !replacement.socket.exists() {
+            assert!(process.try_wait().unwrap().is_none());
+            sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+
+    let replacement_pid = replacement.evaluate("getpid()");
+    assert_ne!(replacement_pid, pid);
+
+    let config = root.path().join("init.lua");
+    write_live_configuration(&config, &replacement);
+
+    let (app, mut updates) = start_live_application(&config).await;
+    let frame = wait_for_frame(
+        &mut updates,
+        "the replacement session's first frame",
+        |_| true,
+    )
+    .await;
+    assert!(frame.full);
+    assert!(frame.rows.iter().all(|row| !row_has_text(row, old_text)));
+    assert_eq!(replacement.evaluate("getpid()"), replacement_pid);
+    assert_eq!(replacement.evaluate("getline(1)"), "");
+    assert_eq!(
+        host.evaluate(&format!("getbufline({old_buffer}, 1)[0]")),
+        old_text
+    );
+
+    app.input("ireplacement<Esc>".into()).await.unwrap();
+    wait_for_frame(&mut updates, "the replacement session's buffer", |frame| {
+        visible_row(frame, "replacement").is_some()
+    })
+    .await;
+    app.close().await.unwrap();
+    receive(&mut updates, "shutdown").await;
+    drop(replacement);
+    timeout(Duration::from_secs(3), process.wait())
+        .await
+        .unwrap()
+        .unwrap();
 }
 
 #[tokio::test]

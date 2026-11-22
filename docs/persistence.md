@@ -31,6 +31,25 @@ the saved destination and size or recover from a damaged database, close Nauvim
 and delete `state.sqlite3`. The next launch creates a new database. You can still
 reattach to existing Neovim sessions.
 
+## Session UI checkpoints
+
+Nauvim keeps up to 64 UI checkpoints, one per Neovim process. A checkpoint contains
+the display state, including text in retained grids from inactive tabs. When you
+reconnect to the same Neovim process, Nauvim uses this state to restore the
+first display. The checkpoint stays on the client and can be used after you
+close Nauvim or restart the client.
+
+| Platform | Location |
+| --- | --- |
+| Linux | `$XDG_DATA_HOME/nauvim/ui-checkpoints.sqlite3`, or `$HOME/.local/share/nauvim/ui-checkpoints.sqlite3` when no absolute XDG data directory is set |
+| macOS | `$HOME/Library/Application Support/nauvim/ui-checkpoints.sqlite3` |
+
+If no matching checkpoint is available, Nauvim attempts to attach without
+saved display state. Storage errors appear in the error display. To clear the
+checkpoints, close Nauvim and delete `ui-checkpoints.sqlite3`. See
+[blank buffers after reattachment](troubleshooting.md#blank-buffers-after-reattachment)
+for a Neovim reattachment limitation when no checkpoint is available.
+
 ## Font cache
 
 <a id="storage-scope"></a>

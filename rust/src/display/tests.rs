@@ -5,7 +5,7 @@ use crate::api::display::DisplayFrame;
 use nvim_rpc_ui::{
     Buffer, BufferItem, Cell, Chunk, Cmdline, CompletionItem, Cursor, Damage, Grid, GridId,
     GridPlacement, GridPlacementKind, Highlight, HighlightAttributes, HighlightId, Message, Mode,
-    PopupAnchor, Popupmenu, Row, Tab, Tabline, Tabpage, Value, Window, WindowViewport,
+    PopupAnchor, Popupmenu, Row, Tab, Tabline, Tabpage, Value, Window,
 };
 
 use std::collections::BTreeMap;
@@ -658,105 +658,6 @@ fn resolves_floating_anchors_and_hides_cyclic_placements() {
     *anchor_grid = GridId(3);
     let update = presenter.frame(frame(Arc::new(state)));
     assert!(update.grids.iter().find(|g| g.id == 3).unwrap().hidden);
-}
-
-#[test]
-fn restores_omitted_window_positions_until_neovim_supplies_them() {
-    let mut state = State {
-        grids: Arc::new(BTreeMap::from([
-            (GridId(1), grid(&["root"])),
-            (GridId(2), grid(&["buffer"])),
-        ])),
-        viewports: Arc::new(BTreeMap::from([(
-            GridId(2),
-            WindowViewport {
-                window: Window(1000),
-                ..WindowViewport::default()
-            },
-        )])),
-        ..State::default()
-    };
-    let mut presenter = Presenter::new();
-    presenter.restore_positions(vec![WindowPosition {
-        grid: GridId(2),
-        window: Window(1000),
-        row: 3,
-        col: 7,
-    }]);
-    let snapshot = Arc::new(state.clone());
-    let first = presenter.frame(frame(Arc::clone(&snapshot)));
-    let window = first.grids.iter().find(|g| g.id == 2).unwrap();
-
-    assert!(!window.hidden);
-    assert_eq!((window.row, window.col), (3.0, 7.0));
-    assert!(state.placements.is_empty());
-
-    let unchanged = presenter.frame(frame(snapshot));
-
-    assert!(unchanged.rows.is_empty());
-    assert!(!unchanged.grids.iter().find(|g| g.id == 2).unwrap().hidden);
-
-    Arc::make_mut(&mut state.placements).insert(
-        GridId(2),
-        GridPlacement {
-            hidden: true,
-            kind: GridPlacementKind::Normal {
-                window: Window(1000),
-                row: 5,
-                col: 9,
-                width: 6,
-                height: 1,
-            },
-        },
-    );
-    let authoritative = presenter.frame(frame(Arc::new(state.clone())));
-    let window = authoritative.grids.iter().find(|g| g.id == 2).unwrap();
-
-    assert!(window.hidden);
-    assert_eq!((window.row, window.col), (5.0, 9.0));
-    assert!(presenter.positions.is_empty());
-
-    Arc::make_mut(&mut state.placements).clear();
-    let closed = presenter.frame(frame(Arc::new(state)));
-
-    assert!(closed.grids.iter().find(|g| g.id == 2).unwrap().hidden);
-}
-
-#[test]
-fn discards_restored_positions_on_window_replacement_and_attachment_reset() {
-    let state = State {
-        grids: Arc::new(BTreeMap::from([(GridId(2), grid(&["buffer"]))])),
-        viewports: Arc::new(BTreeMap::from([(
-            GridId(2),
-            WindowViewport {
-                window: Window(2000),
-                ..WindowViewport::default()
-            },
-        )])),
-        ..State::default()
-    };
-    let mut presenter = Presenter::new();
-    presenter.restore_positions(vec![WindowPosition {
-        grid: GridId(2),
-        window: Window(1000),
-        row: 3,
-        col: 7,
-    }]);
-    let replaced = presenter.frame(frame(Arc::new(state.clone())));
-
-    assert!(replaced.grids.iter().find(|g| g.id == 2).unwrap().hidden);
-    assert!(presenter.positions.is_empty());
-
-    presenter.restore_positions(vec![WindowPosition {
-        grid: GridId(2),
-        window: Window(2000),
-        row: 3,
-        col: 7,
-    }]);
-    presenter.reset();
-    let reattached = presenter.frame(frame(Arc::new(state)));
-
-    assert!(reattached.grids.iter().find(|g| g.id == 2).unwrap().hidden);
 }
 
 #[test]

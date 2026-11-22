@@ -3,6 +3,7 @@
 use crate::api::display::UiUpdate;
 
 mod attachment;
+mod checkpoints;
 mod driver;
 mod error;
 pub(crate) use error::Error;

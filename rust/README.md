@@ -53,28 +53,20 @@ have a bounded send wait so a missing subscriber cannot block cleanup forever.
 Neovim processes. Queue/lifecycle failures stay concrete inside the runtime and
 become strings at the bridge boundary.
 
-Attachment initialization coalesces frames until an ordered redraw marker
-confirms completion. With a sole attached UI, the adapter reinitializes its
-multigrid capability at the existing viewport dimensions. While multigrid is
-disabled, it redraws each tab to release Neovim's cached normal-window grids
-without changing the selected tab. When an inactive tab becomes visible, Neovim
-announces its grid sizes before sending updates. Restoration of the capability
-flags runs before an initialization error is reported. Other attached UIs
-prevent this reset.
+Core provides host RPC after registering the UI. The driver uses the initial
+attachment to read a token that lives in the Neovim process and persists
+across client restarts. If the token matches a stored checkpoint, the driver
+starts a second attachment with that checkpoint. Core seeds its receiving UI
+model before Neovim sends redraw notifications. This retains grids and
+placements that Neovim can omit, including hidden grids in inactive tabs.
 
-Normal-window positions come from a host query carried by the completion
-marker. Projection retains these positions only for the matching grid/window
-pair. It drops them when Neovim supplies a placement, the window is removed,
-or the active tab changes.
-For visible floating windows, an empty `nvim_win_set_config()` update requests
-native placement events without changing their configuration. These events
-retain Neovim's anchor and stacking metadata, and hidden floats stay hidden.
-Intermediate frames stay offscreen while their ordered events are retained.
-Recovery adds no per-key RPC calls or tasks.
-
-Neovim tracks [missing window positions](https://github.com/neovim/neovim/issues/19559)
-and [missing buffer contents](https://github.com/neovim/neovim/issues/30583)
-separately.
+The driver keeps the initial attachment offscreen during restoration. It
+checks the token again before presenting a restored frame or opening a host
+preview. If the destination changes during restoration or the restored
+attachment fails, the driver retries once with a fresh model. The driver
+forwards editor input after presenting the first frame. A renderer reset makes
+that frame a full projection of the core snapshot. Ordered events come from
+the attachment that supplies the displayed frames.
 
 ## Snapshot projection
 
@@ -129,6 +121,12 @@ The engine retains the latest native size and writes it during orderly
 shutdown. Schema version 2 adds the window size table in a transaction while
 preserving the destination from version 1.
 
+`application/checkpoints` stores one core UI checkpoint per Neovim process
+token in a separate SQLite database. Core captures state at
+redraw flushes. The driver checks for changed state once a second and saves the
+latest known checkpoint when detaching, switching hosts, or shutting down.
+Checkpoint encoding and database I/O run on a blocking thread.
+
 `fonts/cache` keys prepared faces by source content, selected face index, platform,
 architecture, and font-processing revision. Advance that revision when changes
 affect prepared output. Reads verify the payload checksum and decoded values.
@@ -136,11 +134,13 @@ Each write and its evictions form one transaction. The cache keeps up to 128
 entries and 64 MiB of payload, evicting the least recently used. That limit
 applies to payload, while SQLite manages the database file and journal.
 
-Both stores use bundled SQLite with a 25 ms busy timeout. Their application IDs
-are `0x4e415553` for application state and `0x4e415546` for the font cache. Each
-checks its schema version with `user_version` and preserves foreign or
-unsupported databases. The [saved data guide](../docs/persistence.md) lists paths
-and reset instructions.
+The stores use bundled SQLite. The application state and font cache use a 25 ms
+busy timeout and application IDs `0x4e415553` and `0x4e415546`, respectively.
+They check their schema versions with `user_version` and preserve foreign or
+unsupported databases. The checkpoint database uses application ID `0x4e415543`
+and schema version 1. It limits storage to 64 entries, each with a maximum
+64 MiB payload, and caps the SQLite database at 512 MiB. The
+[saved data guide](../docs/persistence.md) lists paths and reset instructions.
 
 ## Tests and generated code
 
