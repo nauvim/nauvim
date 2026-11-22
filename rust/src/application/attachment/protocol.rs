@@ -54,7 +54,7 @@ pub(in crate::application) async fn synchronize(
             option(&client, "override", false).await?;
             option(&client, "ext_multigrid", false).await?;
             resize(&client, size).await?;
-            redraw(&client).await
+            redraw_tabs(&client).await
         };
         let result = timeout(Duration::from_secs(2), reset)
             .await
@@ -107,13 +107,27 @@ async fn resize(client: &Client, size: GridSize) -> Result<(), Error> {
         .map_err(|e| Error::Host(ClientError::from(e).into()))
 }
 
-async fn redraw(client: &Client) -> Result<(), Error> {
+async fn redraw_tabs(client: &Client) -> Result<(), Error> {
+    // workaround (#18): Neovim can reuse an inactive tab's grid without
+    // announcing its size to the new UI. Redraw each tab with multigrid off
+    // to free those grids. nvim_win_call preserves the selected tab.
+    const REDRAW_TABS: &str = r#"
+local api = vim.api
+local active = api.nvim_get_current_tabpage()
+for _, tab in ipairs(api.nvim_list_tabpages()) do
+    if tab ~= active then
+        api.nvim_win_call(api.nvim_tabpage_get_win(tab), function()
+            api.nvim__redraw({flush = true})
+        end)
+    end
+end
+api.nvim__redraw({valid = false, flush = true})
+return true
+"#;
+
     client
         .nvim()
-        .request::<api::NvimExecLua, bool>((
-            "vim.api.nvim__redraw({valid=false,flush=true}); return true",
-            (),
-        ))
+        .request::<api::NvimExecLua, bool>((REDRAW_TABS, ()))
         .await
         .map(|_| ())
         .map_err(|e| Error::Host(ClientError::from(e).into()))

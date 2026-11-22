@@ -691,6 +691,86 @@ async fn live_preview_checks_navigation_and_tracks_focus_and_close() {
 
 #[tokio::test]
 #[ignore = "Requires NVIM_BIN pointing to Neovim v0.12.6 and local Unix sockets"]
+async fn live_switches_tabs_after_reattachment() {
+    use crate::api::display::DisplayFrame;
+
+    async fn visible_buffer(
+        updates: &mut mpsc::Receiver<UiUpdate>,
+        text: &str,
+    ) -> (i64, DisplayFrame) {
+        timeout(Duration::from_secs(3), async {
+            loop {
+                let update = updates.recv().await.unwrap();
+                assert_ne!(update.kind, "welcome", "{:?}", update.message);
+                assert_ne!(update.kind, "error", "{:?}", update.message);
+
+                let Some(frame) = update.frame else {
+                    continue;
+                };
+                if let Some(row) = frame.rows.iter().find(|row| {
+                    row.grid != 1
+                        && row.row == 0
+                        && row
+                            .cells
+                            .iter()
+                            .map(|cell| cell.text.as_str())
+                            .collect::<String>()
+                            .starts_with(text)
+                        && frame.grids.iter().any(|g| g.id == row.grid && !g.hidden)
+                }) {
+                    return (row.grid, frame);
+                }
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("Did not draw {text:?} in a visible window"))
+    }
+
+    let root = tempfile::tempdir().unwrap();
+    let (host, app, mut updates) = live_application(root.path()).await;
+    let pid = host.evaluate("getpid()");
+
+    app.input("ifirst tab buffer<Esc>".into()).await.unwrap();
+    visible_buffer(&mut updates, "first tab buffer").await;
+    for (keys, text) in [
+        (":tabnew<CR>isecond tab buffer<Esc>", "second tab buffer"),
+        (":tabnew<CR>ithird tab buffer<Esc>", "third tab buffer"),
+    ] {
+        app.input(keys.into()).await.unwrap();
+        visible_buffer(&mut updates, text).await;
+    }
+
+    app.input(":detach<CR>".into()).await.unwrap();
+    assert_eq!(receive(&mut updates, "welcome").await.message, None);
+
+    app.connect("test".into(), 80, 24).await.unwrap();
+    let (mut previous_grid, _) = visible_buffer(&mut updates, "third tab buffer").await;
+    assert_eq!(host.evaluate("tabpagenr()"), "3");
+
+    for (text, tab) in [("first tab buffer", "1"), ("second tab buffer", "2")] {
+        app.input(":tabnext<CR>".into()).await.unwrap();
+        let (grid, frame) = visible_buffer(&mut updates, text).await;
+        assert_ne!(grid, previous_grid);
+        assert!(
+            frame
+                .grids
+                .iter()
+                .all(|g| g.id != previous_grid || g.hidden),
+            "Grid {previous_grid} stayed visible after switching to tab {tab}"
+        );
+        assert_eq!(host.evaluate("tabpagenr()"), tab);
+        previous_grid = grid;
+    }
+
+    assert_eq!(host.evaluate("getpid()"), pid);
+    assert_eq!(host.evaluate("len(nvim_list_uis())"), "1");
+
+    app.close().await.unwrap();
+    receive(&mut updates, "shutdown").await;
+}
+
+#[tokio::test]
+#[ignore = "Requires NVIM_BIN pointing to Neovim v0.12.6 and local Unix sockets"]
 async fn live_restores_split_buffers_before_input_after_detach_and_reattach() {
     let root = tempfile::tempdir().unwrap();
     let (host, app, mut updates) = live_application(root.path()).await;

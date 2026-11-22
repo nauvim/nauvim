@@ -55,18 +55,22 @@ become strings at the bridge boundary.
 
 Attachment initialization coalesces frames until an ordered redraw marker
 confirms completion. With a sole attached UI, the adapter reinitializes its
-multigrid capability at the existing viewport dimensions to clear Neovim's
-cached visible normal-window contents. Restoration of the capability flags
-runs before an initialization error is reported. Other attached UIs prevent
-this capability reset.
+multigrid capability at the existing viewport dimensions. While multigrid is
+disabled, it redraws each tab to release Neovim's cached normal-window grids
+without changing the selected tab. When an inactive tab becomes visible, Neovim
+announces its grid sizes before sending updates. Restoration of the capability
+flags runs before an initialization error is reported. Other attached UIs
+prevent this reset.
+
 Normal-window positions come from a host query carried by the completion
 marker. Projection retains these positions only for the matching grid/window
-pair, until Neovim supplies a placement or removes the window. For visible
-floating windows, an empty `nvim_win_set_config()` update requests native
-placement events without changing their configuration. These events retain
-Neovim's anchor and stacking metadata; hidden floats stay hidden. Intermediate
-frames stay offscreen while their ordered events are retained. Recovery adds
-no per-key RPC calls or tasks.
+pair. It drops them when Neovim supplies a placement, the window is removed,
+or the active tab changes.
+For visible floating windows, an empty `nvim_win_set_config()` update requests
+native placement events without changing their configuration. These events
+retain Neovim's anchor and stacking metadata, and hidden floats stay hidden.
+Intermediate frames stay offscreen while their ordered events are retained.
+Recovery adds no per-key RPC calls or tasks.
 
 Neovim tracks [missing window positions](https://github.com/neovim/neovim/issues/19559)
 and [missing buffer contents](https://github.com/neovim/neovim/issues/30583)
@@ -147,11 +151,10 @@ widgets, and event order. Font tests use an original generated fixture and
 constructed collections/variation tables rather than installed-font assumptions.
 
 The opt-in rendering regressions check the first projected frame after
-reattachment. They cover split-buffer contents and saved views, bordered and
-overlapping floats, hidden floats, and terminal-float contents and mode. They
-also check that recovery preserves window configuration and editor options.
-These tests verify recovery from omitted state in Neovim v0.12.6; connection
-reuse alone does not verify rendering. See
+reattachment and tab switches after reconnecting. They cover split-buffer
+contents and saved views, bordered and overlapping floats, hidden floats, and
+terminal-float contents and mode. They also check that recovery preserves window
+configuration and editor options. The tests run against Neovim v0.12.6. See
 [reattachment troubleshooting](../docs/troubleshooting.md#blank-buffers-after-reattachment).
 
 Use the [development guide](../docs/development.md) for commands and prerequisites.
