@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1164569153;
+  int get rustContentHash => 1038876285;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -156,6 +156,10 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<bool> crateApiDisplayDisplayWebviewCanFocus({
+    required DisplayWebview that,
+  });
+
+  Future<bool> crateApiDisplayDisplayWebviewCanNavigate({
     required DisplayWebview that,
   });
 
@@ -826,7 +830,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiDisplayDisplayWebviewClosed({
+  Future<bool> crateApiDisplayDisplayWebviewCanNavigate({
     required DisplayWebview that,
   }) {
     return handler.executeNormal(
@@ -841,6 +845,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             generalizedFrbRustBinding,
             serializer,
             funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDisplayDisplayWebviewCanNavigateConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDisplayDisplayWebviewCanNavigateConstMeta =>
+      const TaskConstMeta(
+        debugName: "DisplayWebview_can_navigate",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiDisplayDisplayWebviewClosed({
+    required DisplayWebview that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
             port: port_,
           );
         },
@@ -876,7 +916,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 19,
             port: port_,
           );
         },
@@ -914,7 +954,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -947,7 +987,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -978,7 +1018,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 22,
             port: port_,
           );
         },
@@ -1005,7 +1045,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1035,7 +1075,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1062,7 +1102,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1089,7 +1129,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1116,7 +1156,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1146,7 +1186,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1178,7 +1218,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1207,7 +1247,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1643,8 +1683,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   DisplayWindow dco_decode_display_window(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return DisplayWindow(
       handle: dco_decode_CastedPrimitive_i_64(arr[0]),
       url: dco_decode_String(arr[1]),
@@ -1655,9 +1695,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       width: dco_decode_u_16(arr[6]),
       focus: dco_decode_bool(arr[7]),
       focusable: dco_decode_bool(arr[8]),
+      closeOnBlur: dco_decode_bool(arr[9]),
+      replaceHistory: dco_decode_bool(arr[10]),
       webview:
           dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
-            arr[9],
+            arr[11],
           ),
     );
   }
@@ -2566,6 +2608,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_width = sse_decode_u_16(deserializer);
     var var_focus = sse_decode_bool(deserializer);
     var var_focusable = sse_decode_bool(deserializer);
+    var var_closeOnBlur = sse_decode_bool(deserializer);
+    var var_replaceHistory = sse_decode_bool(deserializer);
     var var_webview =
         sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
           deserializer,
@@ -2580,6 +2624,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       width: var_width,
       focus: var_focus,
       focusable: var_focusable,
+      closeOnBlur: var_closeOnBlur,
+      replaceHistory: var_replaceHistory,
       webview: var_webview,
     );
   }
@@ -3665,6 +3711,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_16(self.width, serializer);
     sse_encode_bool(self.focus, serializer);
     sse_encode_bool(self.focusable, serializer);
+    sse_encode_bool(self.closeOnBlur, serializer);
+    sse_encode_bool(self.replaceHistory, serializer);
     sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
       self.webview,
       serializer,
@@ -4399,6 +4447,10 @@ class DisplayWebviewImpl extends RustOpaque implements DisplayWebview {
   /// Checks whether a focus request still applies to this open preview.
   Future<bool> canFocus() =>
       RustLib.instance.api.crateApiDisplayDisplayWebviewCanFocus(that: this);
+
+  /// Checks whether the preview is still open on a live attachment.
+  Future<bool> canNavigate() =>
+      RustLib.instance.api.crateApiDisplayDisplayWebviewCanNavigate(that: this);
 
   /// Acknowledges native closure or failed construction.
   Future<void> closed() =>

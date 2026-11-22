@@ -58,6 +58,7 @@ pub(super) fn open_window(
     position: WebviewPosition,
     focus: bool,
     focusable: bool,
+    close_on_blur: bool,
     window: WebviewWindow,
 ) -> UiUpdate {
     UiUpdate {
@@ -72,7 +73,30 @@ pub(super) fn open_window(
             width: position.width,
             focus,
             focusable,
+            close_on_blur,
             webview: Some(DisplayWebview::new(window)),
+            ..DisplayWindow::default()
+        }),
+        ..UiUpdate::default()
+    }
+}
+
+pub(super) fn navigate_window(
+    handle: ResourceHandle,
+    url: String,
+    replace_history: bool,
+    focus: bool,
+    window: WebviewWindow,
+) -> UiUpdate {
+    UiUpdate {
+        kind: "navigate_webview".into(),
+        window: Some(DisplayWindow {
+            handle: handle.get(),
+            url,
+            replace_history,
+            focus,
+            webview: Some(DisplayWebview::new(window)),
+            ..DisplayWindow::default()
         }),
         ..UiUpdate::default()
     }

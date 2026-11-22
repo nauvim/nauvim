@@ -81,16 +81,35 @@ void main() {
         width: 4,
         focus: false,
         focusable: false,
+        closeOnBlur: true,
+        replaceHistory: false,
       ),
       const Rect.fromLTWH(1, 2, 3, 4),
       keyBindings: bindings.bindings(KeyContext.webview),
     );
     expect(calls.single.method, 'open_webview');
     expect((calls.single.arguments as Map)['focusable'], isFalse);
+    expect((calls.single.arguments as Map)['close_on_blur'], isTrue);
     expect((calls.single.arguments as Map)['key_bindings'], [
       {'key': 'escape', 'modifiers': 0, 'action': 'reload'},
       {'key': 'w', 'modifiers': 8, 'action': 'close'},
       {'key': 'w', 'modifiers': 1, 'action': 'close'},
     ]);
+  });
+
+  test('forwards native preview navigation options', () async {
+    await DesktopNauvimPlatform(channel: channel).navigatePreview(
+      5,
+      url: 'https://localhost/next#section',
+      replaceHistory: true,
+      focus: false,
+    );
+    expect(calls.single.method, 'navigate_webview');
+    expect(calls.single.arguments, {
+      'handle': 5,
+      'url': 'https://localhost/next#section',
+      'replace_history': true,
+      'focus': false,
+    });
   });
 }

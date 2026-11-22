@@ -107,6 +107,13 @@ class FakePlatform implements NauvimPlatform {
   @override
   Future<void> focusPreview(int handle) async {}
   @override
+  Future<void> navigatePreview(
+    int handle, {
+    required String url,
+    required bool replaceHistory,
+    required bool focus,
+  }) async {}
+  @override
   Future<void> closePreview(int handle) async => closedPreviews.add(handle);
   @override
   Future<void> closeWindow() async => closes++;

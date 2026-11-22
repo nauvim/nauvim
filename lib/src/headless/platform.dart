@@ -34,6 +34,13 @@ final class PreviewNavigationRequested extends NauvimPlatformEvent {
   bool allowed = false;
 }
 
+/// Asks whether a preview can receive focus after accepting navigation.
+final class PreviewFocusRequested extends NauvimPlatformEvent {
+  PreviewFocusRequested(this.handle);
+  final int handle;
+  bool allowed = false;
+}
+
 final class PreviewFailure extends NauvimPlatformEvent {
   const PreviewFailure(this.handle, this.message);
   final int handle;
@@ -57,6 +64,8 @@ abstract interface class NauvimPlatform {
   ///
   /// Completes after creation and placement, without awaiting URL navigation.
   /// A native navigation waits for [PreviewNavigationRequested] to be handled.
+  /// If `window.closeOnBlur` is true, close the presentation when it loses
+  /// focus and send [PreviewCloseRequested].
   Future<void> openPreview(
     DisplayWindow window,
     Rect rectangle, {
@@ -64,6 +73,20 @@ abstract interface class NauvimPlatform {
   });
   Future<void> hidePreview(int handle);
   Future<void> focusPreview(int handle);
+
+  /// Starts navigation in an existing presentation.
+  ///
+  /// Check each top-level target with [PreviewNavigationRequested]. Replace
+  /// the current history entry when `replaceHistory` is true. When `focus`
+  /// is true, send [PreviewFocusRequested] after accepting navigation.
+  /// Throw if navigation cannot start and send [PreviewFailure] for later
+  /// navigation, history, or focus errors.
+  Future<void> navigatePreview(
+    int handle, {
+    required String url,
+    required bool replaceHistory,
+    required bool focus,
+  });
   Future<void> closePreview(int handle);
 
   /// Requests native window closure after the controller has finalized work.

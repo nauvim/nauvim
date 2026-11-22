@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1164569153;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1038876285;
 
 // Section: executor
 
@@ -1002,6 +1002,64 @@ fn wire__crate__api__display__DisplayWebview_can_focus_impl(
         },
     )
 }
+fn wire__crate__api__display__DisplayWebview_can_navigate_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "DisplayWebview_can_navigate",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<DisplayWebview>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = Ok::<_, ()>(
+                            crate::api::display::DisplayWebview::can_navigate(&*api_that_guard)
+                                .await,
+                        )?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__display__DisplayWebview_closed_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1895,6 +1953,8 @@ impl SseDecode for crate::api::display::DisplayWindow {
         let mut var_width = <u16>::sse_decode(deserializer);
         let mut var_focus = <bool>::sse_decode(deserializer);
         let mut var_focusable = <bool>::sse_decode(deserializer);
+        let mut var_closeOnBlur = <bool>::sse_decode(deserializer);
+        let mut var_replaceHistory = <bool>::sse_decode(deserializer);
         let mut var_webview = <Option<DisplayWebview>>::sse_decode(deserializer);
         return crate::api::display::DisplayWindow {
             handle: var_handle,
@@ -1906,6 +1966,8 @@ impl SseDecode for crate::api::display::DisplayWindow {
             width: var_width,
             focus: var_focus,
             focusable: var_focusable,
+            close_on_blur: var_closeOnBlur,
+            replace_history: var_replaceHistory,
             webview: var_webview,
         };
     }
@@ -2673,63 +2735,69 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        17 => {
+        17 => wire__crate__api__display__DisplayWebview_can_navigate_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        18 => {
             wire__crate__api__display__DisplayWebview_closed_impl(port, ptr, rust_vec_len, data_len)
         }
-        18 => {
+        19 => {
             wire__crate__api__display__DisplayWebview_opened_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => wire__crate__api__display__DisplayWebview_report_error_impl(
+        20 => wire__crate__api__display__DisplayWebview_report_error_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__application__create_application_impl(
+        21 => wire__crate__api__application__create_application_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__display__display_length_default_impl(
+        22 => wire__crate__api__display__display_length_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__display__display_length_unit_default_impl(
+        23 => wire__crate__api__display__display_length_unit_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__display__display_margins_default_impl(
+        24 => wire__crate__api__display__display_margins_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__display__display_widget_default_impl(
+        25 => wire__crate__api__display__display_widget_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__display__display_window_default_impl(
+        26 => wire__crate__api__display__display_window_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__display__display_window_options_default_impl(
+        27 => wire__crate__api__display__display_window_options_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__keys__key_bindings_default_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__fonts__resolve_fonts_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__display__ui_update_default_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__keys__key_bindings_default_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__fonts__resolve_fonts_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__display__ui_update_default_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3194,6 +3262,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::display::DisplayWindow {
             self.width.into_into_dart().into_dart(),
             self.focus.into_into_dart().into_dart(),
             self.focusable.into_into_dart().into_dart(),
+            self.close_on_blur.into_into_dart().into_dart(),
+            self.replace_history.into_into_dart().into_dart(),
             self.webview.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -3762,6 +3832,8 @@ impl SseEncode for crate::api::display::DisplayWindow {
         <u16>::sse_encode(self.width, serializer);
         <bool>::sse_encode(self.focus, serializer);
         <bool>::sse_encode(self.focusable, serializer);
+        <bool>::sse_encode(self.close_on_blur, serializer);
+        <bool>::sse_encode(self.replace_history, serializer);
         <Option<DisplayWebview>>::sse_encode(self.webview, serializer);
     }
 }
