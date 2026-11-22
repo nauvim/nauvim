@@ -27,13 +27,16 @@ and cleanup:
 NVIM_BIN=/absolute/path/to/nvim cargo test --manifest-path rust/Cargo.toml live_orders_input -- --ignored
 ```
 
-The rendering regressions check the first returned frame after reattachment,
-before further input. They cover split buffers, bordered overlapping floats
-with fractional and window-relative positions, equal-priority stacking, hidden
-floats, and a terminal float that remains in terminal mode:
+The startup rendering regressions check the first returned frame after
+reattachment, before further input. They cover split buffers, bordered
+overlapping floats with fractional and window-relative positions, equal-priority
+stacking, hidden floats, and a terminal float that remains in terminal mode. The
+tab-switch regression checks that the selected buffer becomes visible, the
+previous tab is hidden, and the same Neovim process stays attached.
 
 ```sh
 NVIM_BIN=/absolute/path/to/nvim cargo test --manifest-path rust/Cargo.toml live_restores_ -- --ignored
+NVIM_BIN=/absolute/path/to/nvim cargo test --manifest-path rust/Cargo.toml live_switches_tabs -- --ignored
 ```
 
 The tests also check that window geometry, floating-window configuration, saved
