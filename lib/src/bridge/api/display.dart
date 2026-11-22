@@ -8,7 +8,28 @@ import 'keys.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These functions are ignored because they are not marked as `pub`: `new`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<DisplayWebview>>
+abstract class DisplayWebview implements RustOpaqueInterface {
+  /// Checks the initial URL and each top-level navigation before loading.
+  ///
+  /// A denied target produces an engine error update.
+  Future<bool> allowsNavigation({required String url});
+
+  /// Checks whether a focus request still applies to this open preview.
+  Future<bool> canFocus();
+
+  /// Acknowledges native closure or failed construction.
+  Future<void> closed();
+
+  /// Acknowledges native construction and returns whether the preview is live.
+  Future<bool> opened();
+
+  /// Reports a native preview error through the engine's updates.
+  Future<void> reportError({required String message});
+}
 
 /// Cell text and its Neovim highlight handle.
 ///
@@ -524,6 +545,8 @@ class DisplayWidget {
 }
 
 /// A native preview positioned in cells relative to its Neovim grid.
+///
+/// Focus and close updates identify an existing preview by handle alone.
 class DisplayWindow {
   final int handle;
   final String url;
@@ -532,6 +555,9 @@ class DisplayWindow {
   final int left;
   final int height;
   final int width;
+  final bool focus;
+  final bool focusable;
+  final DisplayWebview? webview;
 
   const DisplayWindow({
     required this.handle,
@@ -541,7 +567,13 @@ class DisplayWindow {
     required this.left,
     required this.height,
     required this.width,
+    required this.focus,
+    required this.focusable,
+    this.webview,
   });
+
+  static Future<DisplayWindow> default_() =>
+      RustLib.instance.api.crateApiDisplayDisplayWindowDefault();
 
   @override
   int get hashCode =>
@@ -551,7 +583,10 @@ class DisplayWindow {
       top.hashCode ^
       left.hashCode ^
       height.hashCode ^
-      width.hashCode;
+      width.hashCode ^
+      focus.hashCode ^
+      focusable.hashCode ^
+      webview.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -564,7 +599,10 @@ class DisplayWindow {
           top == other.top &&
           left == other.left &&
           height == other.height &&
-          width == other.width;
+          width == other.width &&
+          focus == other.focus &&
+          focusable == other.focusable &&
+          webview == other.webview;
 }
 
 /// Startup appearance, mode, client-area dimensions, and editor margins.

@@ -43,7 +43,7 @@ abstract class Application implements RustOpaqueInterface {
   /// Sends Neovim key notation; literal less-than characters use `<LT>`.
   Future<void> input({required String keys});
 
-  /// Pastes from the clipboard backend selected and authorized by core.
+  /// Pastes from the clipboard backend selected by core.
   Future<void> paste();
 
   /// Records the latest client-area size in logical pixels for orderly shutdown.

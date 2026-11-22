@@ -1,6 +1,6 @@
-use crate::api::display::{DisplayWindow, UiUpdate};
+use crate::api::display::{DisplayWebview, DisplayWindow, UiUpdate};
 
-use nauvim_core::{ResourceHandle, WebviewPosition};
+use nauvim_core::{ResourceHandle, WebviewPosition, WebviewWindow};
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -41,17 +41,12 @@ pub(super) fn message(kind: &str, message: Option<String>) -> UiUpdate {
     }
 }
 
-pub(super) fn close_window(handle: ResourceHandle) -> UiUpdate {
+pub(super) fn window_action(kind: &str, handle: ResourceHandle) -> UiUpdate {
     UiUpdate {
-        kind: "close_webview".into(),
+        kind: kind.into(),
         window: Some(DisplayWindow {
             handle: handle.get(),
-            url: String::new(),
-            grid: 0,
-            top: 0,
-            left: 0,
-            height: 0,
-            width: 0,
+            ..DisplayWindow::default()
         }),
         ..UiUpdate::default()
     }
@@ -61,6 +56,9 @@ pub(super) fn open_window(
     handle: ResourceHandle,
     url: String,
     position: WebviewPosition,
+    focus: bool,
+    focusable: bool,
+    window: WebviewWindow,
 ) -> UiUpdate {
     UiUpdate {
         kind: "open_webview".into(),
@@ -72,6 +70,9 @@ pub(super) fn open_window(
             left: position.left,
             height: position.height,
             width: position.width,
+            focus,
+            focusable,
+            webview: Some(DisplayWebview::new(window)),
         }),
         ..UiUpdate::default()
     }

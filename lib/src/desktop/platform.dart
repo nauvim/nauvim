@@ -39,6 +39,22 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
                   await handler(PlatformFailure(call.arguments.toString()));
                 case 'close_webview_requested':
                   await handler(PreviewCloseRequested(call.arguments as int));
+                case 'webview_allows_navigation':
+                  final args = call.arguments as Map;
+                  final event = PreviewNavigationRequested(
+                    args['handle'] as int,
+                    args['url'] as String,
+                  );
+                  await handler(event);
+                  return event.allowed;
+                case 'webview_error':
+                  final args = call.arguments as Map;
+                  await handler(
+                    PreviewFailure(
+                      args['handle'] as int,
+                      args['message'] as String,
+                    ),
+                  );
               }
             },
     );
@@ -162,6 +178,7 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
   }) => _channel.invokeMethod('open_webview', {
     'handle': window.handle,
     'url': window.url,
+    'focusable': window.focusable,
     'x': rectangle.left,
     'y': rectangle.top,
     'width': rectangle.width,
@@ -176,6 +193,14 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
           },
     ],
   });
+
+  @override
+  Future<void> hidePreview(int handle) =>
+      _channel.invokeMethod('hide_webview', {'handle': handle});
+
+  @override
+  Future<void> focusPreview(int handle) =>
+      _channel.invokeMethod('focus_webview', {'handle': handle});
 
   @override
   Future<void> closePreview(int handle) =>

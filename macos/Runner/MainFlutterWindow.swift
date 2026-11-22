@@ -88,7 +88,11 @@ private struct PreviewKeyBinding {
 }
 
 private class PreviewWebView: WKWebView {
+  var handle: Int64 = 0
+  var focusable = false
   var handleKey: ((NSEvent) -> Bool)?
+
+  override var acceptsFirstResponder: Bool { focusable && super.acceptsFirstResponder }
 
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
     if handleKey?(event) == true { return true }
@@ -102,7 +106,7 @@ private class PreviewWebView: WKWebView {
 
 class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
   private var channel: FlutterMethodChannel?
-  private var webviews: [Int64: WKWebView] = [:]
+  private var webviews: [Int64: PreviewWebView] = [:]
   private var keyBindings: [PreviewKeyBinding] = []
   private(set) var isCleanupComplete = false
   private var closeRequested = false
@@ -114,6 +118,27 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
 
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
+
+  override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+    if let view = responder as? NSView,
+       webviews.values.contains(where: {
+         (!$0.focusable || $0.isHidden) && (view === $0 || view.isDescendant(of: $0))
+       }) {
+      return false
+    }
+    return super.makeFirstResponder(responder)
+  }
+
+  private func previewHasFocus(_ preview: PreviewWebView) -> Bool {
+    guard let responder = firstResponder as? NSView else { return false }
+    return responder === preview || responder.isDescendant(of: preview)
+  }
+
+  private func restoreEditorFocus(_ preview: PreviewWebView) {
+    if previewHasFocus(preview) {
+      makeFirstResponder(contentViewController?.view)
+    }
+  }
 
   override func animationResizeTime(_ newFrame: NSRect) -> TimeInterval {
     applyingStartupZoom ? 0 : super.animationResizeTime(newFrame)
@@ -272,10 +297,12 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
               let url = URL(string: urlString), ["http", "https"].contains(url.scheme ?? "") else {
           result(FlutterError(code: "url", message: "Invalid HTTP URL", details: nil)); return
         }
-        let view: WKWebView
+        let view: PreviewWebView
         if let existing = self.webviews[handle] { view = existing }
         else {
           let preview = PreviewWebView(frame: .zero)
+          preview.handle = handle
+          preview.focusable = args["focusable"] as? Bool ?? false
           preview.handleKey = { [weak self, weak preview, weak controller] event in
             guard let self = self, let preview = preview, let controller = controller else { return false }
             return self.previewKey(event, view: preview, handle: handle, editor: controller.view)
@@ -291,9 +318,23 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
         let width = args["width"] as? Double ?? 0
         let height = args["height"] as? Double ?? 0
         view.frame = NSRect(x: x, y: controller.view.bounds.height - y - height, width: width, height: height)
+        view.isHidden = false
+      case "focus_webview":
+        guard let handle = args["handle"] as? Int64,
+              let view = self.webviews[handle], view.focusable, !view.isHidden,
+              self.makeFirstResponder(view), self.previewHasFocus(view) else {
+          result(FlutterError(code: "preview_focus", message: "The preview cannot receive focus", details: nil))
+          return
+        }
+      case "hide_webview":
+        if let handle = args["handle"] as? Int64, let view = self.webviews[handle] {
+          self.restoreEditorFocus(view)
+          view.isHidden = true
+        }
       case "close_webview":
         if let handle = args["handle"] as? Int64 {
           if let view = self.webviews.removeValue(forKey: handle) {
+            self.restoreEditorFocus(view)
             view.navigationDelegate = nil
             view.stopLoading()
             view.removeFromSuperview()
@@ -349,6 +390,29 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     requestClose()
     return false
   }
+  func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+               decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+    guard let frame = navigationAction.targetFrame else { decisionHandler(.cancel); return }
+    if !frame.isMainFrame {
+      decisionHandler(.allow)
+      return
+    }
+    guard let view = webView as? PreviewWebView, webviews[view.handle] === view,
+          let url = navigationAction.request.url, let channel else {
+      decisionHandler(.cancel)
+      return
+    }
+    let args: [String: Any] = ["handle": view.handle, "url": url.absoluteString]
+    channel.invokeMethod("webview_allows_navigation", arguments: args) { [weak self, weak view] result in
+      guard let self, let view, self.webviews[view.handle] === view,
+            result as? Bool == true else {
+        decisionHandler(.cancel)
+        return
+      }
+      decisionHandler(.allow)
+    }
+  }
+
   func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge,
                completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
     // Nauvim's local HTTPS preview servers use process-generated self-signed certificates.
@@ -358,17 +422,22 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     } else { completionHandler(.performDefaultHandling, nil) }
   }
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-    reportNavigationError(error)
+    reportNavigationError(webView, error)
   }
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-    reportNavigationError(error)
+    reportNavigationError(webView, error)
   }
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-    channel?.invokeMethod("window_error", arguments: "The preview web process terminated")
+    reportPreviewError(webView, "The preview web process terminated")
   }
-  private func reportNavigationError(_ error: Error) {
-    if (error as NSError).code != NSURLErrorCancelled {
-      channel?.invokeMethod("window_error", arguments: "Open preview: \(error.localizedDescription)")
+  private func reportNavigationError(_ webView: WKWebView, _ error: Error) {
+    let failure = error as NSError
+    if failure.domain != NSURLErrorDomain || failure.code != NSURLErrorCancelled {
+      reportPreviewError(webView, "Open preview: \(error.localizedDescription)")
     }
+  }
+  private func reportPreviewError(_ webView: WKWebView, _ message: String) {
+    guard let view = webView as? PreviewWebView, webviews[view.handle] === view else { return }
+    channel?.invokeMethod("webview_error", arguments: ["handle": view.handle, "message": message])
   }
 }

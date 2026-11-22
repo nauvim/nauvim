@@ -141,7 +141,7 @@ impl Handle {
         self.send_input(Input::Host(HostInput::Keys(keys))).await
     }
 
-    /// Pastes from the clipboard backend selected and authorized by core.
+    /// Pastes from the clipboard backend selected by core.
     pub(crate) async fn paste(&self) -> Result<(), Error> {
         self.send_input(Input::Paste).await
     }

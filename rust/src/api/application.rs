@@ -85,7 +85,7 @@ impl Application {
         self.handle.input(keys).await.map_err(|e| e.to_string())
     }
 
-    /// Pastes from the clipboard backend selected and authorized by core.
+    /// Pastes from the clipboard backend selected by core.
     pub async fn paste(&self) -> Result<(), String> {
         self.handle.paste().await.map_err(|e| e.to_string())
     }

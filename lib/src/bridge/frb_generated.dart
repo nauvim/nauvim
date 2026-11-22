@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -581204426;
+  int get rustContentHash => -1164569153;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -150,6 +150,28 @@ abstract class RustLibApi extends BaseApi {
     required Application that,
   });
 
+  Future<bool> crateApiDisplayDisplayWebviewAllowsNavigation({
+    required DisplayWebview that,
+    required String url,
+  });
+
+  Future<bool> crateApiDisplayDisplayWebviewCanFocus({
+    required DisplayWebview that,
+  });
+
+  Future<void> crateApiDisplayDisplayWebviewClosed({
+    required DisplayWebview that,
+  });
+
+  Future<bool> crateApiDisplayDisplayWebviewOpened({
+    required DisplayWebview that,
+  });
+
+  Future<void> crateApiDisplayDisplayWebviewReportError({
+    required DisplayWebview that,
+    required String message,
+  });
+
   Future<Application> crateApiApplicationCreateApplication({
     String? configPath,
   });
@@ -161,6 +183,8 @@ abstract class RustLibApi extends BaseApi {
   Future<DisplayMargins> crateApiDisplayDisplayMarginsDefault();
 
   Future<DisplayWidget> crateApiDisplayDisplayWidgetDefault();
+
+  Future<DisplayWindow> crateApiDisplayDisplayWindowDefault();
 
   Future<DisplayWindowOptions> crateApiDisplayDisplayWindowOptionsDefault();
 
@@ -180,6 +204,15 @@ abstract class RustLibApi extends BaseApi {
   get rust_arc_decrement_strong_count_Application;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ApplicationPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_DisplayWebview;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_DisplayWebview;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_DisplayWebviewPtr;
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -719,6 +752,190 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<bool> crateApiDisplayDisplayWebviewAllowsNavigation({
+    required DisplayWebview that,
+    required String url,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+            that,
+            serializer,
+          );
+          sse_encode_String(url, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDisplayDisplayWebviewAllowsNavigationConstMeta,
+        argValues: [that, url],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDisplayDisplayWebviewAllowsNavigationConstMeta =>
+      const TaskConstMeta(
+        debugName: "DisplayWebview_allows_navigation",
+        argNames: ["that", "url"],
+      );
+
+  @override
+  Future<bool> crateApiDisplayDisplayWebviewCanFocus({
+    required DisplayWebview that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDisplayDisplayWebviewCanFocusConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDisplayDisplayWebviewCanFocusConstMeta =>
+      const TaskConstMeta(
+        debugName: "DisplayWebview_can_focus",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiDisplayDisplayWebviewClosed({
+    required DisplayWebview that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDisplayDisplayWebviewClosedConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDisplayDisplayWebviewClosedConstMeta =>
+      const TaskConstMeta(
+        debugName: "DisplayWebview_closed",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<bool> crateApiDisplayDisplayWebviewOpened({
+    required DisplayWebview that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDisplayDisplayWebviewOpenedConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDisplayDisplayWebviewOpenedConstMeta =>
+      const TaskConstMeta(
+        debugName: "DisplayWebview_opened",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiDisplayDisplayWebviewReportError({
+    required DisplayWebview that,
+    required String message,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+            that,
+            serializer,
+          );
+          sse_encode_String(message, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDisplayDisplayWebviewReportErrorConstMeta,
+        argValues: [that, message],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDisplayDisplayWebviewReportErrorConstMeta =>
+      const TaskConstMeta(
+        debugName: "DisplayWebview_report_error",
+        argNames: ["that", "message"],
+      );
+
+  @override
   Future<Application> crateApiApplicationCreateApplication({
     String? configPath,
   }) {
@@ -730,7 +947,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 20,
             port: port_,
           );
         },
@@ -761,7 +978,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 21,
             port: port_,
           );
         },
@@ -788,7 +1005,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 22,
             port: port_,
           );
         },
@@ -818,7 +1035,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 23,
             port: port_,
           );
         },
@@ -845,7 +1062,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 24,
             port: port_,
           );
         },
@@ -864,6 +1081,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "display_widget_default", argNames: []);
 
   @override
+  Future<DisplayWindow> crateApiDisplayDisplayWindowDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 25,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_display_window,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiDisplayDisplayWindowDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDisplayDisplayWindowDefaultConstMeta =>
+      const TaskConstMeta(debugName: "display_window_default", argNames: []);
+
+  @override
   Future<DisplayWindowOptions> crateApiDisplayDisplayWindowOptionsDefault() {
     return handler.executeNormal(
       NormalTask(
@@ -872,7 +1116,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 26,
             port: port_,
           );
         },
@@ -902,7 +1146,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 27,
             port: port_,
           );
         },
@@ -934,7 +1178,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 28,
             port: port_,
           );
         },
@@ -963,7 +1207,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 29,
             port: port_,
           );
         },
@@ -989,6 +1233,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get rust_arc_decrement_strong_count_Application => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApplication;
 
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_DisplayWebview => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_DisplayWebview => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview;
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -1005,12 +1257,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayWebview
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DisplayWebviewImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   Application
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApplication(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return ApplicationImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  DisplayWebview
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DisplayWebviewImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1031,6 +1301,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayWebview
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DisplayWebviewImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   RustStreamSink<UiUpdate> dco_decode_StreamSink_ui_update_Sse(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     throw UnimplementedError();
@@ -1046,6 +1325,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
+  }
+
+  @protected
+  DisplayWebview
+  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+      raw,
+    );
   }
 
   @protected
@@ -1353,8 +1643,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   DisplayWindow dco_decode_display_window(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return DisplayWindow(
       handle: dco_decode_CastedPrimitive_i_64(arr[0]),
       url: dco_decode_String(arr[1]),
@@ -1363,6 +1653,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       left: dco_decode_u_16(arr[4]),
       height: dco_decode_u_16(arr[5]),
       width: dco_decode_u_16(arr[6]),
+      focus: dco_decode_bool(arr[7]),
+      focusable: dco_decode_bool(arr[8]),
+      webview:
+          dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+            arr[9],
+          ),
     );
   }
 
@@ -1625,6 +1921,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayWebview?
+  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+            raw,
+          );
+  }
+
+  @protected
   DisplayCursor? dco_decode_opt_box_autoadd_display_cursor(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_display_cursor(raw);
@@ -1804,12 +2113,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayWebview
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return DisplayWebviewImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   Application
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApplication(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return ApplicationImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  DisplayWebview
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return DisplayWebviewImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -1835,6 +2168,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayWebview
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return DisplayWebviewImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   RustStreamSink<UiUpdate> sse_decode_StreamSink_ui_update_Sse(
     SseDeserializer deserializer,
   ) {
@@ -1853,6 +2198,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
+  DisplayWebview
+  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+      deserializer,
+    ));
   }
 
   @protected
@@ -2208,6 +2564,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_left = sse_decode_u_16(deserializer);
     var var_height = sse_decode_u_16(deserializer);
     var var_width = sse_decode_u_16(deserializer);
+    var var_focus = sse_decode_bool(deserializer);
+    var var_focusable = sse_decode_bool(deserializer);
+    var var_webview =
+        sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+          deserializer,
+        );
     return DisplayWindow(
       handle: var_handle,
       url: var_url,
@@ -2216,6 +2578,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       left: var_left,
       height: var_height,
       width: var_width,
+      focus: var_focus,
+      focusable: var_focusable,
+      webview: var_webview,
     );
   }
 
@@ -2603,6 +2968,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DisplayWebview?
+  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+        deserializer,
+      ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   DisplayCursor? sse_decode_opt_box_autoadd_display_cursor(
     SseDeserializer deserializer,
   ) {
@@ -2879,6 +3260,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    DisplayWebview self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as DisplayWebviewImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApplication(
     Application self,
     SseSerializer serializer,
@@ -2886,6 +3280,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as ApplicationImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    DisplayWebview self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as DisplayWebviewImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -2905,6 +3312,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as ApplicationImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    DisplayWebview self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as DisplayWebviewImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -2936,6 +3356,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
+  void
+  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    DisplayWebview self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+      self,
+      serializer,
+    );
   }
 
   @protected
@@ -3230,6 +3663,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_16(self.left, serializer);
     sse_encode_u_16(self.height, serializer);
     sse_encode_u_16(self.width, serializer);
+    sse_encode_bool(self.focus, serializer);
+    sse_encode_bool(self.focusable, serializer);
+    sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+      self.webview,
+      serializer,
+    );
   }
 
   @protected
@@ -3565,6 +4004,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void
+  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+    DisplayWebview? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
+        self,
+        serializer,
+      );
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_display_cursor(
     DisplayCursor? self,
     SseSerializer serializer,
@@ -3855,7 +4311,7 @@ class ApplicationImpl extends RustOpaque implements Application {
   Future<void> input({required String keys}) => RustLib.instance.api
       .crateApiApplicationApplicationInput(that: this, keys: keys);
 
-  /// Pastes from the clipboard backend selected and authorized by core.
+  /// Pastes from the clipboard backend selected by core.
   Future<void> paste() =>
       RustLib.instance.api.crateApiApplicationApplicationPaste(that: this);
 
@@ -3913,4 +4369,46 @@ class ApplicationImpl extends RustOpaque implements Application {
   /// Rejects a second subscription. A closed sink requests engine cleanup.
   Stream<UiUpdate> updates() =>
       RustLib.instance.api.crateApiApplicationApplicationUpdates(that: this);
+}
+
+@sealed
+class DisplayWebviewImpl extends RustOpaque implements DisplayWebview {
+  // Not to be used by end users
+  DisplayWebviewImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  DisplayWebviewImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_DisplayWebview,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_DisplayWebview,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_DisplayWebviewPtr,
+  );
+
+  /// Checks the initial URL and each top-level navigation before loading.
+  ///
+  /// A denied target produces an engine error update.
+  Future<bool> allowsNavigation({required String url}) => RustLib.instance.api
+      .crateApiDisplayDisplayWebviewAllowsNavigation(that: this, url: url);
+
+  /// Checks whether a focus request still applies to this open preview.
+  Future<bool> canFocus() =>
+      RustLib.instance.api.crateApiDisplayDisplayWebviewCanFocus(that: this);
+
+  /// Acknowledges native closure or failed construction.
+  Future<void> closed() =>
+      RustLib.instance.api.crateApiDisplayDisplayWebviewClosed(that: this);
+
+  /// Acknowledges native construction and returns whether the preview is live.
+  Future<bool> opened() =>
+      RustLib.instance.api.crateApiDisplayDisplayWebviewOpened(that: this);
+
+  /// Reports a native preview error through the engine's updates.
+  Future<void> reportError({required String message}) => RustLib.instance.api
+      .crateApiDisplayDisplayWebviewReportError(that: this, message: message);
 }

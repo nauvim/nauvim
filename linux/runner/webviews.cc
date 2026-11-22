@@ -50,22 +50,79 @@ static gboolean preview_key(GtkWidget* widget, GdkEventKey* event, gpointer data
   } else return FALSE;
   return TRUE;
 }
-static void report_error(Windows* windows, const char* message) {
-  g_autoptr(FlValue) args = fl_value_new_string(message);
-  fl_method_channel_invoke_method(windows->channel, "window_error", args,
+static FlValue* webview_args(WebKitWebView* view) {
+  auto* handle = static_cast<gint64*>(g_object_get_data(G_OBJECT(view), "nauvim-handle"));
+  FlValue* args = fl_value_new_map();
+  fl_value_set_string_take(args, "handle", fl_value_new_int(*handle));
+  return args;
+}
+static void report_error(WebKitWebView* view, Windows* windows, const char* message) {
+  g_autoptr(FlValue) args = webview_args(view);
+  fl_value_set_string_take(args, "message", fl_value_new_string(message));
+  fl_method_channel_invoke_method(windows->channel, "webview_error", args,
                                  nullptr, nullptr, nullptr);
 }
-static gboolean load_failed(WebKitWebView*, WebKitLoadEvent, gchar* uri,
+static gboolean load_failed(WebKitWebView* view, WebKitLoadEvent, gchar* uri,
                             GError* error, gpointer data) {
-  if (g_error_matches(error, WEBKIT_NETWORK_ERROR, WEBKIT_NETWORK_ERROR_CANCELLED))
+  if (g_error_matches(error, WEBKIT_NETWORK_ERROR, WEBKIT_NETWORK_ERROR_CANCELLED) ||
+      g_error_matches(error, WEBKIT_POLICY_ERROR, WEBKIT_POLICY_ERROR_FRAME_LOAD_INTERRUPTED_BY_POLICY_CHANGE))
     return FALSE;
   g_autofree gchar* message = g_strdup_printf("Open preview %s: %s", uri, error->message);
-  report_error(static_cast<Windows*>(data), message);
+  report_error(view, static_cast<Windows*>(data), message);
   return FALSE;
 }
-static void process_terminated(WebKitWebView*, WebKitWebProcessTerminationReason,
+static void process_terminated(WebKitWebView* view, WebKitWebProcessTerminationReason,
                                gpointer data) {
-  report_error(static_cast<Windows*>(data), "The preview web process terminated");
+  report_error(view, static_cast<Windows*>(data), "The preview web process terminated");
+}
+struct NavigationDecision {
+  WebKitPolicyDecision* decision;
+  GCancellable* lifetime;
+};
+static void navigation_checked(GObject* source, GAsyncResult* result, gpointer data) {
+  auto* pending = static_cast<NavigationDecision*>(data);
+  g_autoptr(FlMethodResponse) response =
+      fl_method_channel_invoke_method_finish(FL_METHOD_CHANNEL(source), result, nullptr);
+  FlValue* allowed = FL_IS_METHOD_SUCCESS_RESPONSE(response)
+      ? fl_method_success_response_get_result(FL_METHOD_SUCCESS_RESPONSE(response))
+      : nullptr;
+  if (!g_cancellable_is_cancelled(pending->lifetime) && allowed &&
+      fl_value_get_type(allowed) == FL_VALUE_TYPE_BOOL && fl_value_get_bool(allowed)) {
+    webkit_policy_decision_use(pending->decision);
+  } else {
+    webkit_policy_decision_ignore(pending->decision);
+  }
+  g_object_unref(pending->lifetime);
+  g_object_unref(pending->decision);
+  delete pending;
+}
+static gboolean decide_policy(WebKitWebView* view, WebKitPolicyDecision* decision,
+                              WebKitPolicyDecisionType type, gpointer data) {
+  if (type == WEBKIT_POLICY_DECISION_TYPE_RESPONSE) return FALSE;
+  if (type == WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION) {
+    webkit_policy_decision_ignore(decision);
+    return TRUE;
+  }
+  auto* windows = static_cast<Windows*>(data);
+  auto* lifetime = G_CANCELLABLE(g_object_get_data(G_OBJECT(view), "nauvim-lifetime"));
+  auto* action = webkit_navigation_policy_decision_get_navigation_action(
+      WEBKIT_NAVIGATION_POLICY_DECISION(decision));
+  const char* uri = webkit_uri_request_get_uri(webkit_navigation_action_get_request(action));
+  if (!uri || g_cancellable_is_cancelled(lifetime)) {
+    webkit_policy_decision_ignore(decision);
+    return TRUE;
+  }
+  // WebKitGTK's request-time policy does not identify the target frame.
+  // Check every frame navigation so unnamed targets and redirects are covered.
+  g_autoptr(FlValue) args = webview_args(view);
+  fl_value_set_string_take(args, "url", fl_value_new_string(uri));
+  auto* pending = new NavigationDecision {g_object_ref(decision), g_object_ref(lifetime)};
+  fl_method_channel_invoke_method(windows->channel, "webview_allows_navigation", args,
+                                 lifetime, navigation_checked, pending);
+  return TRUE;
+}
+static void cancel_navigation(GtkWidget*, gpointer data) {
+  g_cancellable_cancel(G_CANCELLABLE(data));
 }
 // Native APIs supply candidates, not final family-name matching. Rust checks
 // OpenType typographic names and loads the exact selected face into Flutter.
@@ -143,6 +200,10 @@ static gint64 integer(FlValue* args, const char* name) {
   FlValue* v = value(args, name);
   return v && fl_value_get_type(v) == FL_VALUE_TYPE_INT ? fl_value_get_int(v) : 0;
 }
+static bool boolean(FlValue* args, const char* name) {
+  FlValue* v = value(args, name);
+  return v && fl_value_get_type(v) == FL_VALUE_TYPE_BOOL && fl_value_get_bool(v);
+}
 static const char* string(FlValue* args, const char* name) {
   FlValue* v = value(args, name);
   return v && fl_value_get_type(v) == FL_VALUE_TYPE_STRING ? fl_value_get_string(v) : "";
@@ -207,6 +268,16 @@ static gboolean certificate(WebKitWebView* view, const gchar* uri, GTlsCertifica
   webkit_web_view_load_uri(view, uri);
   return TRUE;
 }
+static bool preview_has_focus(Windows* windows, GtkWidget* view) {
+  GtkWidget* focused = gtk_window_get_focus(windows->main);
+  return focused && (focused == view || gtk_widget_is_ancestor(focused, view));
+}
+static void set_window_focus(GtkWindow* window, GtkWidget* focus, gpointer) {
+  if (!focus) return;
+  GtkWidget* view = gtk_widget_get_ancestor(focus, WEBKIT_TYPE_WEB_VIEW);
+  if (view && (!gtk_widget_get_can_focus(view) || !gtk_widget_get_visible(view)))
+    g_signal_stop_emission_by_name(window, "set-focus");
+}
 static void call(FlMethodChannel*, FlMethodCall* call, gpointer data) {
   auto* windows = static_cast<Windows*>(data);
   const char* name = fl_method_call_get_name(call);
@@ -250,6 +321,10 @@ static void call(FlMethodChannel*, FlMethodCall* call, gpointer data) {
       gint64* key = g_new(gint64, 1); *key = handle;
       g_hash_table_insert(windows->views, key, view);
       g_object_set_data(G_OBJECT(view), "nauvim-handle", key);
+      GCancellable* lifetime = g_cancellable_new();
+      g_object_set_data_full(G_OBJECT(view), "nauvim-lifetime", lifetime, g_object_unref);
+      g_signal_connect(view, "destroy", G_CALLBACK(cancel_navigation), lifetime);
+      gtk_widget_set_can_focus(view, boolean(args, "focusable"));
       g_signal_connect(view, "key-press-event", G_CALLBACK(preview_key), windows);
       gtk_widget_set_halign(view, GTK_ALIGN_START);
       gtk_widget_set_valign(view, GTK_ALIGN_START);
@@ -257,20 +332,40 @@ static void call(FlMethodChannel*, FlMethodCall* call, gpointer data) {
       g_signal_connect(view, "load-failed-with-tls-errors", G_CALLBACK(certificate), nullptr);
       g_signal_connect(view, "load-failed", G_CALLBACK(load_failed), windows);
       g_signal_connect(view, "web-process-terminated", G_CALLBACK(process_terminated), windows);
+      g_signal_connect(view, "decide-policy", G_CALLBACK(decide_policy), windows);
       webkit_web_view_load_uri(WEBKIT_WEB_VIEW(view), string(args, "url"));
     }
     gtk_widget_set_margin_start(view, dimension(args, "x"));
     gtk_widget_set_margin_top(view, dimension(args, "y"));
     gtk_widget_set_size_request(view, dimension(args, "width"), dimension(args, "height"));
     gtk_widget_show(view);
-  } else if (g_str_equal(name, "close_webview")) {
+  } else if (g_str_equal(name, "focus_webview")) {
+    gint64 handle = integer(args, "handle");
+    GtkWidget* view = GTK_WIDGET(g_hash_table_lookup(windows->views, &handle));
+    const bool focusable = view && gtk_widget_get_visible(view) && gtk_widget_get_can_focus(view);
+    if (focusable) gtk_widget_grab_focus(view);
+    if (!focusable || !preview_has_focus(windows, view)) {
+      g_autoptr(FlMethodErrorResponse) response =
+          fl_method_error_response_new("preview_focus", "The preview cannot receive focus", nullptr);
+      fl_method_call_respond(call, FL_METHOD_RESPONSE(response), nullptr);
+      return;
+    }
+  } else if (g_str_equal(name, "hide_webview") || g_str_equal(name, "close_webview")) {
     gint64 handle = integer(args, "handle");
     GtkWidget* view = GTK_WIDGET(g_hash_table_lookup(windows->views, &handle));
     if (view) {
-      g_signal_handlers_disconnect_by_data(view, windows);
-      webkit_web_view_stop_loading(WEBKIT_WEB_VIEW(view));
-      gtk_widget_destroy(view);
-      g_hash_table_remove(windows->views, &handle);
+      if (preview_has_focus(windows, view))
+        gtk_widget_grab_focus(GTK_WIDGET(windows->flutter));
+      if (g_str_equal(name, "hide_webview")) {
+        gtk_widget_hide(view);
+      } else {
+        auto* lifetime = G_CANCELLABLE(g_object_get_data(G_OBJECT(view), "nauvim-lifetime"));
+        g_cancellable_cancel(lifetime);
+        g_signal_handlers_disconnect_by_data(view, windows);
+        webkit_web_view_stop_loading(WEBKIT_WEB_VIEW(view));
+        gtk_widget_destroy(view);
+        g_hash_table_remove(windows->views, &handle);
+      }
     }
   } else {
     fl_method_call_respond_not_implemented(call, nullptr); return;
@@ -319,6 +414,7 @@ void nauvim_register_windows(FlView* view, GtkWindow* window, GtkOverlay* overla
   fl_method_channel_set_method_call_handler(channel, call, windows, nullptr);
   g_signal_connect_after(window, "size-allocate", G_CALLBACK(window_allocated), windows);
   g_signal_connect_after(window, "map", G_CALLBACK(main_mapped), windows);
+  g_signal_connect(window, "set-focus", G_CALLBACK(set_window_focus), nullptr);
   g_signal_connect(window, "delete-event", G_CALLBACK(closing), windows);
   g_object_set_data_full(G_OBJECT(window), "nauvim-windows", windows, destroy);
 }

@@ -7,7 +7,7 @@ pub(crate) mod display;
 pub use display::{
     DisplayCell, DisplayChunk, DisplayCompletion, DisplayCursor, DisplayDecorations, DisplayEvent,
     DisplayFont, DisplayFrame, DisplayGrid, DisplayHighlight, DisplayLength, DisplayLengthUnit,
-    DisplayMargins, DisplayRow, DisplayStartupMode, DisplayWidget, DisplayWindow,
+    DisplayMargins, DisplayRow, DisplayStartupMode, DisplayWebview, DisplayWidget, DisplayWindow,
     DisplayWindowOptions, UiUpdate,
 };
 

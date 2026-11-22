@@ -57,10 +57,24 @@ async fn live_application(root: &Path) -> (Host, Handle, mpsc::Receiver<UiUpdate
         socket: root.join("host.sock"),
     };
     let config = root.join("init.lua");
-    fs::write(&config, format!(
-        "return {{default_host='test',hosts={{test={{nvim={{prog={:?},args={{'-u','NONE','-i','NONE','-n'}}}},socket={:?},policies={{clipboard=false}}}}}}}}",
-        host.nvim.to_str().unwrap(), host.socket.to_str().unwrap(),
-    )).unwrap();
+    fs::write(
+        &config,
+        format!(
+            r#"return {{
+                default_host = 'test',
+                hosts = {{test = {{
+                    nvim = {{prog = {:?}, args = {{'-u', 'NONE', '-i', 'NONE', '-n'}}}},
+                    socket = {:?},
+                    policies = {{plugin = {{http = {{open_webview = {{
+                        origins = {{'https://example.test'}},
+                    }}}}}}}},
+                }}}},
+            }}"#,
+            host.nvim.to_str().unwrap(),
+            host.socket.to_str().unwrap(),
+        ),
+    )
+    .unwrap();
     let app = spawn(Some(config.to_string_lossy().into_owned())).unwrap();
     let mut updates = app.take_updates().await.unwrap();
     receive(&mut updates, "ready").await;
@@ -408,11 +422,16 @@ async fn live_orders_input_reuses_hosts_and_follows_plugin_switches() {
         socket: root.path().join("second.sock"),
     };
     let config = root.path().join("init.lua");
-    let hosts = [&first, &second].into_iter().zip(["first", "second"])
-        .map(|(host, name)| format!(
-            "{name}={{nvim={{prog={:?},args={{'-u','NONE','-i','NONE','-n'}}}},socket={:?},policies={{clipboard=false}}}}",
-            host.nvim.to_str().unwrap(), host.socket.to_str().unwrap(),
-        ))
+    let hosts = [&first, &second]
+        .into_iter()
+        .zip(["first", "second"])
+        .map(|(host, name)| {
+            format!(
+                "{name}={{nvim={{prog={:?},args={{'-u','NONE','-i','NONE','-n'}}}},socket={:?}}}",
+                host.nvim.to_str().unwrap(),
+                host.socket.to_str().unwrap(),
+            )
+        })
         .collect::<Vec<_>>()
         .join(",");
     fs::write(
@@ -482,11 +501,6 @@ async fn live_orders_input_reuses_hosts_and_follows_plugin_switches() {
     .await
     .unwrap();
     assert_eq!(first.evaluate("len(nvim_list_uis())"), "1");
-    app.paste().await.unwrap();
-    assert_eq!(
-        receive(&mut updates, "error").await.message.as_deref(),
-        Some("Client policy denies clipboard access")
-    );
     let stale_stamp = app.input_epoch.borrow().clone();
     let stale_permit = app.input.reserve().await.unwrap();
     app.detach().await.unwrap();
@@ -603,6 +617,76 @@ async fn rejects_input_enqueued_after_its_reserved_permit_outlives_an_attachment
         input.recv().await.unwrap().into_current(),
         Some(Input::Paste)
     ));
+}
+
+#[tokio::test]
+#[ignore = "Requires NVIM_BIN pointing to Neovim v0.12.6 and local Unix sockets"]
+async fn live_preview_checks_navigation_and_tracks_focus_and_close() {
+    let root = tempfile::tempdir().unwrap();
+    let (host, app, mut updates) = live_application(root.path()).await;
+    let open = r#"luaeval("(function()
+        local chan = vim.api.nvim_list_uis()[1].chan
+        local name = vim.api.nvim_get_chan_info(chan).client.name
+        local id = tonumber(name:match('(%d+)$'))
+        local position = {grid=1, top=1, left=2, height=3, width=4}
+        local handle = vim.rpcrequest(chan, 'nauvim-plugin/http.open_webview',
+            id, 'https://example.test/preview', position, false, true)
+        _G.preview_notify = function(method)
+            vim.rpcnotify(chan, 'nauvim-plugin/http.' .. method, id, handle)
+            return true
+        end
+        return handle
+    end)()")"#;
+    let handle = host
+        .evaluate(&open.replace('\n', " "))
+        .parse::<i64>()
+        .unwrap();
+
+    let preview = receive(&mut updates, "open_webview").await.window.unwrap();
+    assert_eq!(preview.handle, handle);
+    assert_eq!(preview.url, "https://example.test/preview");
+    assert_eq!(
+        (
+            preview.grid,
+            preview.top,
+            preview.left,
+            preview.height,
+            preview.width
+        ),
+        (1, 1, 2, 3, 4),
+    );
+    assert!(!preview.focus);
+    assert!(preview.focusable);
+
+    let webview = preview.webview.unwrap();
+    assert!(!webview.can_focus().await);
+    assert!(webview.allows_navigation(preview.url).await);
+    assert!(webview.opened().await);
+    assert!(webview.can_focus().await);
+    assert!(
+        !webview
+            .allows_navigation("https://other.test/redirect".into())
+            .await
+    );
+    assert_eq!(
+        receive(&mut updates, "error").await.message.as_deref(),
+        Some("Client policy denies Webview navigation to \"https://other.test/redirect\"")
+    );
+
+    host.evaluate(r#"luaeval("_G.preview_notify('focus_webview')")"#);
+    let focus = receive(&mut updates, "focus_webview").await.window.unwrap();
+    assert_eq!(focus.handle, handle);
+    assert!(focus.webview.is_none());
+
+    host.evaluate(r#"luaeval("_G.preview_notify('clear')")"#);
+    let close = receive(&mut updates, "close_webview").await.window.unwrap();
+    assert_eq!(close.handle, handle);
+    assert!(close.webview.is_none());
+    assert!(!webview.can_focus().await);
+    assert!(!webview.opened().await);
+
+    app.close().await.unwrap();
+    receive(&mut updates, "shutdown").await;
 }
 
 #[tokio::test]
