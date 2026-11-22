@@ -1,6 +1,10 @@
-//! Serializable display and startup data shared with Flutter.
+//! Display updates and preview controls shared with Flutter.
 
 use super::keys::KeyBindings;
+
+use nauvim_core::WebviewWindow;
+
+use flutter_rust_bridge::frb;
 
 /// A typed bridge update. Frame rows contain only changes since the preceding update.
 #[derive(Default)]
@@ -82,6 +86,9 @@ pub struct DisplayMargins {
 }
 
 /// A native preview positioned in cells relative to its Neovim grid.
+///
+/// Focus and close updates identify an existing preview by handle alone.
+#[derive(Default)]
 pub struct DisplayWindow {
     pub handle: i64,
     pub url: String,
@@ -90,6 +97,46 @@ pub struct DisplayWindow {
     pub left: u16,
     pub height: u16,
     pub width: u16,
+    pub focus: bool,
+    pub focusable: bool,
+    pub webview: Option<DisplayWebview>,
+}
+
+/// Checks navigation and tracks the lifetime of one native preview.
+#[frb(opaque)]
+pub struct DisplayWebview(WebviewWindow);
+
+impl DisplayWebview {
+    pub(crate) fn new(window: WebviewWindow) -> Self {
+        Self(window)
+    }
+
+    /// Checks the initial URL and each top-level navigation before loading.
+    ///
+    /// A denied target produces an engine error update.
+    pub async fn allows_navigation(&self, url: String) -> bool {
+        self.0.allows_navigation(&url)
+    }
+
+    /// Acknowledges native construction and returns whether the preview is live.
+    pub async fn opened(&self) -> bool {
+        self.0.opened()
+    }
+
+    /// Acknowledges native closure or failed construction.
+    pub async fn closed(&self) {
+        self.0.closed()
+    }
+
+    /// Checks whether a focus request still applies to this open preview.
+    pub async fn can_focus(&self) -> bool {
+        self.0.can_focus()
+    }
+
+    /// Reports a native preview error through the engine's updates.
+    pub async fn report_error(&self, message: String) {
+        self.0.report_error(message);
+    }
 }
 
 /// A snapshot delta with ordered events independent of retained screen state.

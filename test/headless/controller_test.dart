@@ -118,11 +118,51 @@ final class Platform implements NauvimPlatform {
   }
 
   @override
+  Future<void> hidePreview(int handle) async => calls.add(('hide', handle));
+  @override
+  Future<void> focusPreview(int handle) async => calls.add(('focus', handle));
+  @override
   Future<void> closePreview(int handle) async => calls.add(('clear', handle));
   @override
   Future<void> closeWindow() async => calls.add(('exit', null));
   @override
   void logError(String message) => logs.add(message);
+}
+
+final class Webview implements DisplayWebview {
+  final calls = <String>[];
+  final allowedUrl = 'https://localhost/preview';
+
+  @override
+  bool isDisposed = false;
+
+  @override
+  void dispose() => isDisposed = true;
+
+  @override
+  Future<bool> allowsNavigation({required String url}) async {
+    calls.add(url);
+    return url == allowedUrl;
+  }
+
+  @override
+  Future<bool> opened() async {
+    calls.add('opened');
+    return true;
+  }
+
+  @override
+  Future<bool> canFocus() async {
+    calls.add('can_focus');
+    return true;
+  }
+
+  @override
+  Future<void> closed() async => calls.add('closed');
+
+  @override
+  Future<void> reportError({required String message}) async =>
+      calls.add(message);
 }
 
 const grid = DisplayGrid(
@@ -143,14 +183,17 @@ const preview = DisplayWindow(
   left: 1,
   height: 3,
   width: 5,
+  focus: false,
+  focusable: true,
 );
 
 DisplayFrame frame({
+  List<DisplayGrid> grids = const [grid],
   List<DisplayEvent> events = const [],
   List<DisplayRow> rows = const [],
 }) => DisplayFrame(
   full: false,
-  grids: const [grid],
+  grids: grids,
   removedGrids: const [],
   rows: rows,
   highlights: const [],
@@ -621,6 +664,114 @@ void main() {
       ('open', (47, const Rect.fromLTWH(54, 130, 50, 60))),
       ('clear', 47),
     ]);
+  });
+
+  test(
+    'checks navigation and acknowledges native preview creation and closure',
+    () async {
+      final webview = Webview();
+      final window = DisplayWindow(
+        handle: 47,
+        url: webview.allowedUrl,
+        grid: 1,
+        top: 2,
+        left: 1,
+        height: 3,
+        width: 5,
+        focus: false,
+        focusable: true,
+        webview: webview,
+      );
+      final opening = Completer<void>();
+      platform.previewGate = opening;
+      engine.events.add(Update(kind: 'frame', frame: frame()));
+      controller.updateViewport(viewport(controller));
+      engine.events.add(Update(kind: 'open_webview', window: window));
+      await settle();
+      expect(platform.calls.single.$1, 'open');
+      expect(webview.calls, isEmpty);
+
+      final initial = PreviewNavigationRequested(47, window.url);
+      final redirect = PreviewNavigationRequested(47, 'https://other.example/');
+      await platform.handler!(initial);
+      await platform.handler!(redirect);
+      expect((initial.allowed, redirect.allowed), (true, false));
+
+      opening.complete();
+      await settle();
+      expect(platform.calls.single.$1, 'open');
+      expect(webview.calls, [window.url, redirect.url, 'opened']);
+
+      engine.events.add(const Update(kind: 'focus_webview', window: preview));
+      await settle();
+      expect(platform.calls.last, ('focus', 47));
+      expect(webview.calls.last, 'can_focus');
+
+      engine.events.add(
+        Update(
+          kind: 'frame',
+          frame: frame(grids: []),
+        ),
+      );
+      controller.updateViewport(viewport(controller));
+      await settle();
+      expect(platform.calls.last, ('hide', 47));
+      engine.events.add(Update(kind: 'frame', frame: frame()));
+      controller.updateViewport(viewport(controller));
+      await settle();
+      expect(platform.calls.last.$1, 'open');
+      expect(webview.calls.last, 'can_focus');
+
+      await platform.handler!(
+        const PreviewFailure(47, 'Load web preview failed'),
+      );
+      await platform.handler!(const PreviewCloseRequested(47));
+      await settle();
+      expect(platform.calls.last, ('clear', 47));
+      expect(webview.calls, [
+        window.url,
+        redirect.url,
+        'opened',
+        'can_focus',
+        'Load web preview failed',
+        'closed',
+      ]);
+      final stale = PreviewNavigationRequested(47, window.url);
+      await platform.handler!(stale);
+      expect(stale.allowed, isFalse);
+      expect(webview.calls.last, 'closed');
+    },
+  );
+
+  test('takes initial focus only when the preview permits focus', () async {
+    engine.events.add(Update(kind: 'frame', frame: frame()));
+    controller.updateViewport(viewport(controller));
+    for (final (handle, focusable) in [(47, false), (48, true)]) {
+      final webview = Webview();
+      final window = DisplayWindow(
+        handle: handle,
+        url: webview.allowedUrl,
+        grid: 1,
+        top: 2,
+        left: 1,
+        height: 3,
+        width: 5,
+        focus: true,
+        focusable: focusable,
+        webview: webview,
+      );
+      engine.events.add(Update(kind: 'open_webview', window: window));
+      await settle();
+      if (focusable) {
+        expect(webview.calls, ['opened', 'can_focus']);
+        expect(platform.calls.last, ('focus', handle));
+      } else {
+        engine.events.add(Update(kind: 'focus_webview', window: window));
+        await settle();
+        expect(webview.calls, ['opened']);
+        expect(platform.calls.last.$1, 'open');
+      }
+    }
   });
 
   test(

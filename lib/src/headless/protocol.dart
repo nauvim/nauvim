@@ -17,6 +17,7 @@ export '../bridge/api/display.dart'
         DisplayHighlight,
         DisplayRow,
         DisplayWidget,
+        DisplayWebview,
         DisplayWindow,
         DisplayWindowOptions,
         DisplayDecorations,

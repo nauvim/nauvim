@@ -35,12 +35,39 @@ final class Previews {
     if (_layoutReady) _place();
   }
 
-  void clear(int handle) {
+  void clear(int handle, {bool userRequested = false}) {
     // A plugin clear has no effect before its GUI presentation exists.
-    if (!_created.remove(handle)) return;
-    _requests.remove(handle);
+    final created = _created.remove(handle);
+    if (!created && !userRequested) return;
+    final window = _requests.remove(handle);
     _rectangles.remove(handle);
-    _enqueue(handle, () => _platform.closePreview(handle));
+    _enqueue(handle, () async {
+      try {
+        if (created) await _platform.closePreview(handle);
+      } finally {
+        if (userRequested) await window?.webview?.closed();
+      }
+    });
+  }
+
+  void focus(int handle) {
+    final window = _requests[handle];
+    if (window != null) _enqueue(handle, () => _focus(window));
+  }
+
+  Future<bool> allowsNavigation(int handle, String url) async {
+    final window = _requests[handle];
+    final attachment = _attachment;
+    final allowed = await window?.webview?.allowsNavigation(url: url);
+    return allowed == true &&
+        attachment == _attachment &&
+        identical(_requests[handle], window);
+  }
+
+  Future<void> reportFailure(int handle, String message) async {
+    if (_requests[handle] case final window?) {
+      await _reportFailure(window, message);
+    }
   }
 
   void reset() {
@@ -59,36 +86,102 @@ final class Previews {
     final viewport = _viewport;
     if (viewport == null) return;
     for (final window in _requests.values) {
+      final handle = window.handle;
+      final attachment = _attachment;
+      bool owned() =>
+          attachment == _attachment && identical(_requests[handle], window);
+
       final grid = _editor.grids[window.grid]?.geometry;
       if (grid == null || grid.hidden) {
-        _rectangles.remove(window.handle);
-        if (_created.remove(window.handle)) {
-          _enqueue(window.handle, () => _platform.closePreview(window.handle));
+        if (_rectangles.remove(handle) != null) {
+          _enqueue(handle, () async {
+            if (owned() &&
+                _created.contains(handle) &&
+                !_rectangles.containsKey(handle)) {
+              try {
+                await _platform.hidePreview(handle);
+              } catch (e) {
+                await _reportFailure(window, 'Hide web preview: $e');
+              }
+            }
+          });
         }
         continue;
       }
       final rectangle = viewport.previewRect(window, grid);
-      if (_rectangles[window.handle] == rectangle) continue;
-      _rectangles[window.handle] = rectangle;
-      final attachment = _attachment;
-      _enqueue(window.handle, () async {
-        bool owned() =>
-            attachment == _attachment &&
-            identical(_requests[window.handle], window) &&
-            _rectangles.containsKey(window.handle);
-        if (!owned() || _rectangles[window.handle] != rectangle) return;
-        await _platform.openPreview(
-          window,
-          rectangle,
-          keyBindings: keyBindings,
-        );
-        if (owned()) {
-          _created.add(window.handle);
-        } else {
-          // Serialize this cleanup before a later use of the same handle.
-          await _platform.closePreview(window.handle);
+      if (_rectangles[handle] == rectangle) continue;
+      _rectangles[handle] = rectangle;
+      _enqueue(handle, () async {
+        if (owned() && _rectangles[handle] == rectangle) {
+          await _present(window, rectangle, owned);
         }
       });
+    }
+  }
+
+  Future<void> _present(
+    DisplayWindow window,
+    Rect rectangle,
+    bool Function() owned,
+  ) async {
+    final handle = window.handle;
+    final opening = !_created.contains(handle);
+    try {
+      await _platform.openPreview(window, rectangle, keyBindings: keyBindings);
+    } catch (e) {
+      if (!owned()) return;
+      if (_rectangles[handle] == rectangle) _rectangles.remove(handle);
+      if (opening) _requests.remove(handle);
+      try {
+        await _reportFailure(window, 'Show web preview: $e');
+      } finally {
+        if (opening) await window.webview?.closed();
+      }
+      return;
+    }
+
+    if (!opening) return;
+    if (!owned()) {
+      // Close a late presentation before dispatching another use of the handle.
+      await _platform.closePreview(handle);
+      return;
+    }
+
+    _created.add(handle);
+    if (await window.webview?.opened() == false) {
+      if (owned()) clear(handle);
+      return;
+    }
+    if (owned() && window.focus && _rectangles.containsKey(handle)) {
+      await _focus(window);
+    }
+  }
+
+  Future<void> _focus(DisplayWindow window) async {
+    final handle = window.handle;
+    final attachment = _attachment;
+    if (!window.focusable ||
+        !_created.contains(handle) ||
+        !identical(_requests[handle], window)) {
+      return;
+    }
+    if (await window.webview?.canFocus() != true ||
+        attachment != _attachment ||
+        !identical(_requests[handle], window)) {
+      return;
+    }
+    try {
+      await _platform.focusPreview(handle);
+    } catch (e) {
+      await _reportFailure(window, 'Focus web preview: $e');
+    }
+  }
+
+  Future<void> _reportFailure(DisplayWindow window, String message) async {
+    if (window.webview case final webview?) {
+      await webview.reportError(message: message);
+    } else {
+      _reportError(message);
     }
   }
 

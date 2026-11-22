@@ -43,9 +43,31 @@ When the welcome page opens, it selects the last requested destination, or the
 default local host on first use. To clear that selection, see
 [saved destinations](persistence.md#host-selection).
 
-For Neovim arguments, socket paths, SSH settings, clipboard backends, host
-policies, and loading Lua modules, see the
-[core configuration reference](https://github.com/nauvim/nauvim-core/blob/327333378cca69070fdbffcffa65509d9d2b4d7d/docs/usage.md).
+For Neovim arguments, socket paths, SSH settings, clipboard backends, and
+loading Lua modules, see the
+[core configuration reference](https://github.com/nauvim/nauvim-core/blob/defaf46182592c461f4dc0cc7e1030e244476fd7/docs/usage.md).
+
+### Host plugin permissions
+
+Grant plugin permissions separately for each host under `hosts[alias].policies.plugin`.
+Omitting the policy grants no permissions. To allow a trusted host to write to
+the client clipboard and open web previews for one origin, add this field to its
+host entry.
+
+```lua
+policies = {
+    plugin = {
+        clipboard = { copy = true },
+        http = { open_webview = { origins = { "https://docs.example.com" } } },
+    },
+}
+```
+
+Nauvim checks the origin when opening the preview and on each top-level
+navigation, including redirects. On Linux, the check also applies to
+navigations within embedded frames. See the
+[host plugin permissions reference](https://github.com/nauvim/nauvim-core/blob/defaf46182592c461f4dc0cc7e1030e244476fd7/docs/usage.md#host-plugin-permissions)
+for file serving, copying files, and local forwarding.
 
 ## UI options
 
@@ -60,7 +82,7 @@ starting at 1. Strings must be valid UTF-8, with no NUL or initial U+FEFF. Keys
 in `ui_opts` and the value of `use_ui_opts` must also be nonempty. Core applies
 these rules to every dictionary. Nauvim checks the option names and values
 below for the selected dictionary. See the
-[shared UI configuration rules](https://github.com/nauvim/nauvim-spec/blob/9913ab5c25816a870561c4badb475f5b5ccf4693/specification.md#810-ui-specific-configuration).
+[shared UI configuration rules](https://github.com/nauvim/nauvim-spec/blob/v1.0.0/specification.md#ui-specific-configuration).
 
 ### Fonts
 
@@ -110,7 +132,7 @@ the editor, or in a web preview. See the
 
 ## Configuration fallback
 
-If Lua cannot load the file, a dictionary breaks the shared UI option rules, or
-the selected options fail validation, Nauvim reports the error and uses defaults
-for the entire configuration, including hosts. An unresolved font is skipped
-individually. See [configuration troubleshooting](troubleshooting.md#configuration-errors).
+If loading the Lua file or validating a host policy, UI dictionary, or selected
+UI option fails, Nauvim reports the error and uses defaults for the entire
+configuration, including hosts. An unresolved font is skipped individually.
+See [configuration troubleshooting](troubleshooting.md#configuration-errors).
