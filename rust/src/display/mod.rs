@@ -4,20 +4,17 @@ use crate::api::display::DisplayFrame;
 
 mod events;
 mod grids;
-pub(crate) use grids::WindowPosition;
 mod style;
 mod widgets;
 
-use nvim_rpc_ui::{Event, Frame, GridId, Messages, State};
+use nvim_rpc_ui::{Event, Frame, Messages, State};
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 pub(crate) struct Presenter {
     previous: Option<Arc<State>>,
     dismissed: Option<Arc<Messages>>,
     has_messages: bool,
-    positions: BTreeMap<GridId, WindowPosition>,
 }
 
 impl Presenter {
@@ -26,7 +23,6 @@ impl Presenter {
             previous: None,
             dismissed: None,
             has_messages: false,
-            positions: BTreeMap::new(),
         }
     }
 
@@ -34,15 +30,6 @@ impl Presenter {
         self.previous = None;
         self.dismissed = None;
         self.has_messages = false;
-        self.positions.clear();
-    }
-
-    pub(crate) fn restore_positions(
-        &mut self,
-        positions: impl IntoIterator<Item = WindowPosition>,
-    ) {
-        self.positions
-            .extend(positions.into_iter().map(|p| (p.grid, p)));
     }
 
     /// Clears the GUI's transient message area without changing Neovim history.
@@ -69,19 +56,9 @@ impl Presenter {
         let state = &snapshot;
         let previous = self.previous.as_deref();
 
-        // workaround (#18): win_hide cannot hide a grid with no RPC placement.
-        // Reconstructed positions belong to the tab active at attachment.
-        if !self.positions.is_empty()
-            && let Some(old) = previous.and_then(|s| s.tabline.as_deref())
-            && let Some(tabline) = state.tabline.as_deref()
-            && old.current != tabline.current
-        {
-            self.positions.clear();
-        }
-
         let grid_changes = grids::changes(state, previous);
         let (repaint, highlights) = style::changes(state, previous);
-        let grids = grids::geometry(state, &mut self.positions);
+        let grids = grids::geometry(state);
         let cursor = style::cursor(state);
 
         let widgets = if force_widgets || widgets::changed(state, previous) {

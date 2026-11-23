@@ -1,19 +1,10 @@
 use crate::api::display::{DisplayCell, DisplayGrid, DisplayRow};
 
-use nvim_rpc_ui::{Grid, GridId, GridPlacementKind, Row, State, Window};
+use nvim_rpc_ui::{Grid, GridId, GridPlacementKind, Row, State};
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 const PRIMARY_GRID: GridId = GridId(1);
-
-/// A normal window position read from Neovim when attachment events omit it.
-pub(crate) struct WindowPosition {
-    pub(crate) grid: GridId,
-    pub(crate) window: Window,
-    pub(crate) row: i64,
-    pub(crate) col: i64,
-}
 
 #[derive(Default)]
 pub(super) struct GridChanges {
@@ -67,19 +58,7 @@ pub(super) fn changes(state: &State, previous: Option<&State>) -> GridChanges {
     changes
 }
 
-pub(super) fn geometry(
-    state: &State,
-    positions: &mut BTreeMap<GridId, WindowPosition>,
-) -> Vec<DisplayGrid> {
-    positions.retain(|id, position| {
-        state.grids.contains_key(id)
-            && !state.placements.contains_key(id)
-            && state
-                .viewports
-                .get(id)
-                .is_some_and(|v| v.window == position.window)
-    });
-
+pub(super) fn geometry(state: &State) -> Vec<DisplayGrid> {
     state
         .grids
         .iter()
@@ -95,12 +74,10 @@ pub(super) fn geometry(
                     GridPlacementKind::External { .. } => (100, id.0),
                     GridPlacementKind::Normal { .. } => (0, id.0),
                 };
-                match placed_origin(state, grid, &p.kind, positions) {
+                match placed_origin(state, grid, &p.kind) {
                     Some((row, col)) => (row, col, zindex, order, p.hidden),
                     None => (0., 0., 0, order, true),
                 }
-            } else if let Some((row, col)) = restored_origin(positions, id) {
-                (row, col, 0, id.0, false)
             } else {
                 (0., 0., 0, id.0, id != PRIMARY_GRID)
             };
@@ -122,7 +99,6 @@ fn placed_origin<'a>(
     state: &'a State,
     mut grid: &'a Grid,
     mut kind: &'a GridPlacementKind,
-    positions: &BTreeMap<GridId, WindowPosition>,
 ) -> Option<(f64, f64)> {
     let mut row = 0.;
     let mut col = 0.;
@@ -161,10 +137,6 @@ fn placed_origin<'a>(
                 }
                 grid = state.grids.get(anchor_grid)?;
                 let Some(anchor) = state.placements.get(anchor_grid) else {
-                    if let Some((r, c)) = restored_origin(positions, *anchor_grid) {
-                        row += r;
-                        col += c;
-                    }
                     return Some((row, col));
                 };
                 kind = &anchor.kind;
@@ -172,11 +144,4 @@ fn placed_origin<'a>(
         }
     }
     None
-}
-
-fn restored_origin(positions: &BTreeMap<GridId, WindowPosition>, id: GridId) -> Option<(f64, f64)> {
-    if id == PRIMARY_GRID {
-        return None;
-    }
-    positions.get(&id).map(|p| (p.row as f64, p.col as f64))
 }

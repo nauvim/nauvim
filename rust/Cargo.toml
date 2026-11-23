@@ -11,8 +11,8 @@ name = "nauvim_flutter"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
-nauvim-core = "0.5"
-nvim-rpc-ui = "0.1"
+nauvim-core = "0.5.2"
+nvim-rpc-ui = "0.1.3"
 flutter_rust_bridge = "=2.13.0"
 tokio-util = { version = "0.7", features = ["rt"] }
 tokio = { version = "1", features = ["rt", "sync", "signal", "macros"] }

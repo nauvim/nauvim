@@ -3,7 +3,8 @@ use crate::configuration;
 use crate::display::Presenter;
 
 use super::Command;
-use super::attachment::{self, Attachment};
+use super::attachment::{Attachment, Attempt, Identity, Session, session_token};
+use super::checkpoints::Checkpoints;
 use super::history::History;
 use super::input::{
     HostInput, Input, QueuedInput, completed, reset_input, start_input, stop_input,
@@ -11,9 +12,10 @@ use super::input::{
 use super::size::{GridSize, WindowSize};
 use super::updates::{Updates, message, navigate_window, open_window, window_action};
 
-use nauvim_core::{Engine, EngineEvent, Error, HostSelection};
+use nauvim_core::{Checkpoint, Engine, EngineEvent, Error, HostSelection};
 use tokio::sync::{mpsc, watch};
-use tokio::time::{Duration, timeout};
+use tokio::task::spawn_blocking;
+use tokio::time::{Duration, MissedTickBehavior, interval, timeout};
 use tokio_util::sync::CancellationToken;
 
 use std::future::{Future, poll_fn};
@@ -97,6 +99,22 @@ pub(super) async fn run(
         let _ = updates.send(message("error", Some(error))).await;
     }
 
+    let checkpoints = match state_path
+        .as_deref()
+        .map_or_else(Checkpoints::system, |path| Ok(Checkpoints::beside(path)))
+    {
+        Ok(store) => Some(store),
+        Err(e) => {
+            let _ = updates
+                .send(message(
+                    "error",
+                    Some(format!("Open UI checkpoint storage: {e}")),
+                ))
+                .await;
+            None
+        }
+    };
+
     let mut engine = match Engine::new(config) {
         Ok(engine) => engine,
         Err(e) => {
@@ -109,9 +127,11 @@ pub(super) async fn run(
     let task = None;
     tokio::pin!(task);
     let mut dimensions = GridSize::new(100, 30);
-    let mut attachment = Attachment::Pending;
+    let mut attachment = Attachment::Waiting;
     let mut started = false;
     let mut reported_failure = None;
+    let mut checkpoint_tick = interval(Duration::from_secs(1));
+    checkpoint_tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     loop {
         tokio::select! {
@@ -126,12 +146,14 @@ pub(super) async fn run(
                         if let Some(host) = engine.config().startup_host() {
                             let alias = match host {
                                 HostSelection::Default => None,
-                                HostSelection::Alias(alias) => Some(alias),
+                                HostSelection::Alias(alias) => Some(alias.to_owned()),
                             };
-                            remember(history.as_ref(), alias, &updates).await;
-                            let _ = updates.send(connecting(alias.map(str::to_owned))).await;
+                            remember(history.as_ref(), alias.as_deref(), &updates).await;
+                            let _ = updates.send(connecting(alias.clone())).await;
+                            connect(&mut engine, &mut attachment, alias, dimensions).await
+                        } else {
+                            begin(engine.start(dimensions.width(), dimensions.height())).await
                         }
-                        begin(engine.start(dimensions.width(), dimensions.height())).await
                     }
                     Command::Start(..) => None,
                     Command::Connect(host, size) => {
@@ -139,23 +161,19 @@ pub(super) async fn run(
                         reported_failure = None;
                         reset_input(task.as_mut(), &mut input, &input_epoch);
                         presenter.reset();
-                        attachment = Attachment::Pending;
+                        attachment.observe(&engine);
+                        save_checkpoint(&mut attachment, checkpoints.as_ref(), &updates).await;
                         dimensions = size;
                         remember(history.as_ref(), host.as_deref(), &updates).await;
                         let _ = updates.send(connecting(host.clone())).await;
-                        match host {
-                            Some(host) => {
-                                begin(engine.connect(&host, dimensions.width(), dimensions.height())).await
-                            }
-                            None => {
-                                begin(engine.connect_default(dimensions.width(), dimensions.height())).await
-                            }
-                        }
+                        connect(&mut engine, &mut attachment, host, dimensions).await
                     }
                     Command::Detach => {
                         reset_input(task.as_mut(), &mut input, &input_epoch);
                         presenter.reset();
-                        attachment = Attachment::Pending;
+                        attachment.observe(&engine);
+                        save_checkpoint(&mut attachment, checkpoints.as_ref(), &updates).await;
+                        attachment = Attachment::Waiting;
                         if let Err(e) = engine.detach().await {
                             let _ = updates.send(message("error", Some(e.to_string()))).await;
                         }
@@ -168,42 +186,67 @@ pub(super) async fn run(
                     }
                 };
 
-                if let Some(Err(e)) = connection {
-                    let error = e.to_string();
-                    reported_failure = Some(error.clone());
-                    let _ = updates.send(message("welcome", Some(error))).await;
-                }
+                reported_failure = report_connection_failure(connection, &updates)
+                    .await
+                    .or(reported_failure);
             }
             event = engine.next_event() => {
+                if matches!(event, EngineEvent::Frame(_) | EngineEvent::OpenWebview { .. })
+                    && let Attachment::Connecting(attempt) = &mut attachment
+                    && !matches!(attempt.identity, Identity::Verified(_))
+                {
+                    let token = if checkpoints.is_some() {
+                        session_token(&engine).await.map(Some)
+                    } else {
+                        Ok(None)
+                    };
+                    let actual = token.as_ref().ok().and_then(Option::as_deref);
+                    if let Identity::Restoring(expected) = &attempt.identity
+                        && actual != Some(expected)
+                    {
+                        let result = retry(&mut engine, attempt, dimensions).await;
+                        reported_failure = report_connection_failure(result, &updates).await;
+                        continue;
+                    }
+                    if matches!(attempt.identity, Identity::Discovering)
+                        && let (Some(store), Some(token)) = (&checkpoints, actual)
+                        && let Some(checkpoint) = load_checkpoint(store, token, &updates).await
+                    {
+                        // Core exposes RPC after UI registration. Identify
+                        // the session before supplying its saved display state.
+                        attempt.identity = Identity::Restoring(token.to_owned());
+                        attempt.dimensions = dimensions;
+                        let result = begin(connect_host(
+                            &mut engine, attempt.alias.as_deref(), dimensions, Some(checkpoint),
+                        )).await;
+                        reported_failure = report_connection_failure(result, &updates).await;
+                        continue;
+                    }
+                    let token = match token {
+                        Ok(token) => token,
+                        Err(e) => {
+                            let _ = updates.send(message("error", Some(format!("Identify Neovim for UI checkpoint: {e}")))).await;
+                            None
+                        }
+                    };
+                    attempt.identity = Identity::Verified(token);
+                }
                 let update = match event {
                     EngineEvent::Frame(frame) => {
-                        if attachment.is_pending() {
-                            // A viewport change during an in-flight attempt must
-                            // be reapplied after that attachment becomes active.
-                            resize(&mut engine, dimensions, &updates).await;
-                            match attachment::synchronize(&engine, dimensions, &updates).await {
-                                Ok(true) => {
-                                    attachment.refresh(frame);
-                                    continue;
-                                }
-                                Ok(false) if updates.stop.is_cancelled() => continue,
-                                Ok(false) => (),
-                                Err(e) => {
-                                    let _ = updates.send(message("error", Some(e.to_string()))).await;
-                                    let _ = engine.detach().await;
-                                    continue;
-                                }
+                        if let Attachment::Connecting(Attempt {
+                            dimensions: initial,
+                            identity: Identity::Verified(token),
+                            ..
+                        }) = &mut attachment
+                        {
+                            // An in-flight connection still uses its original viewport.
+                            if *initial != dimensions {
+                                resize(&mut engine, dimensions, &updates).await;
                             }
+                            let session = token.take().map(Session::new);
+                            attachment = Attachment::Ready(session);
                         }
-                        let frame = match attachment.frame(frame, &mut presenter) {
-                            Ok(Some(frame)) => frame,
-                            Ok(None) => continue,
-                            Err(e) => {
-                                let _ = updates.send(message("error", Some(e.to_string()))).await;
-                                let _ = engine.detach().await;
-                                continue;
-                            }
-                        };
+                        attachment.observe(&engine);
                         UiUpdate {
                             kind: "frame".into(),
                             frame: Some(presenter.frame(frame)),
@@ -211,9 +254,18 @@ pub(super) async fn run(
                         }
                     }
                     EngineEvent::Welcome { error } => {
+                        if error.is_some()
+                            && let Attachment::Connecting(attempt) = &mut attachment
+                            && matches!(attempt.identity, Identity::Restoring(_))
+                        {
+                            let result = retry(&mut engine, attempt, dimensions).await;
+                            reported_failure = report_connection_failure(result, &updates).await;
+                            continue;
+                        }
                         reset_input(task.as_mut(), &mut input, &input_epoch);
                         presenter.reset();
-                        attachment = Attachment::Pending;
+                        save_checkpoint(&mut attachment, checkpoints.as_ref(), &updates).await;
+                        attachment = Attachment::Waiting;
                         if error.is_some() && error == reported_failure.take() {
                             continue;
                         }
@@ -223,9 +275,12 @@ pub(super) async fn run(
                     EngineEvent::Connect { host } => {
                         reset_input(task.as_mut(), &mut input, &input_epoch);
                         presenter.reset();
-                        attachment = Attachment::Pending;
+                        save_checkpoint(&mut attachment, checkpoints.as_ref(), &updates).await;
                         remember(history.as_ref(), Some(&host), &updates).await;
-                        connecting(Some(host))
+                        let _ = updates.send(connecting(Some(host.clone()))).await;
+                        let result = connect(&mut engine, &mut attachment, Some(host), dimensions).await;
+                        reported_failure = report_connection_failure(result, &updates).await;
+                        continue;
                     }
                     EngineEvent::OpenWebview { handle, url, position, focus, focusable, close_on_blur, window } => {
                         open_window(handle, url, position, focus, focusable, close_on_blur, window)
@@ -245,12 +300,11 @@ pub(super) async fn run(
             () = completed(task.as_mut()) => {
                 task.set(None);
             }
-            () = attachment.expired() => {
-                let _ = updates.send(message("error", Some("Restore the attached editor display: completed frame timed out".into()))).await;
-                attachment = Attachment::Pending;
-                let _ = engine.detach().await;
+            _ = checkpoint_tick.tick(), if matches!(attachment, Attachment::Ready(Some(_))) => {
+                attachment.observe(&engine);
+                save_checkpoint(&mut attachment, checkpoints.as_ref(), &updates).await;
             }
-            operation = input.recv(), if task.is_none() && attachment.accepts_input() => {
+            operation = input.recv(), if task.is_none() && !matches!(attachment, Attachment::Connecting(_)) => {
                 let Some(operation) = operation else { break };
                 if let Some(operation) = operation.into_current() {
                     if !matches!(operation, Input::Host(HostInput::Focus(_)))
@@ -270,6 +324,13 @@ pub(super) async fn run(
 
     input_epoch.borrow().cancel();
     stop_input(task.as_mut(), &mut input);
+    attachment.observe(&engine);
+    if let Attachment::Ready(Some(session)) = &mut attachment
+        && let Some(store) = &checkpoints
+        && let Some(error) = session.save(store).await
+    {
+        updates.final_update(message("error", Some(error))).await;
+    }
     commands.close();
     input.close();
     let last_size = *observed_size.borrow();
@@ -284,6 +345,106 @@ pub(super) async fn run(
             .await;
     }
     finish(&mut engine, &updates).await;
+}
+
+async fn connect(
+    engine: &mut Engine,
+    attachment: &mut Attachment,
+    alias: Option<String>,
+    dimensions: GridSize,
+) -> Option<Result<(), Error>> {
+    let result = begin(connect_host(engine, alias.as_deref(), dimensions, None)).await;
+    *attachment = Attachment::Connecting(Attempt {
+        alias,
+        dimensions,
+        identity: Identity::Discovering,
+    });
+    result
+}
+
+async fn connect_host(
+    engine: &mut Engine,
+    alias: Option<&str>,
+    dimensions: GridSize,
+    checkpoint: Option<Checkpoint>,
+) -> Result<(), Error> {
+    let width = dimensions.width();
+    let height = dimensions.height();
+    match (alias, checkpoint) {
+        (Some(alias), Some(checkpoint)) => {
+            engine
+                .connect_with_checkpoint_reference(alias, width, height, checkpoint)
+                .await
+        }
+        (None, Some(checkpoint)) => {
+            engine
+                .connect_default_with_checkpoint_reference(width, height, checkpoint)
+                .await
+        }
+        (Some(alias), None) => engine.connect(alias, width, height).await,
+        (None, None) => engine.connect_default(width, height).await,
+    }
+}
+
+async fn retry(
+    engine: &mut Engine,
+    attempt: &mut Attempt,
+    dimensions: GridSize,
+) -> Option<Result<(), Error>> {
+    attempt.identity = Identity::Fresh;
+    attempt.dimensions = dimensions;
+    begin(connect_host(
+        engine,
+        attempt.alias.as_deref(),
+        dimensions,
+        None,
+    ))
+    .await
+}
+
+async fn load_checkpoint(
+    store: &Checkpoints,
+    token: &str,
+    updates: &Updates,
+) -> Option<Checkpoint> {
+    let store = store.clone();
+    let token = token.to_owned();
+    let error = match spawn_blocking(move || store.load(&token)).await {
+        Ok(Ok(checkpoint)) => return checkpoint,
+        Ok(Err(e)) => e.to_string(),
+        Err(e) => e.to_string(),
+    };
+    let _ = updates
+        .send(message(
+            "error",
+            Some(format!("Load UI checkpoint: {error}")),
+        ))
+        .await;
+    None
+}
+
+async fn save_checkpoint(
+    attachment: &mut Attachment,
+    store: Option<&Checkpoints>,
+    updates: &Updates,
+) {
+    if let (Attachment::Ready(Some(session)), Some(store)) = (attachment, store)
+        && let Some(error) = session.save(store).await
+    {
+        let _ = updates.send(message("error", Some(error))).await;
+    }
+}
+
+async fn report_connection_failure(
+    result: Option<Result<(), Error>>,
+    updates: &Updates,
+) -> Option<String> {
+    let Some(Err(e)) = result else {
+        return None;
+    };
+    let error = e.to_string();
+    let _ = updates.send(message("welcome", Some(error.clone()))).await;
+    Some(error)
 }
 
 fn connecting(alias: Option<String>) -> UiUpdate {
