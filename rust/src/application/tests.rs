@@ -861,6 +861,100 @@ async fn live_switches_tabs_after_reattachment() {
 
 #[tokio::test]
 #[ignore = "Requires NVIM_BIN pointing to Neovim v0.12.6 and local Unix sockets"]
+async fn live_does_not_restore_the_detach_command_line_or_completion_float() {
+    async fn completion(updates: &mut mpsc::Receiver<UiUpdate>, command: &str, text: &str) -> i64 {
+        let mut command_visible = false;
+        let mut grid = None;
+        wait_for_frame(updates, text, |frame| {
+            if let Some(widgets) = &frame.widgets {
+                command_visible = widgets.iter().any(|widget| {
+                    widget.kind == "cmdline"
+                        && widget
+                            .chunks
+                            .iter()
+                            .map(|chunk| chunk.text.as_str())
+                            .collect::<String>()
+                            == command
+                });
+            }
+            if let Some(row) = visible_row(frame, text) {
+                grid = Some(row.grid);
+            }
+            command_visible && frame.grids.iter().any(|g| Some(g.id) == grid && !g.hidden)
+        })
+        .await;
+        grid.unwrap()
+    }
+
+    let root = tempfile::tempdir().unwrap();
+    let (host, app, mut updates) = live_application(root.path()).await;
+    let setup = r#"luaeval("(function()
+        local api = vim.api
+        local menu
+        local function close_menu()
+            if menu then
+                api.nvim_win_close(menu, true)
+                menu = nil
+            end
+        end
+        api.nvim_create_autocmd('CmdlineChanged', {
+            pattern = ':',
+            callback = function()
+                close_menu()
+                local text = vim.fn.getcmdline()
+                if text ~= 'detach' and text ~= 'b' then return end
+                local buf = api.nvim_create_buf(false, true)
+                api.nvim_buf_set_lines(buf, 0, -1, false, {'completion '..text})
+                menu = api.nvim_open_win(buf, false, {
+                    relative = 'editor', width = 22, height = 1, row = 20, col = 0,
+                    style = 'minimal', focusable = false, zindex = 1001,
+                })
+                vim.schedule(function() api.nvim__redraw({valid=false, flush=true}) end)
+            end,
+        })
+        api.nvim_create_autocmd('CmdlineLeave', {pattern = ':', callback = close_menu})
+        return true
+    end)()")"#;
+    assert_eq!(host.evaluate(&setup.replace('\n', " ")), "true");
+
+    app.input(":detach".into()).await.unwrap();
+    let old_grid = completion(&mut updates, ":detach", "completion detach").await;
+    app.input("<CR>".into()).await.unwrap();
+    assert_eq!(receive(&mut updates, "welcome").await.message, None);
+    assert_eq!(host.evaluate("mode()"), "n");
+    assert_eq!(host.evaluate("getcmdline()"), "");
+    assert_eq!(host.evaluate("len(nvim_list_wins())"), "1");
+
+    app.connect("test".into(), 80, 24).await.unwrap();
+    let first = wait_for_frame(&mut updates, "the first frame before input", |_| true).await;
+    assert!(first.full);
+    assert_eq!(first.mode, "normal");
+    assert!(
+        first
+            .widgets
+            .unwrap()
+            .iter()
+            .all(|widget| widget.kind != "cmdline")
+    );
+    assert!(first.grids.iter().all(|g| g.id != old_grid));
+
+    app.input(":b".into()).await.unwrap();
+    let new_grid = completion(&mut updates, ":b", "completion b").await;
+    assert_ne!(new_grid, old_grid);
+    app.input("<C-u>".into()).await.unwrap();
+    let cleared = wait_for_frame(&mut updates, "the new completion closing", |frame| {
+        frame.removed_grids.contains(&new_grid)
+    })
+    .await;
+    assert!(cleared.grids.iter().all(|g| g.id != old_grid));
+    assert_eq!(host.evaluate("getcmdline()"), "");
+
+    app.close().await.unwrap();
+    receive(&mut updates, "shutdown").await;
+}
+
+#[tokio::test]
+#[ignore = "Requires NVIM_BIN pointing to Neovim v0.12.6 and local Unix sockets"]
 async fn live_restores_inactive_floats_in_a_new_client() {
     use tokio::process::Command;
 
@@ -901,7 +995,7 @@ async fn live_restores_inactive_floats_in_a_new_client() {
             };
             write_live_configuration(&root.path().join("init.lua"), &host);
 
-            for run in [seed_run, "restore"] {
+            for run in [seed_run, "reattach", "restore"] {
                 let mut client = Command::new(&executable);
                 client
                     .args(["--ignored", "--exact", &name])
@@ -931,10 +1025,11 @@ async fn live_restores_inactive_floats_in_a_new_client() {
     let evaluate = |expression| evaluate_host(&nvim, &socket, expression);
     let snapshot = SNAPSHOT.replace('\n', " ");
     let snapshot_path = root.join("host-state.txt");
+    let float_grid_path = root.join("float-grid.txt");
     let (app, mut updates) = start_live_application(&root.join("init.lua")).await;
     let first_frame = wait_for_frame(&mut updates, "the first frame before input", |_| true).await;
 
-    if run == "restore" {
+    if matches!(run.as_str(), "reattach" | "restore") {
         assert!(first_frame.full);
         assert!(visible_row(&first_frame, ACTIVE_TEXT).is_some());
         assert_eq!(
@@ -942,39 +1037,41 @@ async fn live_restores_inactive_floats_in_a_new_client() {
             fs::read_to_string(snapshot_path).unwrap()
         );
 
-        let row = first_frame
-            .rows
-            .iter()
-            .find(|row| row_has_text(row, FLOAT_TEXT))
-            .expect("The first frame should retain the inactive float's cells");
-        let grid = row.grid;
-        assert!(first_frame.grids.iter().any(|g| g.id == grid && g.hidden));
+        let grid: i64 = fs::read_to_string(&float_grid_path)
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert!(first_frame.grids.iter().all(|g| g.id != grid || g.hidden));
 
-        app.input(":tabnext<CR>".into()).await.unwrap();
-        let mut text_without_highlight = !has_focus_highlight(row);
-        wait_for_frame(
-            &mut updates,
-            "the retained float and its cursor after switching tabs",
-            |frame| {
-                if let Some(row) = frame.rows.iter().find(|r| r.grid == grid && r.row == 0) {
-                    text_without_highlight =
-                        row_has_text(row, FLOAT_TEXT) && !has_focus_highlight(row);
-                }
-                text_without_highlight
-                    && frame
-                        .cursor
-                        .as_ref()
-                        .is_some_and(|cursor| cursor.grid == grid)
-                    && frame.grids.iter().any(|g| {
-                        g.id == grid
-                            && !g.hidden
-                            && (g.width, g.height, g.row, g.col) == (60, 15, 5.0, 10.0)
-                    })
-            },
-        )
-        .await;
-        assert_eq!(evaluate("tabpagenr()"), "1");
-        assert_eq!(evaluate("win_getid() == g:float_window"), "1");
+        if run == "restore" {
+            let mut text_without_highlight = first_frame.rows.iter().any(|row| {
+                row.grid == grid && row_has_text(row, FLOAT_TEXT) && !has_focus_highlight(row)
+            });
+            app.input(":tabnext<CR>".into()).await.unwrap();
+            wait_for_frame(
+                &mut updates,
+                "the retained float and its cursor after switching tabs",
+                |frame| {
+                    if let Some(row) = frame.rows.iter().find(|r| r.grid == grid && r.row == 0) {
+                        text_without_highlight =
+                            row_has_text(row, FLOAT_TEXT) && !has_focus_highlight(row);
+                    }
+                    text_without_highlight
+                        && frame
+                            .cursor
+                            .as_ref()
+                            .is_some_and(|cursor| cursor.grid == grid)
+                        && frame.grids.iter().any(|g| {
+                            g.id == grid
+                                && !g.hidden
+                                && (g.width, g.height, g.row, g.col) == (60, 15, 5.0, 10.0)
+                        })
+                },
+            )
+            .await;
+            assert_eq!(evaluate("tabpagenr()"), "1");
+            assert_eq!(evaluate("win_getid() == g:float_window"), "1");
+        }
     } else {
         let highlight = run == "WinLeave highlight clear";
         let source = r#"(function(clear_on_leave)
@@ -1001,7 +1098,7 @@ async fn live_restores_inactive_floats_in_a_new_client() {
         let clear = if highlight { "v:true" } else { "v:false" };
         let setup = format!("luaeval(\"{}\", {clear})", source.replace('\n', " "));
         assert_eq!(evaluate(&setup), "true");
-        wait_for_frame(
+        let initial = wait_for_frame(
             &mut updates,
             "the visible float with its initial highlighting",
             |frame| {
@@ -1010,6 +1107,8 @@ async fn live_restores_inactive_floats_in_a_new_client() {
             },
         )
         .await;
+        let grid = visible_row(&initial, FLOAT_TEXT).unwrap().grid;
+        fs::write(&float_grid_path, grid.to_string()).unwrap();
 
         app.input(format!(":tabnew<CR>i{ACTIVE_TEXT}<Esc>"))
             .await

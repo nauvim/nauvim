@@ -36,10 +36,13 @@ previous tab is hidden, and the same Neovim process stays attached. A separate
 client process reconnects to test a plain float and a float whose `WinLeave`
 callback clears highlights in an inactive tab. Another test changes a host
 alias to point to a different running Neovim and checks its initial frame.
+The command-line regression checks that a reattached frame omits the closed
+command line and completion float from `:detach`.
 
 ```sh
 NVIM_BIN=/absolute/path/to/nvim cargo test --manifest-path rust/Cargo.toml live_restores_ -- --ignored
 NVIM_BIN=/absolute/path/to/nvim cargo test --manifest-path rust/Cargo.toml live_switches_tabs -- --ignored
+NVIM_BIN=/absolute/path/to/nvim cargo test --manifest-path rust/Cargo.toml live_does_not_restore_the_detach -- --ignored
 ```
 
 The tests also check that window geometry, floating-window configuration, saved

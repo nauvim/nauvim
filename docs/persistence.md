@@ -33,11 +33,11 @@ reattach to existing Neovim sessions.
 
 ## Session UI checkpoints
 
-Nauvim keeps up to 64 UI checkpoints, one per Neovim process. A checkpoint contains
-the display state, including text in retained grids from inactive tabs. When you
-reconnect to the same Neovim process, Nauvim uses this state to restore the
-first display. The checkpoint stays on the client and can be used after you
-close Nauvim or restart the client.
+Nauvim keeps up to 64 UI checkpoints, one per Neovim process. A checkpoint
+contains display data, including text in retained grids from inactive tabs.
+After you reconnect to the same Neovim process, new display updates can reuse
+saved data for those grids. The checkpoint stays on the client and can be used
+after you close Nauvim or restart the client.
 
 | Platform | Location |
 | --- | --- |

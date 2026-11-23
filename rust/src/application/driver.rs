@@ -212,7 +212,7 @@ pub(super) async fn run(
                         && let (Some(store), Some(token)) = (&checkpoints, actual)
                         && let Some(checkpoint) = load_checkpoint(store, token, &updates).await
                     {
-                        // Core 0.5.1 exposes RPC after UI registration. Identify
+                        // Core exposes RPC after UI registration. Identify
                         // the session before supplying its saved display state.
                         attempt.identity = Identity::Restoring(token.to_owned());
                         attempt.dimensions = dimensions;
@@ -373,12 +373,12 @@ async fn connect_host(
     match (alias, checkpoint) {
         (Some(alias), Some(checkpoint)) => {
             engine
-                .connect_with_checkpoint(alias, width, height, checkpoint)
+                .connect_with_checkpoint_reference(alias, width, height, checkpoint)
                 .await
         }
         (None, Some(checkpoint)) => {
             engine
-                .connect_default_with_checkpoint(width, height, checkpoint)
+                .connect_default_with_checkpoint_reference(width, height, checkpoint)
                 .await
         }
         (Some(alias), None) => engine.connect(alias, width, height).await,

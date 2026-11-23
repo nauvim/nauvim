@@ -56,9 +56,10 @@ become strings at the bridge boundary.
 Core provides host RPC after registering the UI. The driver uses the initial
 attachment to read a token that lives in the Neovim process and persists
 across client restarts. If the token matches a stored checkpoint, the driver
-starts a second attachment with that checkpoint. Core seeds its receiving UI
-model before Neovim sends redraw notifications. This retains grids and
-placements that Neovim can omit, including hidden grids in inactive tabs.
+starts a second attachment with the checkpoint as a reference. The receiving
+model uses fresh redraw events to establish live state. It looks up saved grid
+data when Neovim refers to retained grids without sending their complete data.
+A grid can remain in the reference until a later tab switch introduces it.
 
 The driver keeps the initial attachment offscreen during restoration. It
 checks the token again before presenting a restored frame or opening a host
@@ -122,9 +123,10 @@ shutdown. Schema version 2 adds the window size table in a transaction while
 preserving the destination from version 1.
 
 `application/checkpoints` stores one core UI checkpoint per Neovim process
-token in a separate SQLite database. Core captures state at
-redraw flushes. The driver checks for changed state once a second and saves the
-latest known checkpoint when detaching, switching hosts, or shutting down.
+token in a separate SQLite database. Core captures state at redraw flushes and
+keeps grid data that remains available for lookup on the next attachment. The
+driver checks for changed state once a second and saves the latest known
+checkpoint when detaching, switching hosts, or shutting down.
 Checkpoint encoding and database I/O run on a blocking thread.
 
 `fonts/cache` keys prepared faces by source content, selected face index, platform,
