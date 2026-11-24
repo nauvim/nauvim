@@ -97,9 +97,10 @@ key_bindings = {
 }
 ```
 
-Restart Nauvim after editing the file. Unknown contexts, invalid chords,
-actions outside their context, and equivalent chords such as `Ctrl-c` and
-`Control_c` in the same context trigger configuration fallback.
+Restart Nauvim after editing the file. Nauvim ignores unknown contexts and
+binding values of unsupported types. Invalid chords, actions outside their
+context, and equivalent chords such as `Ctrl-c` and `Control_c` in the same
+context trigger configuration fallback.
 [Configuration fallback](configuration.md#configuration-fallback)
 
 ## Key strings

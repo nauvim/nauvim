@@ -5,7 +5,8 @@ the GUI. Use `$XDG_CONFIG_HOME/nauvim/init.lua` when `XDG_CONFIG_HOME` is nonemp
 Otherwise, use `~/.config/nauvim/init.lua` on Linux or
 `~/Library/Application Support/nauvim/init.lua` on macOS. To use another file,
 start Nauvim with `nauvim --config /absolute/path/init.lua`. Restart Nauvim after
-editing the file.
+editing the file. If the default file is absent, Nauvim starts with default
+values.
 
 ```lua
 return {
@@ -29,26 +30,29 @@ return {
 
 | Configuration | At launch |
 | --- | --- |
-| No hosts and no `default_host` | Connect to the default local host. |
-| Hosts and no `default_host` | Show the welcome page with those aliases and the default local host. |
+| No hosts and a table or nil `default_host` | Connect to the independent default host. |
+| Hosts and a table or nil `default_host` | Show the welcome page with those aliases and the independent default host. |
 | `default_host = "work"` | Connect to `work` automatically. |
 
-A configured host without `ssh` runs locally. To connect to an SSH alias
-outside the list, select **Type yourself** on the welcome page. The separate
-default local choice uses the default program and socket settings, even when
-you configure an alias named `local` or `default`.
+Set `default_host` to a table to configure the **Default host** choice. For
+example, `default_host = { nvim = "/opt/neovim/bin/nvim" }` selects that local
+executable. Include `ssh` and set `ssh.host_name` to configure a remote default.
+If `default_host` is nil or an alias string, **Default host** uses the built-in
+local configuration. Aliases named `local` and `default` are separate choices.
 
-When the welcome page opens, it selects the last requested destination, or the
-default local host on first use. To clear that selection, see
-[saved destinations](persistence.md#host-selection).
+A configured host without `ssh` runs locally. To connect to an SSH alias
+outside the list, select **Type yourself** on the welcome page. The welcome
+page selects the last requested destination, or **Default host** on first use.
+To clear that selection, see [saved destinations](persistence.md#host-selection).
 
 For Neovim arguments, socket paths, SSH settings, clipboard backends, and
 loading Lua modules, see the
-[core configuration reference](https://github.com/nauvim/nauvim-core/blob/5cc600a0cb72d9316a29880935abd98e6446334f/docs/usage.md).
+[core configuration reference](https://github.com/nauvim/nauvim-core/blob/1e07adbb4a52c55f4d89f93f2454a320503969af/docs/usage.md).
 
 ### Host plugin permissions
 
-Grant plugin permissions separately for each host under `hosts[alias].policies.plugin`.
+Grant plugin permissions separately under `hosts[alias].policies.plugin` for
+an alias or `default_host.policies.plugin` for a configured default host.
 Omitting the policy grants no permissions. To allow a trusted host to write to
 the client clipboard and open web previews for one origin, add this field to its
 host entry.
@@ -65,12 +69,14 @@ policies = {
 Nauvim checks the origin when opening the preview and on each top-level
 navigation, including redirects. On Linux, the check also applies to
 navigations within embedded frames. See the
-[host plugin permissions reference](https://github.com/nauvim/nauvim-core/blob/5cc600a0cb72d9316a29880935abd98e6446334f/docs/usage.md#host-plugin-permissions)
+[host plugin permissions reference](https://github.com/nauvim/nauvim-core/blob/1e07adbb4a52c55f4d89f93f2454a320503969af/docs/usage.md#host-plugin-permissions)
 for file serving, copying files, and local forwarding.
 
 ## UI options
 
 The Flutter UI selects `ui_opts["com.naughie.nauvim.flutter"]` by default.
+Lua configuration can read this implementation ID as
+`require("nauvim-client-info").ui_id`.
 Set the top-level `use_ui_opts = "my-settings"` to select
 `ui_opts["my-settings"]` instead. Exactly one dictionary is selected. A
 missing entry uses the UI defaults, including when `use_ui_opts` is set.
@@ -81,7 +87,7 @@ starting at 1. Strings must be valid UTF-8, with no NUL or initial U+FEFF. Keys
 in `ui_opts` and the value of `use_ui_opts` must also be nonempty. Core applies
 these rules to every dictionary. Nauvim checks the option names and values
 below for the selected dictionary. See the
-[shared UI configuration rules](https://github.com/nauvim/nauvim-spec/blob/v1.0.1/specification.md#ui-specific-configuration).
+[shared UI configuration rules](https://github.com/nauvim/nauvim-spec/blob/v1.1.0/specification.md#ui-specific-configuration).
 
 ### Fonts
 
@@ -137,7 +143,10 @@ the editor, or in a web preview. See the
 
 ## Configuration fallback
 
-If loading the Lua file or validating a host policy, UI dictionary, or selected
-UI option fails, Nauvim reports the error and uses defaults for the entire
-configuration, including hosts. An unresolved font is skipped individually.
+Nauvim treats unknown dictionary keys and values of unsupported types as
+omitted. This applies to host settings and to the selected UI options. If
+recovery removes a required field without a default, Nauvim drops its containing
+dictionary. Nauvim reports other loading or validation failures and uses
+defaults for the entire configuration, including hosts. It skips unresolved
+fonts individually.
 See [configuration troubleshooting](troubleshooting.md#configuration-errors).

@@ -122,14 +122,9 @@ fn parses_context_actions_and_explicit_unbindings() {
 }
 
 #[test]
-fn rejects_unknown_actions_contexts_and_normalized_duplicates() {
+fn rejects_invalid_actions_chords_and_normalized_duplicates() {
     for value in [
-        "true",
-        "{unknown={}}",
-        "{welcome=true}",
-        "{welcome={[1]='quit'}}",
         "{welcome={j=true}}",
-        "{welcome={j=1}}",
         "{welcome={j='copy'}}",
         "{clipboard={c='quit'}}",
         "{webview={r='paste'}}",

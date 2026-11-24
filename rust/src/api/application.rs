@@ -67,7 +67,7 @@ impl Application {
             .map_err(|e| e.to_string())
     }
 
-    /// Selects the independent default local host, without resolving an alias.
+    /// Selects the independent default host, without resolving an alias.
     pub async fn connect_default(&self, width: u32, height: u32) -> Result<(), String> {
         self.handle
             .connect_default(width, height)

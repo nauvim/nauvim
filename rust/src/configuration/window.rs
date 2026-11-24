@@ -5,7 +5,7 @@ use crate::api::display::{
     DisplayWindowOptions,
 };
 
-use super::{fields, invalid, table};
+use super::{dictionary, invalid};
 
 use nauvim_core::{Error, UiConfig, UiValue};
 
@@ -16,47 +16,39 @@ enum Minimum {
 }
 
 pub(super) fn parse(config: &UiConfig) -> Result<Option<DisplayWindowOptions>, Error> {
-    let window = match config.get("window") {
-        None | Some(UiValue::Nil) => return Ok(None),
-        Some(value) => table(config, value, "window")?,
+    let Some(window) = dictionary(config, config.get("window")) else {
+        return Ok(None);
     };
-    fields(
-        window,
-        &["margin", "decorations", "opacity", "startup_size"],
-        "window",
-    )?;
 
     let margin = margins(config, window.get("margin"))?;
-    let (startup_mode, width, height) = match window.get("startup_size") {
-        None | Some(UiValue::Nil) => (None, None, None),
-        Some(UiValue::String(s)) if s == "maximized" => {
-            (Some(DisplayStartupMode::Maximized), None, None)
-        }
-        Some(UiValue::String(s)) if s == "fullscreen" => {
-            (Some(DisplayStartupMode::Fullscreen), None, None)
-        }
-        Some(value @ UiValue::Table(_)) => {
-            let size = table(config, value, "window.startup_size")?;
-            fields(size, &["width", "height"], "window.startup_size")?;
-            (
-                Some(DisplayStartupMode::Windowed),
-                length(
-                    size.get("width"),
-                    "window.startup_size.width",
-                    Minimum::Positive,
-                )?,
-                length(
-                    size.get("height"),
-                    "window.startup_size.height",
-                    Minimum::Positive,
-                )?,
-            )
-        }
-        _ => {
-            return Err(invalid(
-                "window.startup_size must be a table, 'maximized', 'fullscreen', or nil",
-            ));
-        }
+    let startup_size = window.get("startup_size");
+    let (startup_mode, width, height) = if let Some(UiValue::String(s)) = startup_size {
+        let mode = match s.as_str() {
+            "maximized" => DisplayStartupMode::Maximized,
+            "fullscreen" => DisplayStartupMode::Fullscreen,
+            _ => {
+                return Err(invalid(
+                    "window.startup_size must be a table, 'maximized', 'fullscreen', or nil",
+                ));
+            }
+        };
+        (Some(mode), None, None)
+    } else if let Some(size) = dictionary(config, startup_size) {
+        (
+            Some(DisplayStartupMode::Windowed),
+            length(
+                size.get("width"),
+                "window.startup_size.width",
+                Minimum::Positive,
+            )?,
+            length(
+                size.get("height"),
+                "window.startup_size.height",
+                Minimum::Positive,
+            )?,
+        )
+    } else {
+        (None, None, None)
     };
 
     Ok(Some(DisplayWindowOptions {
@@ -64,10 +56,12 @@ pub(super) fn parse(config: &UiConfig) -> Result<Option<DisplayWindowOptions>, E
         height,
         margin,
         decorations: match window.get("decorations") {
-            None | Some(UiValue::Nil) => None,
-            Some(UiValue::String(s)) if s == "full" => Some(DisplayDecorations::Full),
-            Some(UiValue::String(s)) if s == "none" => Some(DisplayDecorations::None),
-            _ => return Err(invalid("window.decorations must be 'full', 'none', or nil")),
+            Some(UiValue::String(s)) => Some(match s.as_str() {
+                "full" => DisplayDecorations::Full,
+                "none" => DisplayDecorations::None,
+                _ => return Err(invalid("window.decorations must be 'full', 'none', or nil")),
+            }),
+            _ => None,
         },
         opacity: opacity(window.get("opacity"))?,
         startup_mode,
@@ -75,11 +69,9 @@ pub(super) fn parse(config: &UiConfig) -> Result<Option<DisplayWindowOptions>, E
 }
 
 fn margins(config: &UiConfig, value: Option<&UiValue>) -> Result<DisplayMargins, Error> {
-    let margin = match value {
-        None | Some(UiValue::Nil) => return Ok(DisplayMargins::default()),
-        Some(value) => table(config, value, "window.margin")?,
+    let Some(margin) = dictionary(config, value) else {
+        return Ok(DisplayMargins::default());
     };
-    fields(margin, &["top", "bottom", "left", "right"], "window.margin")?;
 
     let side = |key, field| {
         length(margin.get(key), field, Minimum::Nonnegative).map(Option::unwrap_or_default)
@@ -109,7 +101,6 @@ fn length(
     };
 
     let (value, unit) = match value {
-        None | Some(UiValue::Nil) => return Ok(None),
         Some(UiValue::Integer(value)) => (
             f64::from(u32::try_from(*value).map_err(|_| invalid_length())?),
             DisplayLengthUnit::Px,
@@ -132,7 +123,7 @@ fn length(
                 return Err(invalid_length());
             }
         }
-        _ => return Err(invalid_length()),
+        _ => return Ok(None),
     };
 
     if !value.is_finite() || value < 0.0 || (min == Minimum::Positive && value == 0.0) {
@@ -144,11 +135,11 @@ fn length(
 
 fn opacity(value: Option<&UiValue>) -> Result<Option<f64>, Error> {
     match value {
-        None | Some(UiValue::Nil) => Ok(None),
         Some(UiValue::Number(value)) if (0.0..=1.0).contains(value) => Ok(Some(*value)),
         Some(UiValue::Integer(value @ (0 | 1))) => Ok(Some(*value as f64)),
-        _ => Err(invalid(
+        Some(UiValue::Number(_) | UiValue::Integer(_)) => Err(invalid(
             "window.opacity must be a finite number in 0..=1 or nil",
         )),
+        _ => Ok(None),
     }
 }

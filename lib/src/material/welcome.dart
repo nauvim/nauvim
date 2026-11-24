@@ -257,14 +257,14 @@ class _NauvimWelcomeState extends State<NauvimWelcome> {
                           ),
                           leading: Icon(
                             i == 0
-                                ? Icons.computer
+                                ? Icons.home
                                 : i == _manualIndex
                                 ? Icons.edit
                                 : Icons.dns,
                           ),
                           title: Text(
                             i == 0
-                                ? 'Default local host'
+                                ? 'Default host'
                                 : i == _manualIndex
                                 ? 'Type yourself'
                                 : controller.hosts[i - 1],
@@ -328,7 +328,7 @@ class _NauvimWelcomeState extends State<NauvimWelcome> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
-                        'Connecting to ${controller.destination.isEmpty ? 'the default local host' : controller.destination}…',
+                        'Connecting to ${controller.destination.isEmpty ? 'the default host' : controller.destination}…',
                       ),
                       TextButton(
                         onPressed: controller.detach,

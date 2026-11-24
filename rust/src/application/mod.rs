@@ -127,7 +127,7 @@ impl Handle {
             .await
     }
 
-    /// Selects the independent default local host, without resolving an alias.
+    /// Selects the independent default host, without resolving an alias.
     pub(crate) async fn connect_default(&self, width: u32, height: u32) -> Result<(), Error> {
         self.send(Command::Connect(None, GridSize::new(width, height)))
             .await

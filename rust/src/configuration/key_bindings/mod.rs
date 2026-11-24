@@ -2,7 +2,7 @@
 
 use crate::api::keys::{KeyAction, KeyBinding, KeyBindings};
 
-use super::{fields, invalid, nonempty_text, table};
+use super::{dictionary, invalid, nonempty_text};
 
 use nauvim_core::{Error, UiConfig, UiValue};
 
@@ -60,16 +60,10 @@ impl Context {
 }
 
 pub(super) fn parse(config: &UiConfig) -> Result<Option<KeyBindings>, Error> {
-    let root = match config.get("key_bindings") {
-        None | Some(UiValue::Nil) => return Ok(None),
-        Some(value) => table(config, value, "key_bindings")?,
+    let Some(root) = dictionary(config, config.get("key_bindings")) else {
+        return Ok(None);
     };
     let [welcome, clipboard, webview] = [Context::Welcome, Context::Clipboard, Context::Webview];
-    fields(
-        root,
-        &[welcome.name(), clipboard.name(), webview.name()],
-        "key_bindings",
-    )?;
 
     Ok(Some(KeyBindings {
         welcome: context(config, root.get(welcome.name()), welcome)?,
@@ -83,9 +77,8 @@ fn context(
     value: Option<&UiValue>,
     context: Context,
 ) -> Result<Vec<KeyBinding>, Error> {
-    let entries = match value {
-        None | Some(UiValue::Nil) => return Ok(Vec::new()),
-        Some(value) => table(config, value, "key binding context")?,
+    let Some(entries) = dictionary(config, value) else {
+        return Ok(Vec::new());
     };
     let entries = entries.entries();
     let mut bindings = Vec::new();
@@ -95,7 +88,7 @@ fn context(
 
     for (key, value) in entries {
         let UiValue::String(key) = key else {
-            return Err(invalid("Key binding chords must be strings"));
+            continue;
         };
         let source = nonempty_text(key, "key binding chord")?;
         let (key, modifiers) = chord(source)?;
@@ -104,7 +97,10 @@ fn context(
             UiValue::String(value) => {
                 Some(context.action(nonempty_text(value, "key binding action")?)?)
             }
-            _ => return Err(invalid("Key binding actions must be strings or false")),
+            UiValue::Boolean(true) => {
+                return Err(invalid("Key binding actions must be strings or false"));
+            }
+            _ => continue,
         };
         bindings.push(KeyBinding {
             key: key.into_owned(),

@@ -22,7 +22,7 @@ pub struct UiUpdate {
     pub window: Option<DisplayWindow>,
 }
 
-/// A host choice; an absent alias selects the independent default local host.
+/// A host choice; an absent alias selects the independent default host.
 #[derive(Debug, PartialEq)]
 pub struct DisplayDestination {
     pub alias: Option<String>,

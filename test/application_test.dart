@@ -296,29 +296,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'keeps the default local destination separate from the local alias',
-    (tester) async {
-      final app = await mount(tester);
-      await emit(tester, app, update('ready', hosts: ['local']));
-      await tester.tap(find.text('Default local host'));
-      await tester.pump();
-      expect(app.defaults, hasLength(1));
-      expect(app.connections, isEmpty);
-      await emit(tester, app, update('welcome'));
-      await tester.tap(find.widgetWithText(ListTile, 'local'));
-      await tester.pump();
-      expect(app.connections, hasLength(1));
-      expect(app.connections.single.$1, 'local');
-      expect(app.defaults, hasLength(1));
-      expect(find.text('Cancel connection'), findsOneWidget);
-      await tester.ensureVisible(find.text('Cancel connection'));
-      await tester.pump();
-      await tester.tap(find.text('Cancel connection'));
-      await tester.pump();
-      expect(app.detaches, 1);
-    },
-  );
+  testWidgets('keeps the default destination separate from the local alias', (
+    tester,
+  ) async {
+    final app = await mount(tester);
+    await emit(tester, app, update('ready', hosts: ['local']));
+    await tester.tap(find.text('Default host'));
+    await tester.pump();
+    expect(app.defaults, hasLength(1));
+    expect(app.connections, isEmpty);
+    await emit(tester, app, update('welcome'));
+    await tester.tap(find.widgetWithText(ListTile, 'local'));
+    await tester.pump();
+    expect(app.connections, hasLength(1));
+    expect(app.connections.single.$1, 'local');
+    expect(app.defaults, hasLength(1));
+    expect(find.text('Cancel connection'), findsOneWidget);
+    await tester.ensureVisible(find.text('Cancel connection'));
+    await tester.pump();
+    await tester.tap(find.text('Cancel connection'));
+    await tester.pump();
+    expect(app.detaches, 1);
+  });
 
   testWidgets(
     'lists tabpages once and removes closed tabs with retained buffers',

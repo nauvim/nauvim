@@ -450,7 +450,7 @@ async fn report_connection_failure(
 fn connecting(alias: Option<String>) -> UiUpdate {
     UiUpdate {
         kind: "connecting".into(),
-        message: Some(alias.clone().unwrap_or_else(|| "Local".into())),
+        message: Some(alias.clone().unwrap_or_else(|| "Default host".into())),
         destination: Some(DisplayDestination { alias }),
         ..UiUpdate::default()
     }
