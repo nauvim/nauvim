@@ -47,7 +47,7 @@ To clear that selection, see [saved destinations](persistence.md#host-selection)
 
 For Neovim arguments, socket paths, SSH settings, clipboard backends, and
 loading Lua modules, see the
-[core configuration reference](https://github.com/nauvim/nauvim-core/blob/1e07adbb4a52c55f4d89f93f2454a320503969af/docs/usage.md).
+[core configuration reference](https://github.com/nauvim/nauvim-core/blob/1ee2e76dd10748c17ebbb08e7713a88d6ae443d4/docs/usage.md).
 
 ### Host plugin permissions
 
@@ -69,7 +69,7 @@ policies = {
 Nauvim checks the origin when opening the preview and on each top-level
 navigation, including redirects. On Linux, the check also applies to
 navigations within embedded frames. See the
-[host plugin permissions reference](https://github.com/nauvim/nauvim-core/blob/1e07adbb4a52c55f4d89f93f2454a320503969af/docs/usage.md#host-plugin-permissions)
+[host plugin permissions reference](https://github.com/nauvim/nauvim-core/blob/1ee2e76dd10748c17ebbb08e7713a88d6ae443d4/docs/usage.md#host-plugin-permissions)
 for file serving, copying files, and local forwarding.
 
 ## UI options
@@ -87,7 +87,7 @@ starting at 1. Strings must be valid UTF-8, with no NUL or initial U+FEFF. Keys
 in `ui_opts` and the value of `use_ui_opts` must also be nonempty. Core applies
 these rules to every dictionary. Nauvim checks the option names and values
 below for the selected dictionary. See the
-[shared UI configuration rules](https://github.com/nauvim/nauvim-spec/blob/v1.1.0/specification.md#ui-specific-configuration).
+[shared UI configuration rules](https://github.com/nauvim/nauvim-spec/blob/v1.2.0/specification.md#ui-specific-configuration).
 
 ### Fonts
 
