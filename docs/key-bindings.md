@@ -105,10 +105,16 @@ context trigger configuration fallback.
 
 ## Key strings
 
-A chord names one logical key, optionally preceded by modifiers. Join the
-components with `-` or `_`. Modifier and named-key names are case-insensitive.
-You can put modifiers in any order and add spaces around components. Each
-explicit modifier can appear once.
+A chord matches a key press by its *logical key* and active modifiers. The
+logical key is the identity Nauvim obtains from the keyboard event after the
+active layout and any remapping have taken effect. The same physical position
+can give `a` on a US QWERTY layout and `q` on a French AZERTY layout. Text entry
+is separate from shortcut matching. For example, Shift with `1` on a US layout
+can enter `!`, while the shortcut is `Shift-1`.
+
+Write the modifiers before the key and join the components with `-` or `_`.
+Modifier and named-key names are case-insensitive. You can put modifiers in any
+order and add spaces around components. Each explicit modifier can appear once.
 
 | Modifier | Accepted names |
 | --- | --- |
@@ -117,11 +123,12 @@ explicit modifier can appear once.
 | Alt | `Alt`, `Option`, `Opt` |
 | Meta | `Super`, `Meta`, `Command`, `Cmd` |
 
-Meta means Command on macOS and Super on Linux. Modifiers match exactly,
-ignoring Caps Lock and Num Lock. Capital letter keys imply Shift, so `Ctrl-C`
-means `Ctrl-Shift-c`, while `Ctrl-c` uses Control without Shift. This also
-applies to Unicode letters. For named keys such as `ENTER` or `F2`, spell out
-Shift.
+Meta means Command on macOS and Super on Linux. Modifiers match exactly. Include
+every modifier from the table that Nauvim sees as active for the key press.
+Caps Lock and Num Lock add no modifier to the chord. Capital letter keys imply
+Shift, so `Ctrl-C` means `Ctrl-Shift-c`, while `Ctrl-c` uses Control without
+Shift. This also applies to Unicode letters. For named keys such as `ENTER` or
+`F2`, spell out Shift.
 
 | Key | Accepted names |
 | --- | --- |
@@ -142,10 +149,56 @@ Shift.
 | Page Down | `PageDown`, `PgDown`, `PgDn` |
 | Function keys | `F1` through `F24` |
 
-Other printable single characters name themselves. Use `Minus` and
-`Underscore` after modifiers. A literal `+` names the plus key, as in
-`Ctrl-+`. Use `Shift-1` for the shifted digit key and `Shift-Plus` for the
-shifted plus key. Named keys can include separators, as in `Ctrl-Page_Down`.
+For any other printable key identity, use its single character. Use `Minus`
+and `Underscore` after modifiers. A literal `+` names the plus key, as in
+`Ctrl-+`. Use `Shift-Plus` for a plus key event with Shift active. Named keys
+can include separators, as in `Ctrl-Page_Down`.
+
+### Choose a chord for a remapped key
+
+For each gesture you want to bind, check which key reaches the matching
+context and which modifiers are active at that moment. If pressing Caps Lock
+produces Escape with no active modifiers, use `Escape`. The same rule applies
+to remaps from Karabiner-Elements on macOS, `xmodmap` under X11, `xremap` on
+Linux, and custom QMK firmware. See the
+[Karabiner-Elements EventViewer guide](https://karabiner-elements.pqrs.org/docs/manual/operation/eventviewer/),
+the [`xmodmap` manual](https://xorg.freedesktop.org/archive/X11R7.5/doc/man/man1/xmodmap.1.html),
+and the [`xremap` documentation](https://github.com/xremap/xremap).
+
+- **Tap and hold.** A key can send Escape when tapped and hold Control and Shift
+  when held. The tap matches `Escape` with no active modifiers. If you hold the
+  key and Nauvim receives `c` with Control and Shift active, use `Ctrl-Shift-c`.
+  See [QMK Mod-Tap](https://docs.qmk.fm/mod_tap).
+- **Firmware layers.** A key can send Space when tapped and switch to a
+  navigation layer when held. Use `Space` for the unmodified tap. If pressing
+  the usual `h` key on that layer sends Left Arrow, use `Left` when the layer
+  switch stays inside the firmware and no modifiers reach Nauvim. Use `Alt-Left`
+  if the firmware also holds Alt and Nauvim receives it with the arrow event.
+  See [QMK layers](https://docs.qmk.fm/feature_layers).
+
+If a macro sends `Alt-Left` and then `Ctrl-r`, each press can match its own
+binding in the context that receives it. A single `key_bindings` entry matches
+one chord. Try the chord with the target context focused and your usual layout
+and remapping settings active.
+
+### How each context gets the key name
+
+- **Welcome screen and editor clipboard.** Both use Flutter's logical key and
+  pressed modifier state. Flutter can assign a US-layout logical key on a
+  non-Latin layout. On Linux with the standard Russian layout, the key that
+  types `й` has the logical key `q` in these contexts.
+  See [Flutter logical keys](https://api.flutter.dev/flutter/services/KeyEvent/logicalKey.html).
+- **Native previews on Linux.** Nauvim uses GTK key events. It checks the
+  unshifted and shifted mappings in the event's layout for an ASCII letter or
+  digit, then uses the event's key symbol if neither is present. On the standard
+  Russian layout, use `й` for the key that types `й`.
+  See [GTK key events](https://docs.gtk.org/gdk3/struct.EventKey.html).
+- **Native previews on macOS.** Nauvim checks the unshifted and shifted AppKit
+  mappings for an ASCII letter or digit. For other keys it uses the event's
+  characters as if only Shift applied. Option still counts as `Alt` in the
+  chord. For example, use `Alt-e` for Option-E on the US layout, where it starts
+  an accent without entering text.
+  See [AppKit key event characters](https://developer.apple.com/documentation/appkit/nsevent/charactersignoringmodifiers).
 
 ## Welcome actions
 
