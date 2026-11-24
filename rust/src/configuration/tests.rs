@@ -87,15 +87,11 @@ fn accepts_font_forms_and_retains_order_and_exact_names() {
 }
 
 #[test]
-fn validates_font_structure_and_scalar_types() {
+fn rejects_invalid_font_contents_and_list_elements() {
     for options in [
-        "{fonts=true}",
-        "{fonts={family='First',style='Regular'}}",
         "{fonts={family='First',size=0}}",
         "{fonts={family='First',size=-1}}",
-        "{fonts={family='First',size=15.5}}",
         "{fonts={family='First',size=4294967296}}",
-        "{fonts={family='First',subfamily=4}}",
         "{fonts={family='First',path=''}}",
         "{fonts={family=''}}",
         "{fonts={{size=15}}}",
@@ -103,10 +99,8 @@ fn validates_font_structure_and_scalar_types() {
         "{fonts={[1]={family='First'},[3]={family='Third'}}}",
         "{fonts={[1]={family='First'},[2147483647]={family='Last'}}}",
         "{fonts={[0]={family='First'}}}",
-        "{fonts={family='First',unknown=1}}",
         "{fonts=string.char(0xff)}",
         "{fonts='First'..string.char(0)..'Family'}",
-        "{unknown=true}",
     ] {
         assert!(
             parse(options).is_err(),
@@ -147,20 +141,10 @@ fn parses_initial_size_and_independent_nonnegative_margins() {
         (px(0), px(0), px(0), px(0))
     );
     for options in [
-        "{window=false}",
         "{window={startup_size={height=0}}}",
         "{window={startup_size={width=-1}}}",
-        "{window={startup_size={width=640.5}}}",
         "{window={startup_size={height=4294967296}}}",
-        "{window={startup_size={depth=600}}}",
-        "{window={startup_size={[1]=600}}}",
-        "{window={startup_mode='windowed'}}",
-        "{window={width=800}}",
-        "{window={height=600}}",
         "{window={margin={bottom=-1}}}",
-        "{window={margin={left=1.5}}}",
-        "{window={margin={unknown=1}}}",
-        "{window={unknown=1}}",
     ] {
         assert!(
             parse(options).is_err(),
@@ -223,9 +207,6 @@ fn rejects_malformed_units_and_nonfinite_lengths() {
         "margin.right",
     ] {
         for value in [
-            "1.5",
-            "true",
-            "{}",
             "'0.5px'",
             "'1.0px'",
             "'1e2px'",
@@ -315,18 +296,9 @@ fn parses_window_appearance_and_startup_modes() {
 #[test]
 fn rejects_invalid_window_appearance_and_startup_values() {
     for (field, values) in [
-        (
-            "decorations",
-            ["'borderless'", "'FULL'", "true", "0", "{}", "''"],
-        ),
-        (
-            "startup_size",
-            ["'windowed'", "'MAXIMIZED'", "false", "1", "1.5", "''"],
-        ),
-        (
-            "opacity",
-            ["-0.01", "1.01", "0/0", "math.huge", "'0.5'", "false"],
-        ),
+        ("decorations", &["'borderless'", "'FULL'", "''"][..]),
+        ("startup_size", &["'windowed'", "'MAXIMIZED'", "''"][..]),
+        ("opacity", &["-0.01", "1.01", "0/0", "math.huge", "2"][..]),
     ] {
         for value in values {
             let e = parse(&format!("{{window={{{field}={value}}}}}"))
@@ -334,6 +306,58 @@ fn rejects_invalid_window_appearance_and_startup_values() {
                 .unwrap();
             assert!(e.to_string().contains(field), "{field}={value}: {e}");
         }
+    }
+}
+
+#[test]
+fn recovers_unknown_ui_fields_and_unsupported_value_types() {
+    let options = parse(
+        r#"{
+        future_option=true,
+        fonts={
+            {family='First', size=15.5, subfamily=4, extra='ignored'},
+            {family=false, size=18},
+            {family='Third', size=24, path=false},
+        },
+        window={
+            startup_size={width=640.5, height=720, future=true},
+            opacity='0.5', decorations=true, margin={top=false, left=8, unknown=1},
+        },
+        key_bindings={
+            welcome={j='select_next', k=1},
+            webview=false,
+            future_context={x='future_action'},
+        },
+    }"#,
+    )
+    .unwrap();
+
+    let fonts: Vec<_> = options
+        .fonts
+        .iter()
+        .map(|font| (font.family.as_str(), font.size))
+        .collect();
+    assert_eq!(fonts, [("First", 15.0), ("Third", 24.0)]);
+    assert!(options.fonts[0].subfamily.is_none());
+    assert!(options.fonts[1].path.is_none());
+    let window = options.window.unwrap();
+    assert_eq!((window.width, window.height), (None, Some(px(720))));
+    assert_eq!((window.margin.top, window.margin.left), (px(0), px(8)));
+    assert!(window.decorations.is_none());
+    assert!(window.opacity.is_none());
+    let key_bindings = options.key_bindings.unwrap();
+    assert_eq!(key_bindings.welcome.len(), 1);
+    assert_eq!(key_bindings.welcome[0].key, "j");
+    assert!(key_bindings.webview.is_empty());
+
+    for options in [
+        "{fonts=true, window=false, key_bindings=42}",
+        "{fonts={extra=1}, window={true}, key_bindings={true}}",
+    ] {
+        let options = parse(options).unwrap();
+        assert!(options.fonts.is_empty());
+        assert!(options.window.is_none());
+        assert!(options.key_bindings.is_none());
     }
 }
 
@@ -357,11 +381,11 @@ fn invalid_window_options_follow_complete_configuration_fallback() {
 }
 
 #[test]
-fn rejects_cycles_and_non_data_values_without_recursion() {
+fn rejects_cycles_and_non_data_list_elements() {
     let info = info(Path::new("/tmp/nauvim-ui-options/init.lua"));
     for options in [
         "local fonts={}; fonts[1]=fonts; return {fonts=fonts}",
-        "return {fonts=io.stdout}",
+        "return {fonts={io.stdout}}",
         "local opts={}; opts.window=opts; return opts",
     ] {
         let source = format!("return {{ui_opts={{['{UI_ID}']=(function() {options} end)()}}}}");
@@ -380,6 +404,15 @@ fn follows_core_ui_selection_and_default_fallback() {
     let (config, options) = Config::evaluate(&source, info, UI_ID, UiOptions::parse).unwrap();
     assert_eq!(config.hosts().collect::<Vec<_>>(), ["chosen"]);
     assert_eq!(options.fonts[0].family, "Selected");
+    std::fs::write(&path, format!(
+        "return {{hosts={{chosen={{}}}},ui_opts={{['{UI_ID}']={{fonts={{family='Kept',size=true}},window=42}}}}}}"
+    )).unwrap();
+    let (config, options) = load(Some(&path)).unwrap();
+    assert_eq!(config.hosts().collect::<Vec<_>>(), ["chosen"]);
+    assert!(config.diagnostics().is_empty());
+    assert_eq!(options.fonts[0].family, "Kept");
+    assert_eq!(options.fonts[0].size, 15.0);
+    assert!(options.window.is_none());
     std::fs::write(&path, format!("return {{hosts={{chosen={{}}}},ui_opts={{['{UI_ID}']={{fonts={{family='Bad',size=0}}}}}}}}" )).unwrap();
     let (config, options) = Config::load(Some(&path), UI_ID, UiOptions::parse).unwrap();
     assert_eq!(config.hosts().count(), 0);

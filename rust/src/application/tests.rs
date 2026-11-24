@@ -169,6 +169,7 @@ async fn starts_once_with_configured_aliases_and_reports_nonfatal_diagnostics() 
         &config,
         r#"return {
             hosts = {local_alias = {}},
+            default_host = {nvim = 'unused-until-the-default-host-is-selected'},
             clipboard = {backend = 'missing-test-backend', timeout_ms = 0},
         }"#,
     )

@@ -2,7 +2,7 @@
 
 use crate::api::display::DisplayFont;
 
-use super::{fields, invalid, nonempty_text, table};
+use super::{dictionary, invalid, nonempty_text, table};
 
 use nauvim_core::{Error, UiConfig, UiTable, UiValue};
 
@@ -11,29 +11,23 @@ use std::path::Path;
 const DEFAULT_SIZE: u32 = 15;
 
 pub(super) fn parse(config: &UiConfig) -> Result<Vec<DisplayFont>, Error> {
-    Ok(match config.get("fonts") {
-        None | Some(UiValue::Nil) => Vec::new(),
-        Some(UiValue::String(family)) => vec![DisplayFont {
+    let value = config.get("fonts");
+    if let Some(UiValue::String(family)) = value {
+        return Ok(vec![DisplayFont {
             family: nonempty_text(family, "fonts")?.to_owned(),
             subfamily: None,
             size: f64::from(DEFAULT_SIZE),
             path: None,
-        }],
-        Some(value) => {
-            let fonts_table = table(config, value, "fonts")?;
-            if fonts_table.is_list() {
-                font_list(config, fonts_table)?
-            } else if fonts_table.get("family").is_some() {
-                vec![font(fonts_table)?]
-            } else if fonts_table.entries().len() == 0 {
-                Vec::new()
-            } else {
-                return Err(invalid(
-                    "fonts must be a Font or a dense list of Font tables",
-                ));
-            }
-        }
-    })
+        }]);
+    }
+
+    let Some(fonts) = table(config, value) else {
+        return Ok(Vec::new());
+    };
+    if fonts.is_list() {
+        return font_list(config, fonts);
+    }
+    Ok(font(fonts, true)?.into_iter().collect())
 }
 
 fn font_list(config: &UiConfig, fonts_table: &UiTable) -> Result<Vec<DisplayFont>, Error> {
@@ -44,7 +38,11 @@ fn font_list(config: &UiConfig, fonts_table: &UiTable) -> Result<Vec<DisplayFont
         .map_err(|e| invalid(format!("Allocate configured fonts: {e}")))?;
 
     for (_, value) in entries {
-        fonts.push(font(table(config, value, "fonts entry")?)?);
+        let entry = dictionary(config, Some(value))
+            .ok_or_else(|| invalid("fonts entry must be a dictionary"))?;
+        if let Some(font) = font(entry, false)? {
+            fonts.push(font);
+        }
     }
 
     Ok(fonts)
@@ -76,36 +74,44 @@ pub(super) fn resolve_paths(
 
 fn string<'t>(value: Option<&'t UiValue>, field: &str) -> Result<Option<&'t str>, Error> {
     match value {
-        None | Some(UiValue::Nil) => Ok(None),
         Some(UiValue::String(value)) => nonempty_text(value, field).map(Some),
-        _ => Err(invalid(format!("{field} must be a string or nil"))),
+        _ => Ok(None),
     }
 }
 
 fn size(value: Option<&UiValue>) -> Result<u32, Error> {
     match value {
-        None | Some(UiValue::Nil) => Ok(DEFAULT_SIZE),
         Some(UiValue::Integer(value)) => u32::try_from(*value)
             .ok()
             .filter(|value| *value > 0)
             .ok_or_else(|| invalid("Font.size must be an integer in 1..=4294967295")),
-        _ => Err(invalid("Font.size must be an integer or nil")),
+        _ => Ok(DEFAULT_SIZE),
     }
 }
 
-fn font(table: &UiTable) -> Result<DisplayFont, Error> {
-    fields(table, &["family", "subfamily", "size", "path"], "Font")?;
-
-    let family = string(table.get("family"), "Font.family")?
-        .ok_or_else(|| invalid("Font.family is required"))?;
+fn font(table: &UiTable, allow_empty: bool) -> Result<Option<DisplayFont>, Error> {
+    let family = match table.get("family") {
+        Some(UiValue::String(family)) => nonempty_text(family, "Font.family")?,
+        None | Some(UiValue::Nil) => {
+            if allow_empty
+                && !matches!(table.get("size"), Some(UiValue::Integer(_)))
+                && !matches!(table.get("path"), Some(UiValue::String(_)))
+                && !matches!(table.get("subfamily"), Some(UiValue::String(_)))
+            {
+                return Ok(None);
+            }
+            return Err(invalid("Font.family is required"));
+        }
+        _ => return Ok(None),
+    };
     let subfamily = string(table.get("subfamily"), "Font.subfamily")?;
     let size = f64::from(size(table.get("size"))?);
     let path = string(table.get("path"), "Font.path")?;
 
-    Ok(DisplayFont {
+    Ok(Some(DisplayFont {
         family: family.to_owned(),
         subfamily: subfamily.map(str::to_owned),
         size,
         path: path.map(str::to_owned),
-    })
+    }))
 }

@@ -31,7 +31,7 @@ abstract class Application implements RustOpaqueInterface {
     required int height,
   });
 
-  /// Selects the independent default local host, without resolving an alias.
+  /// Selects the independent default host, without resolving an alias.
   Future<void> connectDefault({required int width, required int height});
 
   /// Detaches the GUI while preserving the host Neovim process.

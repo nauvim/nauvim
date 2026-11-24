@@ -22,11 +22,6 @@ pub(crate) struct UiOptions {
 
 impl UiOptions {
     fn parse(config: UiConfig) -> Result<Self, Error> {
-        fields(
-            config.root(),
-            &["fonts", "window", "key_bindings"],
-            "UI options",
-        )?;
         Ok(Self {
             fonts: fonts::parse(&config)?,
             window: window::parse(&config)?,
@@ -55,25 +50,15 @@ fn invalid(message: impl Into<String>) -> Error {
     Error::Message(message.into())
 }
 
-fn table<'t>(config: &'t UiConfig, value: &UiValue, field: &str) -> Result<&'t UiTable, Error> {
-    if let UiValue::Table(id) = value
-        && let Some(table) = config.table(*id)
-    {
-        return Ok(table);
+fn table<'t>(config: &'t UiConfig, value: Option<&UiValue>) -> Option<&'t UiTable> {
+    match value {
+        Some(UiValue::Table(id)) => config.table(*id),
+        _ => None,
     }
-    Err(invalid(format!("{field} must be a table")))
 }
 
-fn fields(table: &UiTable, names: &[&str], field: &str) -> Result<(), Error> {
-    for (key, _) in table.entries() {
-        if let UiValue::String(key) = key
-            && names.contains(&key.as_str())
-        {
-            continue;
-        }
-        return Err(invalid(format!("{field} contains an unknown field")));
-    }
-    Ok(())
+fn dictionary<'t>(config: &'t UiConfig, value: Option<&UiValue>) -> Option<&'t UiTable> {
+    table(config, value).filter(|table| !table.is_list())
 }
 
 fn nonempty_text<'t>(value: &'t str, field: &str) -> Result<&'t str, Error> {

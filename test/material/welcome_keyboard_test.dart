@@ -119,7 +119,7 @@ void main() {
     await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyJ);
     await tester.pump();
-    expect(selectedItem(tester), 'Default local host');
+    expect(selectedItem(tester), 'Default host');
     await tester.sendKeyDownEvent(LogicalKeyboardKey.keyJ);
     await tester.sendKeyRepeatEvent(LogicalKeyboardKey.keyJ);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.keyJ);
@@ -216,7 +216,7 @@ void main() {
   ) async {
     final (:engine, :controller) = await welcome(tester, ready: false);
     expect(find.byType(TextField), findsNothing);
-    expect(selectedItem(tester), 'Default local host');
+    expect(selectedItem(tester), 'Default host');
     await key(tester, LogicalKeyboardKey.enter);
     expect(engine.defaults, isEmpty);
     expect(engine.connections, isEmpty);
@@ -235,7 +235,7 @@ void main() {
 
     await returnToWelcome(tester, engine);
     expect(find.byType(TextField), findsNothing);
-    expect(selectedItem(tester), 'Default local host');
+    expect(selectedItem(tester), 'Default host');
     await key(tester, LogicalKeyboardKey.enter);
     expect(engine.defaults, hasLength(2));
   });
@@ -244,7 +244,7 @@ void main() {
     tester,
   ) async {
     final (:engine, :controller) = await welcome(tester);
-    expect(selectedItem(tester), 'Default local host');
+    expect(selectedItem(tester), 'Default host');
     await key(tester, LogicalKeyboardKey.keyJ);
     expect(selectedItem(tester), 'local');
     await key(tester, LogicalKeyboardKey.keyL);
@@ -259,19 +259,19 @@ void main() {
     await key(tester, LogicalKeyboardKey.keyK);
     expect(selectedItem(tester), 'local');
     await key(tester, LogicalKeyboardKey.keyK);
-    expect(selectedItem(tester), 'Default local host');
+    expect(selectedItem(tester), 'Default host');
     await controlKey(tester, LogicalKeyboardKey.keyN);
     expect(selectedItem(tester), 'local');
     await controlKey(tester, LogicalKeyboardKey.keyP);
-    expect(selectedItem(tester), 'Default local host');
+    expect(selectedItem(tester), 'Default host');
     await key(tester, LogicalKeyboardKey.arrowDown);
     expect(selectedItem(tester), 'local');
     await key(tester, LogicalKeyboardKey.arrowUp);
-    expect(selectedItem(tester), 'Default local host');
+    expect(selectedItem(tester), 'Default host');
     await key(tester, LogicalKeyboardKey.tab);
     expect(selectedItem(tester), 'local');
     await shiftTab(tester);
-    expect(selectedItem(tester), 'Default local host');
+    expect(selectedItem(tester), 'Default host');
     expect(engine.connections, isEmpty);
     expect(engine.defaults, isEmpty);
     expect(find.byType(TextField), findsNothing);
@@ -293,7 +293,7 @@ void main() {
     for (final detach in [false, true]) {
       for (final alias in [null, 'local', 'Local', 'default', 'manual-host']) {
         final title = alias == null
-            ? 'Default local host'
+            ? 'Default host'
             : alias == 'manual-host'
             ? 'Type yourself'
             : alias;
@@ -307,7 +307,7 @@ void main() {
         engine.emit(
           UiUpdate(
             kind: 'connecting',
-            message: alias ?? 'Local',
+            message: alias ?? 'Default host',
             destination: DisplayDestination(alias: alias),
             hosts: const [],
             fonts: const [],
@@ -361,7 +361,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       final title = alias == null
-          ? 'Default local host'
+          ? 'Default host'
           : alias == 'manual-host'
           ? 'Type yourself'
           : alias;

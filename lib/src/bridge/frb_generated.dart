@@ -4339,7 +4339,7 @@ class ApplicationImpl extends RustOpaque implements Application {
     height: height,
   );
 
-  /// Selects the independent default local host, without resolving an alias.
+  /// Selects the independent default host, without resolving an alias.
   Future<void> connectDefault({required int width, required int height}) =>
       RustLib.instance.api.crateApiApplicationApplicationConnectDefault(
         that: this,

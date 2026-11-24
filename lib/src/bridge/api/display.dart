@@ -142,7 +142,7 @@ class DisplayCursor {
 /// Native window decorations requested at startup; omission selects full.
 enum DisplayDecorations { full, none }
 
-/// A host choice; an absent alias selects the independent default local host.
+/// A host choice; an absent alias selects the independent default host.
 class DisplayDestination {
   final String? alias;
 
