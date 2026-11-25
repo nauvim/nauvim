@@ -23,6 +23,7 @@ class NauvimEditor extends StatefulWidget {
 
 class _NauvimEditorState extends State<NauvimEditor> {
   final _commandLineLink = LayerLink();
+  final _commandLineCaretKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -66,6 +67,7 @@ class _NauvimEditorState extends State<NauvimEditor> {
         bottomRows: 1,
         builder: (context, viewport) => EditorSurface(
           controller: controller,
+          commandLineCaretKey: _commandLineCaretKey,
           metrics: appearance.editorMetrics,
           viewport: viewport,
           style: paintStyle,
@@ -120,6 +122,9 @@ class _NauvimEditorState extends State<NauvimEditor> {
                                       model: model,
                                       style: style,
                                       active: identical(item, activeCommand),
+                                      caretKey: identical(item, activeCommand)
+                                          ? _commandLineCaretKey
+                                          : null,
                                       popupLink: identical(item, activeCommand)
                                           ? _commandLineLink
                                           : null,

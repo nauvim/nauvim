@@ -587,9 +587,11 @@ void main() {
     'orders input and discards actions queued for an earlier attachment',
     () async {
       engine.events.add(Update(kind: 'frame', frame: frame()));
+      final attachment = controller.attachmentGeneration;
       engine.inputGate = Completer();
       final first = controller.sendKeys('first');
       final stale = controller.sendKeys('stale');
+      final staleText = controller.sendText('古い入力', attachment: attachment);
       await settle();
       expect(engine.calls, [('keys', 'first')]);
       engine.events.add(const Update(kind: 'welcome'));
@@ -597,6 +599,8 @@ void main() {
       engine.inputGate!.complete();
       await first;
       await stale;
+      await staleText;
+      await controller.sendText('遅れた入力', attachment: attachment);
       await controller.sendKeys('current');
       await controller.selectTab(202);
       await controller.selectBuffer(303);
@@ -612,6 +616,54 @@ void main() {
       ]);
     },
   );
+
+  test('queues committed text as literal keyboard input', () async {
+    engine.events.add(Update(kind: 'frame', frame: frame()));
+    final attachment = controller.attachmentGeneration;
+
+    final first = controller.sendKeys('i');
+    controller.editor.beginSelection(const CellPoint(1, 0, 0));
+    final text = controller.sendText('日本語😀<Esc><LT>', attachment: attachment);
+    expect(controller.editor.selectionStart, isNull);
+    final last = controller.sendKeys('<Esc>');
+    await Future.wait([first, text, last]);
+    await controller.sendText('', attachment: attachment);
+
+    expect(engine.calls, [
+      ('keys', 'i'),
+      ('keys', '日本語😀<LT>Esc><LT>LT>'),
+      ('keys', '<Esc>'),
+    ]);
+  });
+
+  test('enables native text input for the current attachment only', () {
+    var changes = 0;
+    controller.addListener(() => changes++);
+    expect(controller.nativeTextInput, isFalse);
+
+    controller.setNativeTextInput(true);
+    expect(controller.nativeTextInput, isFalse);
+    expect(changes, 0);
+
+    engine.events.add(Update(kind: 'frame', frame: frame()));
+    final attachment = controller.attachmentGeneration;
+    changes = 0;
+    controller.setNativeTextInput(true);
+    controller.setNativeTextInput(true);
+    expect(controller.nativeTextInput, isTrue);
+    expect(changes, 1);
+
+    controller.setNativeTextInput(false);
+    expect(controller.nativeTextInput, isFalse);
+    expect(changes, 2);
+
+    controller.setNativeTextInput(true);
+    engine.events.add(const Update(kind: 'connecting'));
+    expect(controller.nativeTextInput, isFalse);
+    expect(controller.attachmentGeneration, isNot(attachment));
+    engine.events.add(Update(kind: 'frame', frame: frame()));
+    expect(controller.nativeTextInput, isFalse);
+  });
 
   test('copies only the independently selected grid text and clears selection on keys', () async {
     engine.events.add(

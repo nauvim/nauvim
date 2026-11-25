@@ -14,6 +14,7 @@ class CommandLine extends StatefulWidget {
     required this.model,
     required this.style,
     required this.active,
+    this.caretKey,
     this.popupLink,
     this.popupByteOffset,
     this.popupWidth = 480,
@@ -25,6 +26,7 @@ class CommandLine extends StatefulWidget {
   final EditorModel model;
   final TextStyle style;
   final bool active;
+  final GlobalKey? caretKey;
   final LayerLink? popupLink;
   final int? popupByteOffset;
   final double popupWidth;
@@ -75,14 +77,13 @@ class _CommandLineState extends State<CommandLine> {
       paintStyle: widget.paintStyle,
     );
     final size = painter.size;
-    double position(int byteOffset) => painter
-        .getOffsetForCaret(
-          TextPosition(offset: byteOffsetToUtf16(text, byteOffset)),
-          Rect.zero,
-        )
-        .dx;
+    Offset position(int byteOffset) => painter.getOffsetForCaret(
+      TextPosition(offset: byteOffsetToUtf16(text, byteOffset)),
+      Rect.zero,
+    );
     final caret = position(widget.item.selected);
-    final popup = position(widget.popupByteOffset ?? widget.item.selected);
+    final caretHeight = painter.preferredLineHeight;
+    final popup = position(widget.popupByteOffset ?? widget.item.selected).dx;
     painter.dispose();
     return Semantics(
       label: text,
@@ -101,7 +102,7 @@ class _CommandLineState extends State<CommandLine> {
           if (key != _followKey) {
             _followKey = key;
             if (widget.active) {
-              followCursor(caret, size.width + 3, viewportWidth);
+              followCursor(caret.dx, size.width + 3, viewportWidth);
             }
           }
           return SingleChildScrollView(
@@ -133,6 +134,14 @@ class _CommandLineState extends State<CommandLine> {
                     clipBehavior: Clip.none,
                     children: [
                       Positioned.fill(child: child!),
+                      if (widget.caretKey case final key? when widget.active)
+                        Positioned(
+                          left: caret.dx,
+                          top: caret.dy,
+                          width: widget.cursorWidth,
+                          height: caretHeight,
+                          child: SizedBox(key: key),
+                        ),
                       if (widget.popupLink case final link?)
                         Positioned(
                           left: anchor,

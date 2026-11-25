@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nauvim_flutter/main.dart';
 import 'package:nauvim_flutter/nauvim.dart';
 import 'package:nauvim_flutter/nauvim_material.dart';
+import 'package:nauvim_flutter/src/widgets/ime_overlay.dart';
 
 import 'support/fakes.dart';
 
@@ -259,12 +260,13 @@ void main() {
     },
   );
   testWidgets(
-    'follows a long command-line cursor and its scrolled popup anchor',
+    'follows the command-line cursor, popup, and IME anchors while scrolling',
     (tester) async {
       final model = EditorModel();
       final link = LayerLink();
       final text = ':${List.filled(100, '界').join()}';
       final viewportKey = GlobalKey();
+      final caretKey = GlobalKey();
       Widget line(int cursor) => Directionality(
         textDirection: TextDirection.ltr,
         child: Align(
@@ -287,6 +289,7 @@ void main() {
               model: model,
               style: const TextStyle(fontFamily: 'monospace', fontSize: 16),
               active: true,
+              caretKey: caretKey,
               popupLink: link,
               popupByteOffset: cursor,
               popupWidth: 100,
@@ -301,11 +304,20 @@ void main() {
       final viewport = tester.getRect(find.byKey(viewportKey));
       var anchor = tester.getTopLeft(find.byType(CompositedTransformTarget));
       expect(anchor.dx, inInclusiveRange(viewport.left, viewport.right - 100));
+      final caret = imeCommandLineCaret(caretKey)!;
+      expect(caret.left, greaterThan(anchor.dx));
+      expect(viewport.contains(caret.center), isTrue);
+
+      scrollable.position.jumpTo(0);
+      await tester.pump();
+      expect(imeCommandLineCaret(caretKey), isNull);
+
       await tester.pumpWidget(line(0));
       await tester.pump();
       expect(scrollable.position.pixels, 0);
       anchor = tester.getTopLeft(find.byType(CompositedTransformTarget));
       expect(anchor.dx, viewport.left);
+      expect(imeCommandLineCaret(caretKey)?.left, viewport.left);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       model.dispose();

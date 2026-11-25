@@ -38,6 +38,17 @@ class NauvimToolbar extends StatelessWidget {
               ),
             if (controller.attached)
               IconButton(
+                tooltip: controller.nativeTextInput
+                    ? 'Return to Neovim keys'
+                    : 'Start native text input (experimental)',
+                icon: const Icon(Icons.keyboard_outlined, size: 19),
+                selectedIcon: const Icon(Icons.keyboard, size: 19),
+                isSelected: controller.nativeTextInput,
+                onPressed: () =>
+                    controller.setNativeTextInput(!controller.nativeTextInput),
+              ),
+            if (controller.attached)
+              IconButton(
                 tooltip: 'Detach and keep Neovim running',
                 icon: const Icon(Icons.link_off, size: 19),
                 onPressed: controller.detach,

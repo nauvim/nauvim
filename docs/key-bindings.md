@@ -4,6 +4,13 @@ Set `key_bindings` inside the selected UI options in `nauvim/init.lua`.
 Use `welcome` for the destination screen, `clipboard` for the editor,
 and `webview` for native previews.
 
+## Experimental native text input
+
+Enter a Neovim mode where you want to type, then click the keyboard button in
+the toolbar. Use your system input method to compose and commit text. Neovim
+receives each commit as typed text in its current mode. Click the keyboard
+button again to send Vim keys such as Escape or Enter.
+
 ## Linux defaults
 
 ```lua

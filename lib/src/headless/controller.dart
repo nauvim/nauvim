@@ -60,6 +60,7 @@ final class NauvimController extends ChangeNotifier {
   bool _disposed = false;
   bool _ready = false;
   bool _started = false;
+  bool _nativeTextInput = false;
   _WindowSetup _windowSetup = _WindowSetup.waiting;
   DisplayWindowOptions? _pendingWindow;
   int _attachment = 0;
@@ -83,6 +84,11 @@ final class NauvimController extends ChangeNotifier {
   bool get closing => _phase == SessionPhase.closing;
   bool get ready => _ready && _windowSetup == _WindowSetup.done;
   bool get hasEngine => _engine != null;
+  bool get nativeTextInput => _nativeTextInput;
+
+  /// Identifies the attachment that owns queued input and text composition.
+  int get attachmentGeneration => _attachment;
+
   String get destination => _destination;
   List<String> get hosts => _hosts;
   NauvimKeyBindings get keyBindings => _keyBindings;
@@ -355,6 +361,7 @@ final class NauvimController extends ChangeNotifier {
 
   void _resetAttachment() {
     _attachment++;
+    _nativeTextInput = false;
     _previews.reset();
     editor.clear();
   }
@@ -483,6 +490,26 @@ final class NauvimController extends ChangeNotifier {
   Future<void> sendKeys(String keys) {
     editor.clearSelection();
     return _queue((engine) => engine.input(keys: keys));
+  }
+
+  /// Chooses native text input for the current editor attachment.
+  void setNativeTextInput(bool enabled) {
+    if (_disposed || (enabled && !attached) || _nativeTextInput == enabled) {
+      return;
+    }
+    _nativeTextInput = enabled;
+    _changed();
+  }
+
+  /// Queues literal keyboard text from a composition on [attachment].
+  Future<void> sendText(String text, {required int attachment}) {
+    if (_disposed || !attached || attachment != _attachment || text.isEmpty) {
+      return Future.value();
+    }
+    final keys = text.replaceAll('<', '<LT>');
+    final queued = _queue((engine) => engine.input(keys: keys));
+    editor.clearSelection();
+    return queued;
   }
 
   Future<void> paste() => _queue((engine) => engine.paste());
