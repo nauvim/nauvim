@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nauvim_flutter/nauvim.dart';
 import 'package:nauvim_flutter/nauvim_material.dart';
+import 'package:nauvim_flutter/src/widgets/ime_overlay.dart';
 
 import '../support/fakes.dart';
 
@@ -39,9 +40,45 @@ const _frame = DisplayFrame(
   events: [],
 );
 
-Future<(NauvimController, FakeEngine)> _attach(WidgetTester tester) async {
+class _MixedFontPlatform extends FakePlatform {
+  @override
+  Future<EditorFont> resolveFonts(List<DisplayFont> fonts) async => EditorFont(
+    faces: const [
+      EditorFontFace(
+        family: 'Ahem',
+        size: 16,
+        ascent: .8,
+        descent: .2,
+        lineGap: 0,
+        advance: .6,
+        coverage: [(0, 0x7f)],
+      ),
+      EditorFontFace(
+        family: 'monospace',
+        size: 23,
+        ascent: .8,
+        descent: .2,
+        lineGap: 0,
+        advance: .6,
+        coverage: [(0x80, 0x10ffff)],
+      ),
+    ],
+  );
+}
+
+Finder _preedit(String text) => find.byWidgetPredicate(
+  (widget) => widget is ImePreedit && widget.text == text,
+);
+
+Future<(NauvimController, FakeEngine)> _attach(
+  WidgetTester tester, {
+  FakePlatform? platform,
+}) async {
   final engine = FakeEngine();
-  final controller = NauvimController(engine: engine, platform: FakePlatform());
+  final controller = NauvimController(
+    engine: engine,
+    platform: platform ?? FakePlatform(),
+  );
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
@@ -62,7 +99,10 @@ void main() {
   testWidgets('composes in Flutter and forwards each literal commit once', (
     tester,
   ) async {
-    final (controller, engine) = await _attach(tester);
+    final (controller, engine) = await _attach(
+      tester,
+      platform: _MixedFontPlatform(),
+    );
     final start = find.widgetWithIcon(IconButton, Icons.keyboard_outlined);
     final stop = find.widgetWithIcon(IconButton, Icons.keyboard);
     final input = tester.testTextInput;
@@ -85,7 +125,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text(text), findsOneWidget);
+    final preedit = tester.widget<ImePreedit>(_preedit(text));
+    final viewport = controller.viewport!;
+    expect(preedit.baseline, closeTo(viewport.baseline, 1e-6));
+    expect(preedit.lineHeight, closeTo(viewport.cellHeight, 1e-6));
+    expect(
+      preedit.spans!.whereType<TextSpan>().map((span) => span.style!.fontSize),
+      [23, 16],
+    );
     expect(engine.inputs, isEmpty);
     final methods = input.log.map((call) => call.method);
     expect(methods, contains('TextInput.setMarkedTextRect'));
@@ -98,7 +145,7 @@ void main() {
     input.updateEditingValue(committed);
     input.updateEditingValue(committed);
     await tester.pumpAndSettle();
-    expect(find.text(text), findsNothing);
+    expect(_preedit(text), findsNothing);
     expect(engine.inputs, ['日本😀<LT>Esc>']);
 
     input.updateEditingValue(
@@ -109,10 +156,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('候'), findsOneWidget);
+    expect(_preedit('候'), findsOneWidget);
     input.updateEditingValue(committed);
     await tester.pumpAndSettle();
-    expect(find.text('候'), findsNothing);
+    expect(_preedit('候'), findsNothing);
     expect(engine.inputs, ['日本😀<LT>Esc>']);
 
     await tester.tap(stop);
@@ -140,13 +187,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('仮'), findsOneWidget);
+    expect(_preedit('仮'), findsOneWidget);
 
     engine.emit(const UiUpdate(kind: 'welcome', hosts: [], fonts: []));
     await tester.pumpAndSettle();
     expect(controller.nativeTextInput, isFalse);
     expect(input.hasAnyClients, isFalse);
-    expect(find.text('仮'), findsNothing);
+    expect(_preedit('仮'), findsNothing);
     expect(engine.inputs, isEmpty);
   });
 }

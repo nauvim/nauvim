@@ -7,6 +7,18 @@ import '../headless/protocol.dart';
 import 'text.dart';
 import 'paint_style.dart';
 
+/// Carries the painted prompt's metrics at its caret anchor.
+class CommandLineCaret extends SizedBox {
+  const CommandLineCaret({
+    required super.key,
+    required this.baseline,
+    required this.style,
+  });
+
+  final double baseline;
+  final TextStyle style;
+}
+
 class CommandLine extends StatefulWidget {
   const CommandLine({
     super.key,
@@ -83,6 +95,9 @@ class _CommandLineState extends State<CommandLine> {
     );
     final caret = position(widget.item.selected);
     final caretHeight = painter.preferredLineHeight;
+    final caretBaseline =
+        painter.computeDistanceToActualBaseline(TextBaseline.alphabetic) -
+        caret.dy;
     final popup = position(widget.popupByteOffset ?? widget.item.selected).dx;
     painter.dispose();
     return Semantics(
@@ -140,7 +155,11 @@ class _CommandLineState extends State<CommandLine> {
                           top: caret.dy,
                           width: widget.cursorWidth,
                           height: caretHeight,
-                          child: SizedBox(key: key),
+                          child: CommandLineCaret(
+                            key: key,
+                            baseline: caretBaseline,
+                            style: widget.style,
+                          ),
                         ),
                       if (widget.popupLink case final link?)
                         Positioned(

@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nauvim_flutter/main.dart';
 import 'package:nauvim_flutter/nauvim.dart';
 import 'package:nauvim_flutter/nauvim_material.dart';
+import 'package:nauvim_flutter/src/widgets/command_line.dart'
+    show CommandLineCaret;
 import 'package:nauvim_flutter/src/widgets/ime_overlay.dart';
 
 import 'support/fakes.dart';
@@ -235,14 +237,22 @@ void main() {
         items: const [],
         handles: const [],
       );
-      const style = TextStyle(fontFamily: 'monospace', fontSize: 16);
+      const style = TextStyle(
+        fontFamily: 'monospace',
+        fontSize: 16,
+        height: 1.8,
+      );
       final expected = widgetTextPainter(item, model, style);
       final caret = expected.getOffsetForCaret(
         const TextPosition(offset: 5),
         Rect.zero,
       );
       expect(commandLineOffset(item, model, style, 9), caret.dx);
+      final baseline = expected.computeDistanceToActualBaseline(
+        TextBaseline.alphabetic,
+      );
       expected.dispose();
+      final caretKey = GlobalKey();
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
@@ -251,9 +261,13 @@ void main() {
             model: model,
             style: style,
             active: true,
+            caretKey: caretKey,
           ),
         ),
       );
+      final marker = tester.widget<CommandLineCaret>(find.byKey(caretKey));
+      expect(marker.baseline + caret.dy, closeTo(baseline, 1e-6));
+      expect(marker.style, style);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       model.dispose();

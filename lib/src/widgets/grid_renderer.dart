@@ -10,6 +10,31 @@ import 'paint_style.dart';
 import 'powerline.dart';
 import 'text.dart';
 
+double gridAlphabeticBaseline(
+  String family,
+  List<String> fallback,
+  double fontSize,
+  double cellHeight,
+) {
+  final primary = TextPainter(
+    textDirection: TextDirection.ltr,
+    text: TextSpan(
+      text: 'M',
+      style: TextStyle(
+        fontFamily: family,
+        fontFamilyFallback: fallback,
+        fontSize: fontSize,
+      ),
+    ),
+  )..layout();
+  final baseline =
+      cellHeight -
+      primary.height +
+      primary.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+  primary.dispose();
+  return baseline;
+}
+
 class GridRenderer {
   final Map<(GridBuffer, int), _RowPicture> _rows = {};
   final Map<(String, int, int), TextPainter> _glyphs = {};
@@ -68,25 +93,9 @@ class GridRenderer {
       _fonts = fonts;
       _baseline = baseline;
     }
-    var alphabeticBaseline = baseline;
-    if (alphabeticBaseline == null) {
-      final primary = TextPainter(
-        textDirection: TextDirection.ltr,
-        text: TextSpan(
-          text: 'M',
-          style: TextStyle(
-            fontFamily: family,
-            fontFamilyFallback: fallback,
-            fontSize: fontSize,
-          ),
-        ),
-      )..layout();
-      alphabeticBaseline =
-          cellHeight -
-          primary.height +
-          primary.computeDistanceToActualBaseline(TextBaseline.alphabetic);
-      primary.dispose();
-    }
+    final alphabeticBaseline =
+        baseline ??
+        gridAlphabeticBaseline(family, fallback, fontSize, cellHeight);
     canvas.save();
     canvas.clipRect(Offset.zero & size, doAntiAlias: false);
     canvas.drawColor(background, BlendMode.src);
