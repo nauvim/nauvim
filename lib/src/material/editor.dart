@@ -24,6 +24,14 @@ class NauvimEditor extends StatefulWidget {
 class _NauvimEditorState extends State<NauvimEditor> {
   final _commandLineLink = LayerLink();
   final _commandLineCaretKey = GlobalKey();
+  final _commandLineComposingKey = GlobalKey();
+  final _commandLinePreedit = ValueNotifier<EditorPreedit?>(null);
+
+  @override
+  void dispose() {
+    _commandLinePreedit.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -68,6 +76,8 @@ class _NauvimEditorState extends State<NauvimEditor> {
         builder: (context, viewport) => EditorSurface(
           controller: controller,
           commandLineCaretKey: _commandLineCaretKey,
+          commandLineComposingKey: _commandLineComposingKey,
+          commandLinePreedit: _commandLinePreedit,
           metrics: appearance.editorMetrics,
           viewport: viewport,
           style: paintStyle,
@@ -124,6 +134,13 @@ class _NauvimEditorState extends State<NauvimEditor> {
                                       active: identical(item, activeCommand),
                                       caretKey: identical(item, activeCommand)
                                           ? _commandLineCaretKey
+                                          : null,
+                                      composingKey:
+                                          identical(item, activeCommand)
+                                          ? _commandLineComposingKey
+                                          : null,
+                                      preedit: identical(item, activeCommand)
+                                          ? _commandLinePreedit
                                           : null,
                                       popupLink: identical(item, activeCommand)
                                           ? _commandLineLink

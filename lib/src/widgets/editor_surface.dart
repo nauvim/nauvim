@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/scheduler.dart' show SchedulerPhase;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -7,21 +8,13 @@ import '../headless/controller.dart';
 import '../headless/key_bindings.dart';
 import '../headless/protocol.dart';
 import '../headless/viewport.dart';
-import 'command_line.dart';
 import 'editor_text_input.dart';
 import 'editor_viewport.dart';
 import 'grid_renderer.dart';
-import 'ime_overlay.dart';
+import 'grid_preedit.dart';
+import 'ime_geometry.dart';
 import 'keyboard.dart';
 import 'paint_style.dart';
-import 'text.dart';
-
-typedef _ImeCaret = ({
-  Rect rect,
-  double baseline,
-  TextStyle? promptStyle,
-  EditorFont font,
-});
 
 /// An unstyled Neovim canvas with keyboard and grid-local selection behavior.
 class EditorSurface extends StatefulWidget {
@@ -34,6 +27,8 @@ class EditorSurface extends StatefulWidget {
     this.metrics = const EditorMetricsStyle(),
     this.viewport,
     this.commandLineCaretKey,
+    this.commandLineComposingKey,
+    this.commandLinePreedit,
   });
 
   final NauvimController controller;
@@ -46,6 +41,12 @@ class EditorSurface extends StatefulWidget {
   /// The caret marker of an active, separately rendered command line.
   final GlobalKey? commandLineCaretKey;
 
+  /// The composing bounds of the active command line, when it displays preedit.
+  final GlobalKey? commandLineComposingKey;
+
+  /// Shares the native preedit with the separately rendered active command line.
+  final ValueNotifier<EditorPreedit?>? commandLinePreedit;
+
   @override
   State<EditorSurface> createState() => _EditorSurfaceState();
 }
@@ -55,15 +56,13 @@ class _EditorSurfaceState extends State<EditorSurface>
   final _renderer = GridRenderer();
   final _focus = FocusNode();
   final _canvasKey = GlobalKey();
-  final _preeditKey = GlobalKey();
-  final _imeOverlay = OverlayPortalController();
   bool _attached = false;
   bool _imeRequested = false;
   bool _geometryPending = false;
   EditorTextInput? _textInput;
   int? _textAttachment;
   EditorPreedit? _preedit;
-  _ImeCaret? _imeCaret;
+  GridPreedit? _gridPreedit;
   EditorViewport? _paintedViewport;
 
   @override
@@ -148,18 +147,27 @@ class _EditorSurfaceState extends State<EditorSurface>
     if (input == null) return;
     _textInput = null;
     _textAttachment = null;
-    _imeCaret = null;
     _updatePreedit(null);
     input.close();
   }
 
   void _updatePreedit(EditorPreedit? preedit) {
     if (preedit == _preedit) return;
-    setState(() => _preedit = preedit);
-    if (preedit == null) {
-      _imeOverlay.hide();
+    setState(() {
+      _preedit = preedit;
+      _gridPreedit = preedit == null ? null : GridPreedit(preedit);
+    });
+    final target = widget.commandLinePreedit;
+    if (target == null) return;
+    final binding = WidgetsBinding.instance;
+    if (binding.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      binding.addPostFrameCallback((_) {
+        if (mounted && identical(widget.commandLinePreedit, target)) {
+          target.value = _preedit;
+        }
+      });
     } else {
-      _imeOverlay.show();
+      target.value = preedit;
     }
   }
 
@@ -177,71 +185,44 @@ class _EditorSurfaceState extends State<EditorSurface>
     });
   }
 
-  _ImeCaret? _visibleCaret() {
+  ({Rect caret, Rect? composing})? _visibleInputGeometry() {
     final viewport = _paintedViewport;
     if (viewport == null) return null;
 
     final commandLine = widget.commandLineCaretKey;
     if (commandLine != null && commandLine.currentContext != null) {
-      final rect = imeCommandLineCaret(commandLine);
-      final box = commandLine.currentContext?.findRenderObject();
-      if (rect == null || box is! RenderBox) return null;
-      final marker = commandLine.currentWidget;
-      final baseline = marker is CommandLineCaret
-          ? marker.baseline
-          : _gridBaseline(viewport);
-      return (
-        rect: rect,
-        baseline: box.localToGlobal(Offset(0, baseline)).dy - rect.top,
-        promptStyle: marker is CommandLineCaret ? marker.style : null,
-        font: viewport.font,
-      );
+      final mark = widget.commandLineComposingKey;
+      final composing = mark == null ? null : imeCommandLineCaret(mark);
+      final caret = imeCommandLineCaret(commandLine) ?? composing;
+      return caret == null ? null : (caret: caret, composing: composing);
     }
 
     final box = _canvasKey.currentContext?.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return null;
-    final cell = imeGridCaret(widget.controller.editor, viewport);
+    final model = widget.controller.editor;
+    final cell = imeGridCaret(model, viewport);
     if (cell == null) return null;
-    final rect = MatrixUtils.transformRect(
-      box.getTransformTo(null),
+    final transform = box.getTransformTo(null);
+    Rect inView(Rect cell) => MatrixUtils.transformRect(
+      transform,
       cell.intersect(Offset.zero & viewport.size),
     );
-    final baseline = cell.top + _gridBaseline(viewport);
+    final draft = _gridPreedit;
+    final composing = draft == null
+        ? null
+        : imeGridCaret(model, viewport, columns: draft.columns);
     return (
-      rect: rect,
-      baseline: box.localToGlobal(Offset(cell.left, baseline)).dy - rect.top,
-      promptStyle: null,
-      font: viewport.font,
+      caret: inView(cell),
+      composing: composing == null ? null : inView(composing),
     );
   }
 
-  double _gridBaseline(EditorViewport viewport) => viewport.baseline > 0
-      ? viewport.baseline
-      : gridAlphabeticBaseline(
-          viewport.font.families.first,
-          viewport.font.families.skip(1).toList(),
-          viewport.font.size,
-          viewport.cellHeight,
-        );
-
   void _updateTextInputGeometry(EditorTextInput input) {
-    final caret = _visibleCaret();
-    final moved = caret != _imeCaret;
-    if (moved && _preedit != null) {
-      setState(() => _imeCaret = caret);
-    } else {
-      _imeCaret = caret;
-    }
-    if (caret == null || !caret.rect.isFinite) return;
+    final geometry = _visibleInputGeometry();
+    if (geometry == null || !geometry.caret.isFinite) return;
 
-    final box = _preeditKey.currentContext?.findRenderObject();
-    final composing = !moved && box is RenderBox && box.hasSize
-        ? MatrixUtils.transformRect(
-            box.getTransformTo(null),
-            Offset.zero & box.size,
-          )
-        : null;
-    final rect = caret.rect;
+    final rect = geometry.caret;
+    final composing = geometry.composing;
     final anchor = Rect.fromLTWH(rect.left, rect.top, 1, rect.height);
     final view = View.of(context);
     input.updateGeometry(
@@ -250,56 +231,6 @@ class _EditorSurfaceState extends State<EditorSurface>
       composing != null && composing.isFinite && !composing.isEmpty
           ? composing
           : anchor,
-    );
-  }
-
-  Widget _buildPreedit(BuildContext context) {
-    final caret = _imeCaret;
-    final preedit = _preedit;
-    if (caret == null || preedit == null) return const SizedBox.shrink();
-
-    final controller = widget.controller;
-    final font = caret.font;
-    final frame = controller.editor.frame;
-    final foreground = widget.style.resolveForeground(frame?.foreground);
-    final textStyle =
-        caret.promptStyle ??
-        editorTextStyle(
-          font.families,
-          font.size,
-          lineHeight: null,
-          variations: font.faces.first.variations,
-        );
-    final overlay = Overlay.of(context, rootOverlay: true);
-    final box = overlay.context.findRenderObject();
-    final position = box is RenderBox
-        ? box.globalToLocal(caret.rect.topLeft)
-        : caret.rect.topLeft;
-    return Stack(
-      children: [
-        Positioned(
-          left: position.dx,
-          top: position.dy,
-          right: 0,
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: ImePreedit(
-              key: _preeditKey,
-              text: preedit.text,
-              selection: preedit.selection,
-              baseline: caret.baseline,
-              lineHeight: caret.rect.height,
-              style: textStyle.copyWith(
-                color: textStyle.foreground == null ? foreground : null,
-              ),
-              spans: caret.promptStyle == null
-                  ? gridPreeditSpans(preedit.text, font)
-                  : null,
-              background: widget.style.resolveBackground(frame?.background),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -345,33 +276,28 @@ class _EditorSurfaceState extends State<EditorSurface>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final surface = Focus(
-      focusNode: _focus,
-      autofocus: widget.autofocus && widget.controller.attached,
-      onKeyEvent: _key,
-      child: switch (widget.viewport) {
-        final viewport? => _canvas(context, viewport),
-        null => EditorViewportRegion(
-          controller: widget.controller,
-          metrics: widget.metrics,
-          builder: _canvas,
-        ),
-      },
-    );
-    if (Overlay.maybeOf(context, rootOverlay: true) == null) return surface;
-    return OverlayPortal(
-      controller: _imeOverlay,
-      overlayLocation: OverlayChildLocation.rootOverlay,
-      overlayChildBuilder: _buildPreedit,
-      child: surface,
-    );
-  }
+  Widget build(BuildContext context) => Focus(
+    focusNode: _focus,
+    autofocus: widget.autofocus && widget.controller.attached,
+    onKeyEvent: _key,
+    child: switch (widget.viewport) {
+      final viewport? => _canvas(context, viewport),
+      null => EditorViewportRegion(
+        controller: widget.controller,
+        metrics: widget.metrics,
+        builder: _canvas,
+      ),
+    },
+  );
 
   Widget _canvas(BuildContext context, EditorViewport viewport) {
     _paintedViewport = viewport;
     final model = widget.controller.editor;
     final font = viewport.font;
+    final externalCommandLine =
+        widget.commandLinePreedit != null &&
+        model.widgets.any((item) => item.kind == 'cmdline');
+    final preedit = externalCommandLine ? null : _gridPreedit;
     return Stack(
       clipBehavior: Clip.hardEdge,
       children: [
@@ -402,19 +328,24 @@ class _EditorSurfaceState extends State<EditorSurface>
               model.clearSelection();
             },
             child: RepaintBoundary(
-              child: CustomPaint(
-                key: _canvasKey,
-                painter: EditorPainter(
-                  model,
-                  _renderer,
-                  font.families.first,
-                  font.families.skip(1).toList(),
-                  font.size,
-                  viewport.cellWidth,
-                  viewport.cellHeight,
-                  style: widget.style,
-                  fonts: font,
-                  baseline: viewport.baseline > 0 ? viewport.baseline : null,
+              child: Semantics(
+                label: preedit?.text,
+                child: CustomPaint(
+                  key: _canvasKey,
+                  painter: EditorPainter(
+                    model,
+                    _renderer,
+                    font.families.first,
+                    font.families.skip(1).toList(),
+                    font.size,
+                    viewport.cellWidth,
+                    viewport.cellHeight,
+                    style: widget.style,
+                    fonts: font,
+                    baseline: viewport.baseline > 0 ? viewport.baseline : null,
+                    preedit: preedit,
+                    pixel: 1 / View.of(context).devicePixelRatio,
+                  ),
                 ),
               ),
             ),

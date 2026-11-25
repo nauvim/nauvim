@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nauvim_flutter/nauvim.dart';
 import 'package:nauvim_flutter/nauvim_widgets.dart';
+import 'package:nauvim_flutter/src/widgets/grid_preedit.dart';
 
 DisplayHighlight background(int id) => DisplayHighlight(
   id: id,
@@ -23,6 +24,7 @@ DisplayHighlight background(int id) => DisplayHighlight(
 EditorModel model(
   List<DisplayCell> cells, {
   List<DisplayHighlight> highlights = const [],
+  DisplayCursor? cursor,
 }) => EditorModel()
   ..apply(
     DisplayFrame(
@@ -44,6 +46,7 @@ EditorModel model(
       highlights: highlights,
       foreground: 0xffffff,
       background: 0x000000,
+      cursor: cursor,
       title: '',
       mode: 'normal',
       busy: false,
@@ -62,6 +65,7 @@ Future<ByteData> raster(
   Offset offset = Offset.zero,
   EditorFont? fonts,
   double? baseline,
+  GridPreedit? preedit,
 }) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder)..translate(offset.dx, offset.dy);
@@ -76,6 +80,7 @@ Future<ByteData> raster(
     20,
     fonts: fonts,
     baseline: baseline,
+    preedit: preedit,
   );
   final picture = recorder.endRecording();
   final image = await tester.runAsync(() => picture.toImage(width, 22));
@@ -336,6 +341,130 @@ void main() {
     expect(pixel(data, 60, 45, 10), [0, 0, 0, 255]);
   });
 
+  testWidgets('paints mixed-width preedit at the committed glyph positions', (
+    tester,
+  ) async {
+    final composing = model(_emptyPreeditRow, cursor: _preeditCursor);
+    final committed = model(const [
+      DisplayCell(text: ' ', highlight: 0),
+      DisplayCell(text: 'M', highlight: 0),
+      DisplayCell(text: '日', highlight: 0),
+      DisplayCell(text: '', highlight: 0),
+      DisplayCell(text: 'x', highlight: 0),
+      DisplayCell(text: ' ', highlight: 0),
+    ]);
+    final renderer = GridRenderer();
+    addTearDown(() {
+      renderer.dispose();
+      composing.dispose();
+      committed.dispose();
+    });
+    final fonts = EditorFont(
+      faces: const [
+        EditorFontFace(
+          family: 'NauvimGridTest',
+          size: 20,
+          ascent: 1,
+          descent: 0,
+          lineGap: 0,
+          advance: 1,
+          coverage: [(0x4d, 0x4d)],
+        ),
+        EditorFontFace(
+          family: 'NauvimGridTest',
+          size: 25,
+          ascent: 1,
+          descent: 0,
+          lineGap: 0,
+          advance: 1,
+          coverage: [(0x78, 0x78), (0x65e5, 0x65e5)],
+        ),
+      ],
+    );
+    const width = 120;
+    final preedit = await raster(
+      tester,
+      composing,
+      renderer,
+      width: width,
+      baseline: 16,
+      fonts: fonts,
+      preedit: GridPreedit((
+        text: 'M日x',
+        selection: const TextSelection.collapsed(offset: 3),
+      )),
+    );
+    final grid = await raster(
+      tester,
+      committed,
+      renderer,
+      width: width,
+      baseline: 16,
+      fonts: fonts,
+    );
+
+    // Check ink for the Latin glyphs on either side of the two-cell glyph.
+    expect(pixel(grid, width, 30, 8), [255, 255, 255, 255]);
+    expect(pixel(grid, width, 84, 8), [255, 255, 255, 255]);
+    // Compare everything above the underline, including the full glyphs.
+    for (var y = 0; y < 18; y++) {
+      for (var x = 0; x < width; x++) {
+        expect(
+          pixel(preedit, width, x, y),
+          pixel(grid, width, x, y),
+          reason: 'pixel ($x, $y)',
+        );
+      }
+    }
+  });
+
+  testWidgets('marks the selected preedit cells and an interior caret', (
+    tester,
+  ) async {
+    final composing = model(_emptyPreeditRow, cursor: _preeditCursor);
+    final renderer = GridRenderer();
+    addTearDown(() {
+      renderer.dispose();
+      composing.dispose();
+    });
+    const width = 120;
+    const ink = [255, 255, 255, 255];
+    const background = [0, 0, 0, 255];
+
+    Future<ByteData> sample(TextSelection selection) => raster(
+      tester,
+      composing,
+      renderer,
+      width: width,
+      baseline: 16,
+      preedit: GridPreedit((text: 'M日x', selection: selection)),
+    );
+
+    final plain = await sample(const TextSelection.collapsed(offset: 3));
+    final selected = await sample(
+      const TextSelection(baseOffset: 2, extentOffset: 1),
+    );
+    for (final x in [30, 50, 70, 90]) {
+      expect(pixel(plain, width, x, 18), ink);
+      expect(pixel(plain, width, x, 17), background);
+      expect(pixel(selected, width, x, 18), ink);
+    }
+    for (final x in [39, 80]) {
+      expect(pixel(selected, width, x, 17), background);
+    }
+    for (final x in [40, 79]) {
+      expect(pixel(selected, width, x, 17), ink);
+    }
+    for (final x in [19, 100]) {
+      expect(pixel(selected, width, x, 18), background);
+    }
+
+    final caret = await sample(const TextSelection.collapsed(offset: 2));
+    expect(pixel(caret, width, 80, 15), ink);
+    expect(pixel(plain, width, 80, 15), background);
+    expect(pixel(caret, width, 70, 17), background);
+  });
+
   testWidgets('keeps narrower ordinary glyphs at their natural width', (
     tester,
   ) async {
@@ -398,3 +527,20 @@ void main() {
     expect(pixel(data, 60, 36, 10), [255, 255, 255, 255]);
   });
 }
+
+const _preeditCursor = DisplayCursor(
+  grid: 1,
+  row: 0,
+  col: 1,
+  shape: 'block',
+  percentage: 100,
+);
+
+const _emptyPreeditRow = [
+  DisplayCell(text: ' ', highlight: 0),
+  DisplayCell(text: ' ', highlight: 0),
+  DisplayCell(text: ' ', highlight: 0),
+  DisplayCell(text: ' ', highlight: 0),
+  DisplayCell(text: ' ', highlight: 0),
+  DisplayCell(text: ' ', highlight: 0),
+];

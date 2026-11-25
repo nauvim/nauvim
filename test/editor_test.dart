@@ -10,7 +10,7 @@ import 'package:nauvim_flutter/nauvim.dart';
 import 'package:nauvim_flutter/nauvim_material.dart';
 import 'package:nauvim_flutter/src/widgets/command_line.dart'
     show CommandLineCaret;
-import 'package:nauvim_flutter/src/widgets/ime_overlay.dart';
+import 'package:nauvim_flutter/src/widgets/ime_geometry.dart';
 
 import 'support/fakes.dart';
 
@@ -337,6 +337,83 @@ void main() {
       model.dispose();
     },
   );
+  testWidgets('shapes command-line preedit in the same paragraph', (
+    tester,
+  ) async {
+    final model = EditorModel();
+    final caretKey = GlobalKey();
+    final composingKey = GlobalKey();
+    final preedit = ValueNotifier<({String text, TextSelection selection})?>((
+      text: '日本',
+      selection: const TextSelection.collapsed(offset: 1),
+    ));
+    const style = TextStyle(fontFamily: 'Ahem', fontSize: 16);
+    DisplayWidget command(String text) => DisplayWidget(
+      kind: 'cmdline',
+      grid: 1,
+      row: 0,
+      col: 0,
+      selected: 6,
+      chunks: [DisplayChunk(text: text, highlight: 0)],
+      items: const [],
+      handles: const [],
+    );
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 400,
+            height: 40,
+            child: CommandLine(
+              item: command(':a😀bc'),
+              model: model,
+              style: style,
+              active: true,
+              caretKey: caretKey,
+              composingKey: composingKey,
+              preedit: preedit,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final expected = widgetTextPainter(command(':a😀日本bc'), model, style);
+    final caret = expected.getOffsetForCaret(
+      const TextPosition(offset: 4),
+      Rect.zero,
+    );
+    final boxes = expected.getBoxesForSelection(
+      const TextSelection(baseOffset: 4, extentOffset: 6),
+    );
+    final bounds = boxes
+        .map((box) => box.toRect())
+        .reduce((left, right) => left.expandToInclude(right));
+    expected.dispose();
+
+    expect(tester.getTopLeft(find.byKey(caretKey)), caret);
+    expect(tester.getRect(find.byKey(composingKey)), bounds);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics && widget.properties.label == ':a😀日本bc',
+      ),
+      findsOneWidget,
+    );
+
+    preedit.value = null;
+    await tester.pump();
+    expect(find.byKey(composingKey), findsNothing);
+    expect(tester.getTopLeft(find.byKey(caretKey)), caret);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    preedit.dispose();
+    model.dispose();
+  });
   testWidgets(
     'welcome displays configuration failures without closing the application',
     (tester) async {

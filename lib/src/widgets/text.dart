@@ -1,11 +1,9 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
-import 'package:flutter/widgets.dart' show CharacterRange;
 
 import '../headless/editor_model.dart';
 import '../headless/protocol.dart';
-import '../headless/viewport.dart';
 import 'paint_style.dart';
 
 /// Converts a Neovim UTF-8 byte position to Flutter's UTF-16 text position.
@@ -42,56 +40,20 @@ TextStyle editorTextStyle(
   ],
 );
 
-/// Uses the same face and size selection as the grid, keeping adjacent text
-/// with the same face together for shaping.
-List<TextSpan> gridPreeditSpans(String text, EditorFont font) {
-  final spans = <TextSpan>[];
-  final run = StringBuffer();
-  EditorFontFace? face;
-  void finishRun() {
-    final active = face;
-    if (active == null) return;
-    spans.add(
-      TextSpan(
-        text: run.toString(),
-        style: TextStyle(
-          fontFamily: active.family,
-          fontSize: active.size,
-          fontVariations: [
-            for (final (axis, value) in active.variations)
-              ui.FontVariation(axis, value),
-          ],
-        ),
-      ),
-    );
-    run.clear();
-  }
-
-  final graphemes = CharacterRange(text);
-  while (graphemes.moveNext()) {
-    final grapheme = graphemes.current;
-    final next = font.faceFor(grapheme);
-    if (!identical(face, next)) {
-      finishRun();
-      face = next;
-    }
-    run.write(grapheme);
-  }
-  finishRun();
-  return spans;
-}
-
 TextPainter widgetTextPainter(
   DisplayWidget item,
   EditorModel model,
   TextStyle style, {
   EditorPaintStyle paintStyle = const EditorPaintStyle(),
+  List<DisplayChunk>? chunks,
 }) => TextPainter(
   textDirection: TextDirection.ltr,
   textScaler: TextScaler.noScaling,
   text: TextSpan(
     style: style,
-    children: [highlightedChunks(item.chunks, model, paintStyle: paintStyle)],
+    children: [
+      highlightedChunks(chunks ?? item.chunks, model, paintStyle: paintStyle),
+    ],
   ),
 )..layout();
 

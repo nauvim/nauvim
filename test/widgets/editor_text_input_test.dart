@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nauvim_flutter/nauvim.dart';
 import 'package:nauvim_flutter/nauvim_material.dart';
-import 'package:nauvim_flutter/src/widgets/ime_overlay.dart';
+import 'package:nauvim_flutter/nauvim_widgets.dart';
 
 import '../support/fakes.dart';
 
@@ -40,45 +40,16 @@ const _frame = DisplayFrame(
   events: [],
 );
 
-class _MixedFontPlatform extends FakePlatform {
-  @override
-  Future<EditorFont> resolveFonts(List<DisplayFont> fonts) async => EditorFont(
-    faces: const [
-      EditorFontFace(
-        family: 'Ahem',
-        size: 16,
-        ascent: .8,
-        descent: .2,
-        lineGap: 0,
-        advance: .6,
-        coverage: [(0, 0x7f)],
-      ),
-      EditorFontFace(
-        family: 'monospace',
-        size: 23,
-        ascent: .8,
-        descent: .2,
-        lineGap: 0,
-        advance: .6,
-        coverage: [(0x80, 0x10ffff)],
-      ),
-    ],
-  );
-}
-
 Finder _preedit(String text) => find.byWidgetPredicate(
-  (widget) => widget is ImePreedit && widget.text == text,
+  (widget) =>
+      widget is CustomPaint &&
+      widget.painter is EditorPainter &&
+      (widget.painter as EditorPainter).preedit?.text == text,
 );
 
-Future<(NauvimController, FakeEngine)> _attach(
-  WidgetTester tester, {
-  FakePlatform? platform,
-}) async {
+Future<(NauvimController, FakeEngine)> _attach(WidgetTester tester) async {
   final engine = FakeEngine();
-  final controller = NauvimController(
-    engine: engine,
-    platform: platform ?? FakePlatform(),
-  );
+  final controller = NauvimController(engine: engine, platform: FakePlatform());
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
@@ -99,10 +70,7 @@ void main() {
   testWidgets('composes in Flutter and forwards each literal commit once', (
     tester,
   ) async {
-    final (controller, engine) = await _attach(
-      tester,
-      platform: _MixedFontPlatform(),
-    );
+    final (controller, engine) = await _attach(tester);
     final start = find.widgetWithIcon(IconButton, Icons.keyboard_outlined);
     final stop = find.widgetWithIcon(IconButton, Icons.keyboard);
     final input = tester.testTextInput;
@@ -125,14 +93,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final preedit = tester.widget<ImePreedit>(_preedit(text));
-    final viewport = controller.viewport!;
-    expect(preedit.baseline, closeTo(viewport.baseline, 1e-6));
-    expect(preedit.lineHeight, closeTo(viewport.cellHeight, 1e-6));
-    expect(
-      preedit.spans!.whereType<TextSpan>().map((span) => span.style!.fontSize),
-      [23, 16],
-    );
+    expect(_preedit(text), findsOneWidget);
     expect(engine.inputs, isEmpty);
     final methods = input.log.map((call) => call.method);
     expect(methods, contains('TextInput.setMarkedTextRect'));

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show listEquals;
@@ -6,6 +7,7 @@ import 'package:flutter/rendering.dart' show CustomPainter;
 
 import '../headless/editor_model.dart';
 import '../headless/viewport.dart';
+import 'grid_preedit.dart';
 import 'paint_style.dart';
 import 'powerline.dart';
 import 'text.dart';
@@ -67,6 +69,8 @@ class GridRenderer {
     EditorPaintStyle style = const EditorPaintStyle(),
     EditorFont? fonts,
     double? baseline,
+    GridPreedit? preedit,
+    double pixel = 1,
   }) {
     final frame = model.frame;
     if (frame == null) return;
@@ -96,6 +100,124 @@ class GridRenderer {
     final alphabeticBaseline =
         baseline ??
         gridAlphabeticBaseline(family, fallback, fontSize, cellHeight);
+
+    Color cellForeground(int id) {
+      final highlight = model.highlights[id];
+      final reverse = highlight?.reverse ?? false;
+      final rgb = reverse ? highlight?.background : highlight?.foreground;
+      return rgb == null
+          ? (reverse ? background : foreground)
+          : Color(0xff000000 | rgb);
+    }
+
+    Color cellBackground(int id) {
+      final highlight = model.highlights[id];
+      final reverse = highlight?.reverse ?? false;
+      final rgb = reverse ? highlight?.foreground : highlight?.background;
+      final color = rgb == null
+          ? (reverse ? foreground : background)
+          : Color(0xff000000 | rgb);
+      final alpha = 1 - (highlight?.blend ?? 0) / 100;
+      return color.withValues(alpha: color.a * alpha);
+    }
+
+    void paintCellGlyph(
+      Canvas rowCanvas,
+      String text,
+      int highlightId,
+      int col,
+      int columns,
+    ) {
+      final highlight = model.highlights[highlightId];
+
+      if (text.isEmpty ||
+          (text == ' ' &&
+              !(highlight?.underline ?? false) &&
+              !(highlight?.undercurl ?? false) &&
+              !(highlight?.strikethrough ?? false))) {
+        return;
+      }
+      final cap = text == '\ue0b4' || text == '\ue0b6';
+      if (cap) {
+        paintPowerlineCap(
+          rowCanvas,
+          Rect.fromLTWH(col * cellWidth, 0, cellWidth, cellHeight),
+          cellForeground(highlightId),
+          left: text == '\ue0b6',
+        );
+        if (!(highlight?.underline ?? false) &&
+            !(highlight?.undercurl ?? false) &&
+            !(highlight?.strikethrough ?? false)) {
+          return;
+        }
+      }
+      final glyphKey = (text, highlightId, model.generation);
+      var glyph = _glyphs[glyphKey];
+      if (glyph == null) {
+        if (_glyphs.length > 8192) {
+          for (final value in _glyphs.values) {
+            value.dispose();
+          }
+          _glyphs.clear();
+        }
+        final color = cellForeground(highlightId);
+        final special = highlight?.special;
+        final face = fonts?.faceFor(text);
+        glyph = TextPainter(
+          textDirection: TextDirection.ltr,
+          textScaler: TextScaler.noScaling,
+          text: TextSpan(
+            text: text,
+            style: TextStyle(
+              fontFamily: face?.family ?? family,
+              fontFamilyFallback: fallback,
+              fontSize: face?.size ?? fontSize,
+              fontVariations: face?.variations
+                  .map((axis) => ui.FontVariation(axis.$1, axis.$2))
+                  .toList(),
+              color: cap ? const Color(0x00000000) : color,
+              fontWeight: (highlight?.bold ?? false)
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+              fontStyle: (highlight?.italic ?? false)
+                  ? FontStyle.italic
+                  : FontStyle.normal,
+              decoration: TextDecoration.combine([
+                if ((highlight?.underline ?? false) ||
+                    (highlight?.undercurl ?? false))
+                  TextDecoration.underline,
+                if (highlight?.strikethrough ?? false)
+                  TextDecoration.lineThrough,
+              ]),
+              decorationStyle: decorationStyle(highlight?.decoration),
+              decorationColor: special == null
+                  ? color
+                  : Color(0xff000000 | special),
+              fontFeatures: const [
+                ui.FontFeature.disable('liga'),
+                ui.FontFeature.disable('clig'),
+              ],
+            ),
+          ),
+        )..layout();
+        _glyphs[glyphKey] = glyph;
+      }
+      rowCanvas.save();
+      rowCanvas.translate(
+        col * cellWidth,
+        alphabeticBaseline -
+            glyph.computeDistanceToActualBaseline(TextBaseline.alphabetic),
+      );
+      // Fallback fonts may give an icon a wider advance than Neovim's
+      // cell allocation. Fit that advance instead of clipping the icon.
+      final width = columns * cellWidth;
+      if (width > 0 && glyph.width > width) {
+        rowCanvas.scale(width / glyph.width, 1);
+      }
+      glyph.paint(rowCanvas, Offset.zero);
+      rowCanvas.restore();
+    }
+
     canvas.save();
     canvas.clipRect(Offset.zero & size, doAntiAlias: false);
     canvas.drawColor(background, BlendMode.src);
@@ -127,13 +249,6 @@ class GridRenderer {
                 entry.value[end].highlight == cell.highlight) {
               end++;
             }
-            final highlight = model.highlights[cell.highlight];
-            final reverse = highlight?.reverse ?? false;
-            final rgb = reverse ? highlight?.foreground : highlight?.background;
-            final color = rgb == null
-                ? (reverse ? foreground : background)
-                : Color(0xff000000 | rgb);
-            final alpha = 1 - (highlight?.blend ?? 0) / 100;
             rowCanvas.drawRect(
               Rect.fromLTWH(
                 col * cellWidth,
@@ -141,7 +256,7 @@ class GridRenderer {
                 (end - col) * cellWidth,
                 cellHeight,
               ),
-              backgroundPaint..color = color.withValues(alpha: color.a * alpha),
+              backgroundPaint..color = cellBackground(cell.highlight),
             );
             col = end;
           }
@@ -153,114 +268,13 @@ class GridRenderer {
           );
           for (var col = 0; col < entry.value.length; col++) {
             final cell = entry.value[col];
-            final highlight = model.highlights[cell.highlight];
-
-            if (cell.text.isEmpty ||
-                (cell.text == ' ' &&
-                    !(highlight?.underline ?? false) &&
-                    !(highlight?.undercurl ?? false) &&
-                    !(highlight?.strikethrough ?? false))) {
-              continue;
-            }
-            final cap = cell.text == '\ue0b4' || cell.text == '\ue0b6';
-            if (cap) {
-              final reverse = highlight?.reverse ?? false;
-              final rgb = reverse
-                  ? highlight?.background
-                  : highlight?.foreground;
-              final color = rgb == null
-                  ? (reverse ? background : foreground)
-                  : Color(0xff000000 | rgb);
-              paintPowerlineCap(
-                rowCanvas,
-                Rect.fromLTWH(col * cellWidth, 0, cellWidth, cellHeight),
-                color,
-                left: cell.text == '\ue0b6',
-              );
-              if (!(highlight?.underline ?? false) &&
-                  !(highlight?.undercurl ?? false) &&
-                  !(highlight?.strikethrough ?? false)) {
-                continue;
-              }
-            }
-            final glyphKey = (cell.text, cell.highlight, model.generation);
-            var glyph = _glyphs[glyphKey];
-            if (glyph == null) {
-              if (_glyphs.length > 8192) {
-                for (final value in _glyphs.values) {
-                  value.dispose();
-                }
-                _glyphs.clear();
-              }
-              final reverse = highlight?.reverse ?? false;
-              final rgb = reverse
-                  ? highlight?.background
-                  : highlight?.foreground;
-              final color = rgb == null
-                  ? (reverse ? background : foreground)
-                  : Color(0xff000000 | rgb);
-              final special = highlight?.special;
-              final face = fonts?.faceFor(cell.text);
-              glyph = TextPainter(
-                textDirection: TextDirection.ltr,
-                textScaler: TextScaler.noScaling,
-                text: TextSpan(
-                  text: cell.text,
-                  style: TextStyle(
-                    fontFamily: face?.family ?? family,
-                    fontFamilyFallback: fallback,
-                    fontSize: face?.size ?? fontSize,
-                    fontVariations: face?.variations
-                        .map((axis) => ui.FontVariation(axis.$1, axis.$2))
-                        .toList(),
-                    color: cap ? const Color(0x00000000) : color,
-                    fontWeight: (highlight?.bold ?? false)
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    fontStyle: (highlight?.italic ?? false)
-                        ? FontStyle.italic
-                        : FontStyle.normal,
-                    decoration: TextDecoration.combine([
-                      if ((highlight?.underline ?? false) ||
-                          (highlight?.undercurl ?? false))
-                        TextDecoration.underline,
-                      if (highlight?.strikethrough ?? false)
-                        TextDecoration.lineThrough,
-                    ]),
-                    decorationStyle: decorationStyle(highlight?.decoration),
-                    decorationColor: special == null
-                        ? color
-                        : Color(0xff000000 | special),
-                    fontFeatures: const [
-                      ui.FontFeature.disable('liga'),
-                      ui.FontFeature.disable('clig'),
-                    ],
-                  ),
-                ),
-              )..layout();
-              _glyphs[glyphKey] = glyph;
-            }
+            if (cell.text.isEmpty) continue;
             var columns = 1;
             while (col + columns < entry.value.length &&
                 entry.value[col + columns].text.isEmpty) {
               columns++;
             }
-            rowCanvas.save();
-            rowCanvas.translate(
-              col * cellWidth,
-              alphabeticBaseline -
-                  glyph.computeDistanceToActualBaseline(
-                    TextBaseline.alphabetic,
-                  ),
-            );
-            // Fallback fonts may give an icon a wider advance than Neovim's
-            // cell allocation. Fit that advance instead of clipping the icon.
-            final width = columns * cellWidth;
-            if (width > 0 && glyph.width > width) {
-              rowCanvas.scale(width / glyph.width, 1);
-            }
-            glyph.paint(rowCanvas, Offset.zero);
-            rowCanvas.restore();
+            paintCellGlyph(rowCanvas, cell.text, cell.highlight, col, columns);
           }
           cached = _RowPicture(
             recorder.endRecording(),
@@ -286,7 +300,77 @@ class GridRenderer {
         }
       }
       final cursor = frame.cursor;
-      if (cursor != null && cursor.grid == g.id && !frame.busy) {
+      if (preedit != null &&
+          cursor != null &&
+          cursor.grid == g.id &&
+          !frame.busy &&
+          cursor.col >= 0 &&
+          cursor.col < g.width &&
+          cursor.row >= 0 &&
+          cursor.row < g.height) {
+        final row = grid.rows[cursor.row];
+        final highlightId = row != null && cursor.col < row.length
+            ? row[cursor.col].highlight
+            : 0;
+        final left = cursor.col * cellWidth;
+        final right = (cursor.col + preedit.columns) * cellWidth;
+        final bottom = math.min(cellHeight, alphabeticBaseline + 3 * pixel);
+        final ink = Paint()
+          ..color = cellForeground(highlightId)
+          ..isAntiAlias = false;
+        canvas.save();
+        canvas.translate(0, cursor.row * cellHeight);
+        canvas.clipRect(
+          Rect.fromLTWH(0, 0, g.width * cellWidth, cellHeight),
+          doAntiAlias: false,
+        );
+        canvas.drawRect(
+          Rect.fromLTRB(left, 0, right, cellHeight),
+          Paint()
+            ..color = Color.alphaBlend(cellBackground(highlightId), background)
+            ..isAntiAlias = false,
+        );
+        final selection = preedit.selection;
+        var col = cursor.col;
+        for (final cell in preedit.cells) {
+          paintCellGlyph(canvas, cell.text, highlightId, col, cell.columns);
+          col += cell.columns;
+        }
+        canvas.drawRect(
+          Rect.fromLTRB(left, bottom - pixel, right, bottom),
+          ink,
+        );
+        if (selection.isValid) {
+          col = cursor.col;
+          for (final cell in preedit.cells) {
+            final start = col * cellWidth;
+            final end = (col + cell.columns) * cellWidth;
+            if (!selection.isCollapsed &&
+                selection.start < cell.end &&
+                selection.end > cell.start) {
+              canvas.drawRect(
+                Rect.fromLTRB(start, bottom - 2 * pixel, end, bottom),
+                ink,
+              );
+            } else if (selection.isCollapsed &&
+                selection.start > cell.start &&
+                selection.start <= cell.end &&
+                selection.start < preedit.text.length) {
+              canvas.drawRect(
+                Rect.fromLTRB(
+                  end,
+                  math.max(0, alphabeticBaseline - 4 * pixel),
+                  end + pixel,
+                  bottom,
+                ),
+                ink,
+              );
+            }
+            col += cell.columns;
+          }
+        }
+        canvas.restore();
+      } else if (cursor != null && cursor.grid == g.id && !frame.busy) {
         final percent = cursor.percentage / 100;
         final width = cursor.shape == 'vertical'
             ? cellWidth * percent
@@ -333,6 +417,8 @@ class EditorPainter extends CustomPainter {
     this.style = const EditorPaintStyle(),
     this.fonts,
     this.baseline,
+    this.preedit,
+    this.pixel = 1,
   }) : super(repaint: model);
   final EditorModel model;
   final GridRenderer renderer;
@@ -341,6 +427,8 @@ class EditorPainter extends CustomPainter {
   final double fontSize, cellWidth, cellHeight;
   final EditorFont? fonts;
   final double? baseline;
+  final GridPreedit? preedit;
+  final double pixel;
   final EditorPaintStyle style;
   @override
   void paint(Canvas canvas, Size size) => renderer.paint(
@@ -355,6 +443,8 @@ class EditorPainter extends CustomPainter {
     style: style,
     fonts: fonts,
     baseline: baseline,
+    preedit: preedit,
+    pixel: pixel,
   );
   @override
   bool shouldRepaint(EditorPainter oldDelegate) =>
@@ -365,6 +455,8 @@ class EditorPainter extends CustomPainter {
       oldDelegate.cellHeight != cellHeight ||
       oldDelegate.fonts != fonts ||
       oldDelegate.baseline != baseline ||
+      oldDelegate.preedit != preedit ||
+      oldDelegate.pixel != pixel ||
       oldDelegate.model != model ||
       oldDelegate.style.selectionColor != style.selectionColor ||
       oldDelegate.style.cursorColor != style.cursorColor ||
