@@ -1,185 +1,403 @@
 # Configure Nauvim
 
-Create `nauvim/init.lua` in the configuration directory of the machine running
-the GUI. Use `$XDG_CONFIG_HOME/nauvim/init.lua` when `XDG_CONFIG_HOME` is nonempty.
-Otherwise, use `~/.config/nauvim/init.lua` on Linux or
-`~/Library/Application Support/nauvim/init.lua` on macOS. To use another file,
-start Nauvim with `nauvim --config /absolute/path/init.lua`. Restart Nauvim after
-editing the file. If the default file is absent, Nauvim starts with default
-values.
+## Full example
+
+Save as [`nauvim/init.lua`](#configuration-file-location) on the GUI machine.
+Edit `hosts.work` before connecting to it. [SSH settings](#ssh)
 
 ```lua
+local client = require("nauvim-client-info")
+
 return {
-    hosts = {
-        laptop = {},
-        work = { ssh = { host_name = "work.example.com" } },
+    -- Use "work" to connect on launch or a host table to configure Default host.
+    default_host = nil, -- With hosts below, show the welcome page.
+    hosts_default_params = {
+        nvim = "nvim", -- Shared defaults for nvim, socket, and policies.
     },
+    hosts = {
+        laptop = {}, -- Runs locally with the shared Neovim setting.
+        work = {
+            nvim = {
+                prog = "/usr/bin/nvim", -- Executable on the SSH host.
+                args = { "-O2" },
+                env = { NVIM_APPNAME = "work-nvim" }, -- Use a separate Neovim profile.
+            },
+            socket = nil, -- Or "/tmp/my-nauvim-work.sock" on the host.
+            ssh = {
+                host_name = "work.example.com",
+                user = "dev",
+                port = 22,
+                -- identity_file = client.home_dir .. "/.ssh/work_ed25519",
+            },
+            policies = {
+                plugin = {
+                    clipboard = { copy = false }, -- Enable for a trusted host.
+                    http = { open_webview = { origins = { "https://docs.example.com" } } },
+                },
+            },
+        },
+    },
+    ssh = {
+        config = client.home_dir .. "/.ssh/config", -- OpenSSH settings on the client.
+        -- config = false, -- Resolve SSH destinations from Nauvim settings.
+        known_hosts = client.home_dir .. "/.ssh/known_hosts",
+    },
+    clipboard = {
+        backend = "auto", -- Or "wl_clipboard", "xclip", "xsel", or "pbcopy".
+        timeout_ms = 3000,
+    },
+    ime = true, -- Use native text input. Set false for ordinary Neovim key input.
+    use_ui_opts = nil, -- Use the UI ID below, or name another entry in ui_opts.
     ui_opts = {
         ["com.naughie.nauvim.flutter"] = {
-            fonts = { family = "monospace", size = 14 },
+            fonts = { -- A family string, one font table, or a list in fallback order.
+                { family = "monospace", size = 15 },
+                { family = "sans-serif", size = 15 },
+            },
             window = {
+                -- Or use "maximized", "fullscreen", or nil (restore the saved size).
                 startup_size = { width = "100em", height = "720px" },
-                margin = { left = 8, right = 8 },
+                margin = { top = "0.5em", bottom = 0, left = 8, right = 8 },
+                decorations = "full", -- Use "none" for a borderless window.
+                opacity = 1, -- 0 is invisible and 1 is opaque.
+            },
+            key_bindings = { -- Omit a chord to keep its default. Use false to remove it.
+                welcome = { q = false, ["Ctrl-q"] = "quit" },
+                clipboard = { ["Alt-c"] = "copy", ["Alt-v"] = "paste" },
+                webview = { ["Alt-Left"] = "go_back", ["Alt-Right"] = "go_forward" },
             },
         },
     },
 }
 ```
 
+## Configuration file location
+
+| Environment | Path |
+| --- | --- |
+| Nonempty `XDG_CONFIG_HOME` | `$XDG_CONFIG_HOME/nauvim/init.lua` |
+| Linux | `~/.config/nauvim/init.lua` |
+| macOS | `~/Library/Application Support/nauvim/init.lua` |
+
+To use another file, start Nauvim with its path.
+
+```sh
+nauvim --config /absolute/path/init.lua
+```
+
+Restart after edits. Nauvim uses built-in settings if the default file is absent.
+
+## Hosts and startup
+
+```lua
+default_host = nil,
+-- default_host = "work", -- Connect on launch.
+-- default_host = { nvim = "/opt/neovim/bin/nvim" }, -- Local Default host.
+hosts = {
+    laptop = {}, -- Local. Aliases are case-sensitive.
+    work = { ssh = { host_name = "work.example.com" } },
+},
+```
+
+| `default_host` | Startup | **Default host** |
+| --- | --- | --- |
+| `nil` or omitted | Welcome page with named hosts, or connect to **Default host** when `hosts` is empty | Local, with shared settings |
+| Host table | Same as `nil` | Uses the table. Set `ssh.host_name` for SSH. |
+| Alias string, e.g. `"work"` | Connect to that alias | Built-in local settings |
+
+For an unlisted SSH destination, choose **Type yourself**. [Saved destinations](persistence.md#host-selection)
+
+### Shared host settings
+
+```lua
+hosts_default_params = {
+    nvim = { prog = "nvim", args = { "-O2" } },
+    policies = {},
+},
+hosts = {
+    laptop = {}, -- Inherits nvim, including "-O2".
+    work = {
+        nvim = { prog = "/usr/bin/nvim" }, -- Replaces the whole nvim table.
+        ssh = { host_name = "work.example.com" },
+    },
+},
+```
+
+Named hosts and **Default host** (table or `nil`) inherit omitted or `nil`
+`nvim`, `socket`, and `policies` fields. Use `policies = {}` on a host to clear
+its inherited permissions.
+
+### Neovim program and socket
+
+Inside `hosts.work` or a `default_host` table.
+
+```lua
+nvim = {
+    prog = "/usr/bin/nvim", -- Defaults to "nvim" on the host's PATH.
+    args = { "-O2" }, -- Literal arguments.
+    env = { NVIM_APPNAME = "work-nvim" }, -- Overrides inherited values.
+},
+-- nvim = "/usr/bin/nvim", -- Executable with no extra arguments.
+-- nvim = function(host) return host.home_dir .. "/bin/nvim" end,
+socket = "/tmp/my-nauvim-work.sock", -- Omit to use a generated path.
+```
+
+| Detail | Behavior |
+| --- | --- |
+| Launch | Appends `--headless --listen <socket>` and sets `NAUVIM_CONNECTION` to `local` or `ssh`. Wrappers pass both through. |
+| Socket | Reuses a session at the selected path. The default is a per-destination path under `/tmp/nauvim-sockets-<uid>` on the host. |
+| Function value | `nvim` and `socket` functions run on the client with the target's host information. |
+
+### SSH
+
+```lua
+hosts = {
+    work = {
+        ssh = { -- Settings for this destination.
+            host_name = "work.example.com", -- Defaults to the alias.
+            user = "dev", -- Defaults to your local username.
+            port = 22,
+            identity_file = "/home/me/.ssh/work_ed25519",
+            -- certificate_file = "/home/me/.ssh/work_ed25519-cert.pub",
+            -- identity_agent = os.getenv("SSH_AUTH_SOCK"),
+            -- identities_only = true,
+            -- proxy_jump = "bastion",
+            -- kex_algorithms = { "curve25519-sha256" },
+            -- host_key_algorithms = { "ssh-ed25519" },
+        },
+    },
+},
+ssh = { -- Files on the GUI machine.
+    config = "/home/me/.ssh/config", -- Defaults to ~/.ssh/config.
+    -- config = { path = "/home/me/.ssh/config", format = "openssh" },
+    -- config = false, -- Also accepts { disabled = true }.
+    known_hosts = "/home/me/.ssh/known_hosts", -- Defaults to ~/.ssh/known_hosts.
+},
+```
+
+| Detail | Rule |
+| --- | --- |
+| Lookup order | Host entry → named SSH entry for `host_name` → OpenSSH file if enabled → built-in defaults |
+| `ssh.config` | Use a readable file, or `false` to skip OpenSSH lookup. Formats `"openssh"` and `"auto"` both read OpenSSH. |
+| `ssh.known_hosts` | Trust file for the destination and jump hosts, even with `config = false`. |
+| Paths and agent | Use absolute client paths. Set `identity_agent` explicitly to use `SSH_AUTH_SOCK`. |
+| `identities_only` | Boolean or `"yes"`, `"no"`, `"true"`, `"false"` |
+| `proxy_jump` | Alias, `{ host_name = "bastion.example.com" }`, or a list of either |
+| Algorithm lists | Lua list or comma-separated string. Prefix with `+`, `-`, or `^` to append, remove, or prepend. List certificate algorithms before plain host keys. |
+
+An unlisted alias uses OpenSSH settings when enabled. With `config = false`,
+the alias is the hostname.
+
+### Host plugin permissions
+
+In a trusted host's entry or in `hosts_default_params`.
+
+```lua
+policies = {
+    plugin = {
+        clipboard = { copy = true },
+        filesystem = { copy = true },
+        http = {
+            serve_file = true,
+            open_webview = {
+                origins = { "https://docs.example.com" },
+                served_files = true,
+            },
+        },
+        local_forward = {
+            tcp = { { client_port = 0, host_addr = "localhost", host_port = 8080 } },
+            socket = {
+                { client_socket_path = "preview.sock", host_socket_path = "/run/preview.sock" },
+            },
+        },
+    },
+},
+```
+
+| Permission | Allows |
+| --- | --- |
+| `clipboard.copy` | Write to the client clipboard |
+| `filesystem.copy` | Copy to the client's Nauvim temporary directory |
+| `http.serve_file` | Serve files from that directory |
+| `http.open_webview.origins` | Preview origins by scheme, host, and effective port |
+| `http.open_webview.served_files` | Preview the attachment's own file servers |
+| `local_forward.tcp` | Match all three endpoint fields. Port `0` chooses a free client port. |
+| `local_forward.socket` | Match a client path relative to the temporary directory and an absolute host path. |
+
+Empty effective policies grant no permissions. The origin, TCP, and socket
+lists each accept `"all"`. Nauvim checks origins on open and top-level
+navigation, including redirects. Linux also checks embedded frames.
+
+## Clipboard
+
+```lua
+clipboard = {
+    backend = "auto",
+    timeout_ms = 3000, -- Positive integer in milliseconds.
+},
+-- clipboard = "wl_clipboard", -- Backend with the default timeout.
+```
+
+| Backend | Client commands |
+| --- | --- |
+| `"auto"` | Default. Tries Wayland, then X11 on Linux. Uses `pbcopy` and `pbpaste` on macOS. |
+| `"wl_clipboard"` | `wl-copy` and `wl-paste` on Wayland |
+| `"xclip"` | `xclip` on X11 |
+| `"xsel"` | `xsel` on X11 |
+| `"pbcopy"` | `pbcopy` and `pbpaste` on macOS |
+
+An invalid timeout uses 3000 ms. If the backend is unavailable, ordinary
+editing still works. [Runtime prerequisites](building.md#runtime-prerequisites)
+
+## Native text input
+
+```lua
+ime = true, -- Default. Use the desktop's native input method.
+-- ime = false, -- Use ordinary Neovim key input.
+```
+
+Use your desktop controls to change input sources or conversion modes.
+
+## UI options
+
+```lua
+use_ui_opts = "compact", -- Omit for the com.naughie.nauvim.flutter entry.
+ui_opts = {
+    ["com.naughie.nauvim.flutter"] = { fonts = "monospace" },
+    compact = { fonts = { family = "monospace", size = 12 } },
+},
+```
+
+Nauvim selects one entry. A missing entry uses the built-in UI defaults.
+
+### Fonts
+
+Inside the selected UI entry.
+
+```lua
+fonts = {
+    { family = "monospace", size = 15 }, -- Primary font.
+    { family = "sans-serif", size = 15 }, -- First fallback.
+},
+-- fonts = "monospace",
+-- fonts = { family = "monospace", size = 17 },
+```
+
+For a font file, use the names in that file.
+
+```lua
+fonts = {
+    family = "Example Mono",
+    subfamily = "Regular",
+    size = 16,
+    path = "fonts/ExampleMono-Regular.otf",
+},
+```
+
+| Field | Values and defaults |
+| --- | --- |
+| `family` | Exact OpenType Typographic Family (ID 16). Omit `path` to use system selectors `monospace`, `sans-serif`, or `serif`. |
+| `subfamily` | Optional exact OpenType Typographic Subfamily (ID 17) |
+| `size` | Positive integer in logical pixels. Default `15`. |
+| `path` | Optional OpenType file or collection. Uses the first matching face. Relative to the resolved `init.lua` directory. |
+
+Names are case-sensitive. The first usable font sets cell size. An empty
+or unusable list falls back to system monospace.
+
+### Window
+
+Inside the selected UI entry. Choose one `startup_size` line.
+
+```lua
+window = {
+    startup_size = { width = "100em", height = "720px" }, -- 100 cells wide, 720 px tall.
+    -- startup_size = "maximized",
+    -- startup_size = "fullscreen",
+    -- startup_size = nil, -- Restore the saved windowed size.
+    margin = { top = "0.5em", bottom = 0, left = 8, right = 8 },
+    decorations = "full", -- Or "none".
+    opacity = 1, -- Try 0.9 for a translucent window.
+},
+```
+
+| Field | Value | Behavior |
+| --- | --- | --- |
+| `startup_size` | `nil` (default) | Restore saved size, or use the platform default if none is saved. |
+| | `{ width = ..., height = ... }` | Set the client area including toolbars and margins. Omitted axes use platform defaults. |
+| | `"maximized"` | Maximize on launch (native zoom on macOS). |
+| | `"fullscreen"` | Enter fullscreen on launch. |
+| `margin` | `top`, `bottom`, `left`, `right` | Nonnegative space around the editor and command row in every mode. Default `0` per side. |
+| `decorations` | `"full"` (default), `"none"` | With `"none"`, move and resize the borderless window through the window manager. |
+| `opacity` | `0` to `1` (default `1`) | Invisible to opaque. On Linux, requires compositor support. |
+
+Use whole logical pixels (`720` or `"720px"`) or cells (`"0.5em"`). Startup
+dimensions must be positive. The platform can adjust the requested size or
+mode and snap a windowed size to whole cells. [Saved window size](persistence.md#window-size)
+
+### Key bindings
+
+Inside the selected UI entry.
+
+```lua
+key_bindings = {
+    welcome = { q = false, ["Ctrl-q"] = "quit" }, -- Omitted chords keep defaults.
+    clipboard = { ["Alt-c"] = "copy", ["Alt-v"] = "paste" },
+    webview = { ["Alt-Left"] = "go_back", ["Alt-Right"] = "go_forward" },
+},
+```
+
+[Key names, actions, and defaults](key-bindings.md)
+
 ## Lua modules
 
-Use `require()` in your configuration to load Lua modules. For example,
-`require("tools.options")` first searches `lua/tools/options.lua` and then
-`lua/tools/options/init.lua` next to the resolved configuration file.
+Save as `lua/nauvim_fonts.lua` next to `init.lua`.
 
-Supply additional Lua filename templates with `--lua-path TEMPLATE` or set
-`NAUVIM_LUA_PATH` to a semicolon-separated list of templates. Repeat
-`--lua-path` to add more than one template.
+```lua
+return { family = "monospace", size = 15 }
+```
+
+Load it from `init.lua`.
+
+```lua
+local client = require("nauvim-client-info")
+local font = require("nauvim_fonts")
+-- font.path = client.home_dir .. "/fonts/MyMono-Regular.otf"
+
+return {
+    ui_opts = {
+        [client.ui_id] = { fonts = font },
+    },
+}
+```
+
+Add search paths at launch.
 
 ```sh
 NAUVIM_LUA_PATH='/path/to/shared/?.lua;/path/to/shared/?/init.lua' \
   nauvim --lua-path '/path/to/profile/?.lua'
 ```
 
-The configuration-relative templates come first, then command-line templates
-in argument order, then `NAUVIM_LUA_PATH` entries in order, and then the
-existing Lua `package.path`. You can use the added templates from the first
-statement of your configuration.
-
-## Hosts and startup
-
-| Configuration | At launch |
+| Search order | Templates |
 | --- | --- |
-| No hosts and a table or nil `default_host` | Connect to the independent default host. |
-| Hosts and a table or nil `default_host` | Show the welcome page with those aliases and the independent default host. |
-| `default_host = "work"` | Connect to `work` automatically. |
+| 1. Resolved `init.lua` directory | `lua/?.lua`, then `lua/?/init.lua` |
+| 2. CLI | Repeat `--lua-path` once per template. |
+| 3. Environment | Separate `NAUVIM_LUA_PATH` entries with `;`. |
+| 4. Lua defaults | Existing `package.path` |
 
-Set `default_host` to a table to configure the **Default host** choice. For
-example, `default_host = { nvim = "/opt/neovim/bin/nvim" }` selects that local
-executable. Include `ssh` and set `ssh.host_name` to configure a remote default.
-Omit `default_host` or set it to nil to use the independent local host with any
-settings from `hosts_default_params`. With a string alias in `default_host`,
-the independent choice uses the built-in local defaults. Aliases named
-`local` and `default` are separate choices.
-
-A configured host without `ssh` runs locally. To connect to an SSH alias
-outside the list, select **Type yourself** on the welcome page. The welcome
-page selects the last requested destination, or **Default host** on first use.
-To clear that selection, see [saved destinations](persistence.md#host-selection).
-
-Use `hosts_default_params` to share `nvim`, `socket`, and `policies` settings
-across hosts. A host's own value replaces the entire shared field. Set
-`ssh = { config = false }` at the top level to resolve SSH destinations from
-Nauvim settings and defaults. See the
-[core configuration reference](https://github.com/nauvim/nauvim-core/blob/16e53e85d59162335b1e00b17363dd35368dcd90/docs/usage.md)
-for all host, SSH, program, socket, and clipboard settings.
-
-### Host plugin permissions
-
-Grant plugin permissions separately under `hosts[alias].policies.plugin` for
-an alias or `default_host.policies.plugin` for a configured default host.
-Set `hosts_default_params.policies` to share a policy. After host defaults are
-applied, an omitted or empty policy grants no permissions. To allow a trusted
-host to write to the client clipboard and open web previews for one origin, add
-this field to its host entry.
-
-```lua
-policies = {
-    plugin = {
-        clipboard = { copy = true },
-        http = { open_webview = { origins = { "https://docs.example.com" } } },
-    },
-}
-```
-
-Nauvim checks the origin when opening the preview and on each top-level
-navigation, including redirects. On Linux, the check also applies to
-navigations within embedded frames. See the
-[host plugin permissions reference](https://github.com/nauvim/nauvim-core/blob/16e53e85d59162335b1e00b17363dd35368dcd90/docs/usage.md#host-plugin-permissions)
-for file serving, copying files, and local forwarding.
-
-## Native text input
-
-The focused editor uses the desktop's native text input system by default.
-Use your desktop's controls to change the input source, activate an input
-method, or change conversion modes. Set the top-level `ime = false` to use
-the ordinary Neovim key path.
-
-## UI options
-
-The Flutter UI selects `ui_opts["com.naughie.nauvim.flutter"]` by default.
-Lua configuration can read this implementation ID as
-`require("nauvim-client-info").ui_id`.
-Set the top-level `use_ui_opts = "my-settings"` to select
-`ui_opts["my-settings"]` instead. Exactly one dictionary is selected. A
-missing entry uses the UI defaults, including when `use_ui_opts` is set.
-
-Each entry is a dictionary with string keys. Values can be booleans, numbers,
-strings, lists, or nested dictionaries. Lists use consecutive integer keys
-starting at 1. Strings must be valid UTF-8, with no NUL or initial U+FEFF. Keys
-in `ui_opts` and the value of `use_ui_opts` must also be nonempty. Core applies
-these rules to every dictionary. Nauvim checks the option names and values
-below for the selected dictionary. See the
-[shared UI configuration rules](https://github.com/nauvim/nauvim-spec/blob/v1.3.0/specification.md#ui-specific-configuration).
-
-### Fonts
-
-Set `fonts` to a family string, a table, or an ordered list of tables. For
-example, `fonts = "monospace"` selects the system monospace face at the default
-size of 15 logical pixels.
-
-| Field | Value |
-| --- | --- |
-| `family` | The exact OpenType Typographic Family name (name ID 16). Without a `path`, `monospace`, `sans-serif`, and `serif` select the system's preferred faces for those families. |
-| `subfamily` | Optional exact Typographic Subfamily name (name ID 17), also applied to system selectors. |
-| `size` | Positive integer in logical pixels. The default is 15. |
-| `path` | Optional path to an OpenType font or collection. Relative paths resolve against the configuration file's directory after following symlinks. The first face in the file that matches the given names is used. |
-
-Font names are case-sensitive and nonempty. With `path`, the family is always
-taken literally. Variable fonts use their default instance. The first usable font
-sets the editor's cell size. Later fonts provide fallback glyphs at their
-configured sizes. Nauvim reports unavailable fonts and uses system monospace
-if the list is empty or none resolve.
-
-### Window
-
-| Field | Default | Effect |
-| --- | --- | --- |
-| `startup_size` | `nil` | Set a windowed size, request a startup mode, or restore the last size. |
-| `margin.top`, `margin.bottom`, `margin.left`, `margin.right` | `0` | Nonnegative space around the editor grid and command row. |
-| `decorations` | `"full"` | Set to `"none"` for a borderless window. Use your window manager to move or resize it. |
-| `opacity` | `1` | Whole-window opacity from `0` (invisible) to `1` (opaque). Linux window opacity requires compositor support. |
-
-- A table such as `startup_size = { width = "100em", height = 720 }` requests
-  a windowed client-area size, including toolbars and margins. Each dimension
-  must be positive when set. Omit either dimension to use the platform's default
-  for that axis. An empty table uses platform defaults for both axes.
-- Set `startup_size` to `"maximized"` (native zoom on macOS) or `"fullscreen"`
-  to request that state before the window appears.
-- Omit `startup_size` or set it to `nil` to restore the last saved client-area
-  size in windowed mode. Before a size has been saved, Nauvim uses the
-  platform's initial size. See [saved window size](persistence.md#window-size).
-
-Use an integer like `720` or a string like `"720px"` to count logical pixels.
-Use decimal digits before `px`. An `em` string counts measured cells along the
-corresponding axis. For example, `width = "100em"` uses 100 cell widths and
-`margin = { top = "0.5em" }` adds half a cell height.
-
-The platform can adjust the requested size or mode. A normal window can snap to
-whole-cell increments. Margins apply in all modes.
-
-### Key bindings
-
-Use `key_bindings` to override specific shortcuts on the welcome page, in
-the editor, or in a web preview. See the
-[complete Linux defaults and key binding reference](key-bindings.md#linux-defaults).
+Nauvim runs this file in its own Lua 5.4 interpreter on the client.
 
 ## Configuration fallback
 
-Nauvim treats unknown dictionary keys and values of unsupported types as
-omitted. This applies to host settings and to the selected UI options. If
-recovery removes a required field without a default, Nauvim drops its containing
-dictionary. Nauvim reports other loading or validation failures and uses
-defaults for the entire configuration, including hosts. It skips unresolved
-fonts individually.
-See [configuration troubleshooting](troubleshooting.md#configuration-errors).
+| Problem | Result |
+| --- | --- |
+| Unknown dictionary key or unsupported value type | Treat as omitted. |
+| Recovery removes a required field with no default | Drop its dictionary. |
+| Other loading or validation error | Report it and use defaults for the entire configuration, including hosts. |
+| Unavailable font | Report it and skip that font. |
+
+[Troubleshoot configuration](troubleshooting.md#configuration-errors)
+
+## Further reference
+
+- [Engine configuration reference](https://github.com/nauvim/nauvim-core/blob/16e53e85d59162335b1e00b17363dd35368dcd90/docs/usage.md)
+- [Nauvim specification v1.3.0](https://github.com/nauvim/nauvim-spec/blob/v1.3.0/specification.md#configuration)

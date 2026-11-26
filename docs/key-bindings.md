@@ -1,127 +1,46 @@
 # Configure key bindings
 
-Set `key_bindings` inside the selected UI options in `nauvim/init.lua`.
-Use `welcome` for the destination screen, `clipboard` for the editor,
-and `webview` for native previews.
-
-## Linux defaults
-
-```lua
-key_bindings = {
-    welcome = {
-        j = "select_next",
-        Down = "select_next",
-        ["Ctrl-n"] = "select_next",
-        Tab = "select_next",
-        k = "select_previous",
-        Up = "select_previous",
-        ["Ctrl-p"] = "select_previous",
-        ["Shift-Tab"] = "select_previous",
-        q = "quit",
-
-        Enter = "activate",
-        ["Ctrl-Enter"] = "activate",
-        ["Shift-Enter"] = "activate",
-        ["Ctrl-Shift-Enter"] = "activate",
-        ["Alt-Enter"] = "activate",
-        ["Ctrl-Alt-Enter"] = "activate",
-        ["Shift-Alt-Enter"] = "activate",
-        ["Ctrl-Shift-Alt-Enter"] = "activate",
-        ["Super-Enter"] = "activate",
-        ["Ctrl-Super-Enter"] = "activate",
-        ["Shift-Super-Enter"] = "activate",
-        ["Ctrl-Shift-Super-Enter"] = "activate",
-        ["Alt-Super-Enter"] = "activate",
-        ["Ctrl-Alt-Super-Enter"] = "activate",
-        ["Shift-Alt-Super-Enter"] = "activate",
-        ["Ctrl-Shift-Alt-Super-Enter"] = "activate",
-
-        NumpadEnter = "activate",
-        ["Ctrl-NumpadEnter"] = "activate",
-        ["Shift-NumpadEnter"] = "activate",
-        ["Ctrl-Shift-NumpadEnter"] = "activate",
-        ["Alt-NumpadEnter"] = "activate",
-        ["Ctrl-Alt-NumpadEnter"] = "activate",
-        ["Shift-Alt-NumpadEnter"] = "activate",
-        ["Ctrl-Shift-Alt-NumpadEnter"] = "activate",
-        ["Super-NumpadEnter"] = "activate",
-        ["Ctrl-Super-NumpadEnter"] = "activate",
-        ["Shift-Super-NumpadEnter"] = "activate",
-        ["Ctrl-Shift-Super-NumpadEnter"] = "activate",
-        ["Alt-Super-NumpadEnter"] = "activate",
-        ["Ctrl-Alt-Super-NumpadEnter"] = "activate",
-        ["Shift-Alt-Super-NumpadEnter"] = "activate",
-        ["Ctrl-Shift-Alt-Super-NumpadEnter"] = "activate",
-
-        Esc = "back",
-        ["Ctrl-Esc"] = "back",
-        ["Shift-Esc"] = "back",
-        ["Ctrl-Shift-Esc"] = "back",
-        ["Alt-Esc"] = "back",
-        ["Ctrl-Alt-Esc"] = "back",
-        ["Shift-Alt-Esc"] = "back",
-        ["Ctrl-Shift-Alt-Esc"] = "back",
-        ["Super-Esc"] = "back",
-        ["Ctrl-Super-Esc"] = "back",
-        ["Shift-Super-Esc"] = "back",
-        ["Ctrl-Shift-Super-Esc"] = "back",
-        ["Alt-Super-Esc"] = "back",
-        ["Ctrl-Alt-Super-Esc"] = "back",
-        ["Shift-Alt-Super-Esc"] = "back",
-        ["Ctrl-Shift-Alt-Super-Esc"] = "back",
-    },
-    clipboard = {
-        ["Ctrl-Shift-c"] = "copy",
-        ["Ctrl-Shift-v"] = "paste",
-    },
-    webview = {
-        ["Ctrl-r"] = "reload",
-        ["Ctrl-w"] = "close",
-        Esc = "focus_editor",
-    },
-}
-```
-
 ## Override and remove bindings
 
-Each context maps a key chord to an action or to `false` to remove the binding
-for that chord. Omitted chords retain their defaults. This example adds
-`Ctrl-q` for quitting and removes the default `q`.
+Inside the selected UI entry in `nauvim/init.lua`.
+[Full configuration example](configuration.md#full-example)
 
 ```lua
 key_bindings = {
-    welcome = {
-        q = false,
-        ["Ctrl-q"] = "quit",
-    },
-}
+    welcome = { q = false, ["Ctrl-q"] = "quit" }, -- Move quit from q to Ctrl-q.
+    clipboard = { ["Alt-c"] = "copy", ["Alt-v"] = "paste" },
+    webview = { ["Alt-Left"] = "go_back", ["Alt-Right"] = "go_forward" },
+},
 ```
 
-Restart Nauvim after editing the file. Nauvim ignores unknown contexts and
-binding values of unsupported types. Invalid chords, actions outside their
-context, and equivalent chords such as `Ctrl-c` and `Control_c` in the same
-context trigger configuration fallback.
-[Configuration fallback](configuration.md#configuration-fallback)
+Use `false` to remove a binding. Omitted chords keep their defaults.
+[Actions and defaults](#actions-and-defaults)
+
+Invalid chords, actions outside their context, and equivalent chords such as
+`Ctrl-c` and `Control_c` in one context trigger [configuration fallback](configuration.md#configuration-fallback).
 
 ## Key strings
 
-A chord names one logical key, optionally preceded by modifiers. Join the
-components with `-` or `_`. Modifier and named-key names are case-insensitive.
-You can put modifiers in any order and add spaces around components. Each
-explicit modifier can appear once.
+```lua
+welcome = {
+    ["Ctrl-Page_Down"] = "select_next",
+    ["Shift-Plus"] = "select_previous",
+    ["Ctrl-C"] = "select_previous", -- Uppercase letters add Shift.
+},
+```
+
+Join modifiers and the key with `-` or `_`. Modifiers and named keys are
+case-insensitive. List each modifier once, in any order.
 
 | Modifier | Accepted names |
 | --- | --- |
 | Control | `Ctrl`, `Control` |
 | Shift | `Shift` |
 | Alt | `Alt`, `Option`, `Opt` |
-| Meta | `Super`, `Meta`, `Command`, `Cmd` |
+| Command on macOS, Super on Linux | `Super`, `Meta`, `Command`, `Cmd` |
 
-Meta means Command on macOS and Super on Linux. Modifiers match exactly,
-ignoring Caps Lock and Num Lock. Capital letter keys imply Shift, so `Ctrl-C`
-means `Ctrl-Shift-c`, while `Ctrl-c` uses Control without Shift. This also
-applies to Unicode letters. For named keys such as `ENTER` or `F2`, spell out
-Shift.
+Modifiers match exactly, ignoring Caps Lock and Num Lock. Spell out `Shift`
+for named keys such as `Enter` or `F2`.
 
 | Key | Accepted names |
 | --- | --- |
@@ -142,40 +61,57 @@ Shift.
 | Page Down | `PageDown`, `PgDown`, `PgDn` |
 | Function keys | `F1` through `F24` |
 
-Other printable single characters name themselves. Use `Minus` and
-`Underscore` after modifiers. A literal `+` names the plus key, as in
-`Ctrl-+`. Use `Shift-1` for the shifted digit key and `Shift-Plus` for the
-shifted plus key. Named keys can include separators, as in `Ctrl-Page_Down`.
+Printable characters name themselves, as in `Ctrl-+`. Use `Minus` and
+`Underscore` after modifiers.
 
-## Welcome actions
+<a id="linux-defaults"></a>
+
+## Actions and defaults
+
+### Welcome actions
+
+```lua
+welcome = {
+    q = false,
+    ["Ctrl-q"] = "quit",
+},
+```
 
 | Action | Behavior | Default keys |
 | --- | --- | --- |
 | `select_next` | Moves down, wrapping at the end | `j`, `Down`, `Tab`, `Ctrl-n` |
 | `select_previous` | Moves up, wrapping at the start | `k`, `Up`, `Shift-Tab`, `Ctrl-p` |
-| `activate` | Selects a destination or submits the entered alias | `Enter`, `NumpadEnter`, including modified variants |
-| `back` | Leaves text entry or cancels a pending connection | `Escape`, including modified variants |
+| `activate` | Connects to the selected or typed destination | `Enter`, `NumpadEnter`, with any combination of modifiers |
+| `back` | Leaves text entry or cancels a pending connection | `Esc`, with any combination of modifiers |
 | `quit` | Closes Nauvim, preserving the host Neovim | `q` |
 
-Navigation and quit apply in the destination menu. Activate and back also work
-while entering an alias. The text field's **Done** action follows the unmodified
-Enter binding. Each modifier combination has its own binding, so removing
-`Enter` leaves `Ctrl-Enter` available.
+**Done** in the text field uses the plain `Enter` binding. Each modifier
+combination has its own binding.
 
-## Clipboard actions
+### Clipboard actions
+
+```lua
+clipboard = {
+    ["Alt-c"] = "copy",
+    ["Alt-v"] = "paste",
+},
+```
 
 | Action | Behavior | Linux default | macOS default |
 | --- | --- | --- | --- |
 | `copy` | Copies the grid's selected text to the client clipboard | `Ctrl-Shift-c` | `Super-c` |
 | `paste` | Pastes the client clipboard into Neovim | `Ctrl-Shift-v` | `Super-v` |
 
-These bindings apply while the editor has keyboard focus. When there is no
-grid selection, the copy chord goes to Neovim.
+Applies with editor focus. With no selection, the copy chord goes to Neovim.
 
-## Webview actions
+### Webview actions
 
-These bindings apply while a native preview has keyboard focus. Unbound
-chords retain the browser's behavior.
+```lua
+webview = {
+    ["Alt-Left"] = "go_back",
+    ["Alt-Right"] = "go_forward",
+},
+```
 
 | Action | Behavior | Default keys |
 | --- | --- | --- |
@@ -185,10 +121,10 @@ chords retain the browser's behavior.
 | `focus_editor` | Returns keyboard focus to the editor | `Esc` |
 | `close` | Closes that preview and returns focus to the editor | `Ctrl-w` |
 
-The host plugin can open a preview without moving keyboard focus. A preview
-opened with `focusable = false` cannot receive keyboard focus. A preview opened
-with `close_on_blur = true` closes when it loses focus.
+Applies with preview focus. Unbound chords keep the browser's behavior.
+`focusable = false` disables focus for a preview. `close_on_blur = true`
+closes it when focus leaves.
 
-On Linux, select **Inspect Element** in the preview's context menu. On macOS
-13.3 or later, open the inspector from Safari's **Develop** menu.
+Inspect a preview via **Inspect Element** on Linux or Safari's **Develop**
+menu on macOS 13.3 or later.
 [WebKit Inspector documentation](https://webkit.org/blog/13936/enabling-the-inspection-of-web-content-in-apps/)

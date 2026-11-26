@@ -2,7 +2,8 @@
 
 ## Run a debug build
 
-Set up the platform prerequisites in the [build guide](building.md). Run
+Set up the [build-time prerequisites](building.md#build-time-prerequisites)
+and [runtime prerequisites](building.md#runtime-prerequisites). Run
 `tool/run.sh -d linux` or `tool/run.sh -d macos` from the repository root.
 Restart the script after Rust changes to rebuild the debug library.
 
