@@ -10,6 +10,7 @@ add_executable(${BINARY_NAME}
   "main.cc"
   "key_bindings.cc"
   "my_application.cc"
+  "native_text_input.cc"
   "renderer_policy.cc"
   "webviews.cc"
   "window_options.cc"

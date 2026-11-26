@@ -26,6 +26,26 @@ return {
 }
 ```
 
+## Lua modules
+
+Use `require()` in your configuration to load Lua modules. For example,
+`require("tools.options")` first searches `lua/tools/options.lua` and then
+`lua/tools/options/init.lua` next to the resolved configuration file.
+
+Supply additional Lua filename templates with `--lua-path TEMPLATE` or set
+`NAUVIM_LUA_PATH` to a semicolon-separated list of templates. Repeat
+`--lua-path` to add more than one template.
+
+```sh
+NAUVIM_LUA_PATH='/path/to/shared/?.lua;/path/to/shared/?/init.lua' \
+  nauvim --lua-path '/path/to/profile/?.lua'
+```
+
+The configuration-relative templates come first, then command-line templates
+in argument order, then `NAUVIM_LUA_PATH` entries in order, and then the
+existing Lua `package.path`. You can use the added templates from the first
+statement of your configuration.
+
 ## Hosts and startup
 
 | Configuration | At launch |
@@ -37,25 +57,31 @@ return {
 Set `default_host` to a table to configure the **Default host** choice. For
 example, `default_host = { nvim = "/opt/neovim/bin/nvim" }` selects that local
 executable. Include `ssh` and set `ssh.host_name` to configure a remote default.
-If `default_host` is nil or an alias string, **Default host** uses the built-in
-local configuration. Aliases named `local` and `default` are separate choices.
+Omit `default_host` or set it to nil to use the independent local host with any
+settings from `hosts_default_params`. With a string alias in `default_host`,
+the independent choice uses the built-in local defaults. Aliases named
+`local` and `default` are separate choices.
 
 A configured host without `ssh` runs locally. To connect to an SSH alias
 outside the list, select **Type yourself** on the welcome page. The welcome
 page selects the last requested destination, or **Default host** on first use.
 To clear that selection, see [saved destinations](persistence.md#host-selection).
 
-For Neovim arguments, socket paths, SSH settings, clipboard backends, and
-loading Lua modules, see the
-[core configuration reference](https://github.com/nauvim/nauvim-core/blob/1ee2e76dd10748c17ebbb08e7713a88d6ae443d4/docs/usage.md).
+Use `hosts_default_params` to share `nvim`, `socket`, and `policies` settings
+across hosts. A host's own value replaces the entire shared field. Set
+`ssh = { config = false }` at the top level to resolve SSH destinations from
+Nauvim settings and defaults. See the
+[core configuration reference](https://github.com/nauvim/nauvim-core/blob/16e53e85d59162335b1e00b17363dd35368dcd90/docs/usage.md)
+for all host, SSH, program, socket, and clipboard settings.
 
 ### Host plugin permissions
 
 Grant plugin permissions separately under `hosts[alias].policies.plugin` for
 an alias or `default_host.policies.plugin` for a configured default host.
-Omitting the policy grants no permissions. To allow a trusted host to write to
-the client clipboard and open web previews for one origin, add this field to its
-host entry.
+Set `hosts_default_params.policies` to share a policy. After host defaults are
+applied, an omitted or empty policy grants no permissions. To allow a trusted
+host to write to the client clipboard and open web previews for one origin, add
+this field to its host entry.
 
 ```lua
 policies = {
@@ -69,8 +95,15 @@ policies = {
 Nauvim checks the origin when opening the preview and on each top-level
 navigation, including redirects. On Linux, the check also applies to
 navigations within embedded frames. See the
-[host plugin permissions reference](https://github.com/nauvim/nauvim-core/blob/1ee2e76dd10748c17ebbb08e7713a88d6ae443d4/docs/usage.md#host-plugin-permissions)
+[host plugin permissions reference](https://github.com/nauvim/nauvim-core/blob/16e53e85d59162335b1e00b17363dd35368dcd90/docs/usage.md#host-plugin-permissions)
 for file serving, copying files, and local forwarding.
+
+## Native text input
+
+The focused editor uses the desktop's native text input system by default.
+Use your desktop's controls to change the input source, activate an input
+method, or change conversion modes. Set the top-level `ime = false` to use
+the ordinary Neovim key path.
 
 ## UI options
 
@@ -87,7 +120,7 @@ starting at 1. Strings must be valid UTF-8, with no NUL or initial U+FEFF. Keys
 in `ui_opts` and the value of `use_ui_opts` must also be nonempty. Core applies
 these rules to every dictionary. Nauvim checks the option names and values
 below for the selected dictionary. See the
-[shared UI configuration rules](https://github.com/nauvim/nauvim-spec/blob/v1.2.0/specification.md#ui-specific-configuration).
+[shared UI configuration rules](https://github.com/nauvim/nauvim-spec/blob/v1.3.0/specification.md#ui-specific-configuration).
 
 ### Fonts
 

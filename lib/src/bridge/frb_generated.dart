@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1038876285;
+  int get rustContentHash => 503951362;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -109,6 +109,12 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiApplicationApplicationInput({
     required Application that,
     required String keys,
+  });
+
+  Future<void> crateApiApplicationApplicationInputOnAttachment({
+    required Application that,
+    required String keys,
+    required InputAttachment attachment,
   });
 
   Future<void> crateApiApplicationApplicationPaste({required Application that});
@@ -178,6 +184,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<Application> crateApiApplicationCreateApplication({
     String? configPath,
+    required List<String> luaModulePaths,
   });
 
   Future<DisplayLength> crateApiDisplayDisplayLengthDefault();
@@ -217,6 +224,15 @@ abstract class RustLibApi extends BaseApi {
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_DisplayWebviewPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_InputAttachment;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_InputAttachment;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_InputAttachmentPtr;
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -452,6 +468,49 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiApplicationApplicationInputOnAttachment({
+    required Application that,
+    required String keys,
+    required InputAttachment attachment,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApplication(
+            that,
+            serializer,
+          );
+          sse_encode_String(keys, serializer);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+            attachment,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiApplicationApplicationInputOnAttachmentConstMeta,
+        argValues: [that, keys, attachment],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApplicationApplicationInputOnAttachmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "Application_input_on_attachment",
+        argNames: ["that", "keys", "attachment"],
+      );
+
+  @override
   Future<void> crateApiApplicationApplicationPaste({
     required Application that,
   }) {
@@ -466,7 +525,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -500,7 +559,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_u_32(width, serializer);
           sse_encode_u_32(height, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -538,7 +597,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -576,7 +635,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -615,7 +674,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -653,7 +712,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -693,7 +752,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -732,7 +791,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 14,
+              funcId: 15,
               port: port_,
             );
           },
@@ -772,7 +831,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -808,7 +867,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 17,
             port: port_,
           );
         },
@@ -844,7 +903,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 18,
             port: port_,
           );
         },
@@ -880,7 +939,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 19,
             port: port_,
           );
         },
@@ -916,7 +975,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -954,7 +1013,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -978,16 +1037,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<Application> crateApiApplicationCreateApplication({
     String? configPath,
+    required List<String> luaModulePaths,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_String(configPath, serializer);
+          sse_encode_list_String(luaModulePaths, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 22,
             port: port_,
           );
         },
@@ -997,7 +1058,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiApplicationCreateApplicationConstMeta,
-        argValues: [configPath],
+        argValues: [configPath, luaModulePaths],
         apiImpl: this,
       ),
     );
@@ -1006,7 +1067,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiApplicationCreateApplicationConstMeta =>
       const TaskConstMeta(
         debugName: "create_application",
-        argNames: ["configPath"],
+        argNames: ["configPath", "luaModulePaths"],
       );
 
   @override
@@ -1018,7 +1079,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1045,7 +1106,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1075,7 +1136,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1102,7 +1163,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1129,7 +1190,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1156,7 +1217,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1186,7 +1247,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1218,7 +1279,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1247,7 +1308,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1281,6 +1342,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get rust_arc_decrement_strong_count_DisplayWebview => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview;
 
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_InputAttachment => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_InputAttachment => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment;
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -1306,6 +1375,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InputAttachment
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return InputAttachmentImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   Application
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApplication(
     dynamic raw,
@@ -1321,6 +1399,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return DisplayWebviewImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  InputAttachment
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return InputAttachmentImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1350,6 +1437,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InputAttachment
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return InputAttachmentImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   RustStreamSink<UiUpdate> dco_decode_StreamSink_ui_update_Sse(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     throw UnimplementedError();
@@ -1376,6 +1472,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
       raw,
     );
+  }
+
+  @protected
+  InputAttachment
+  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+      raw,
+    );
+  }
+
+  @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as bool;
   }
 
   @protected
@@ -1976,6 +2089,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InputAttachment?
+  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+            raw,
+          );
+  }
+
+  @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_bool(raw);
+  }
+
+  @protected
   DisplayCursor? dco_decode_opt_box_autoadd_display_cursor(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_display_cursor(raw);
@@ -2107,8 +2239,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiUpdate dco_decode_ui_update(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return UiUpdate(
       kind: dco_decode_String(arr[0]),
       frame: dco_decode_opt_box_autoadd_display_frame(arr[1]),
@@ -2117,9 +2249,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       defaultHost: dco_decode_opt_String(arr[4]),
       destination: dco_decode_opt_box_autoadd_display_destination(arr[5]),
       keyBindings: dco_decode_opt_box_autoadd_key_bindings(arr[6]),
-      fonts: dco_decode_list_display_font(arr[7]),
-      windowOptions: dco_decode_opt_box_autoadd_display_window_options(arr[8]),
-      window: dco_decode_opt_box_autoadd_display_window(arr[9]),
+      ime: dco_decode_opt_box_autoadd_bool(arr[7]),
+      attachment:
+          dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+            arr[8],
+          ),
+      fonts: dco_decode_list_display_font(arr[9]),
+      windowOptions: dco_decode_opt_box_autoadd_display_window_options(arr[10]),
+      window: dco_decode_opt_box_autoadd_display_window(arr[11]),
     );
   }
 
@@ -2167,6 +2304,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InputAttachment
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return InputAttachmentImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   Application
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApplication(
     SseDeserializer deserializer,
@@ -2185,6 +2334,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return DisplayWebviewImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  InputAttachment
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return InputAttachmentImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -2222,6 +2383,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InputAttachment
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return InputAttachmentImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   RustStreamSink<UiUpdate> sse_decode_StreamSink_ui_update_Sse(
     SseDeserializer deserializer,
   ) {
@@ -2251,6 +2424,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDisplayWebview(
       deserializer,
     ));
+  }
+
+  @protected
+  InputAttachment
+  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+      deserializer,
+    ));
+  }
+
+  @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_bool(deserializer));
   }
 
   @protected
@@ -3030,6 +3220,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  InputAttachment?
+  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+        deserializer,
+      ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_bool(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   DisplayCursor? sse_decode_opt_box_autoadd_display_cursor(
     SseDeserializer deserializer,
   ) {
@@ -3252,6 +3469,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       deserializer,
     );
     var var_keyBindings = sse_decode_opt_box_autoadd_key_bindings(deserializer);
+    var var_ime = sse_decode_opt_box_autoadd_bool(deserializer);
+    var var_attachment =
+        sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+          deserializer,
+        );
     var var_fonts = sse_decode_list_display_font(deserializer);
     var var_windowOptions = sse_decode_opt_box_autoadd_display_window_options(
       deserializer,
@@ -3265,6 +3487,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       defaultHost: var_defaultHost,
       destination: var_destination,
       keyBindings: var_keyBindings,
+      ime: var_ime,
+      attachment: var_attachment,
       fonts: var_fonts,
       windowOptions: var_windowOptions,
       window: var_window,
@@ -3319,6 +3543,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    InputAttachment self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as InputAttachmentImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApplication(
     Application self,
     SseSerializer serializer,
@@ -3339,6 +3576,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as DisplayWebviewImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    InputAttachment self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as InputAttachmentImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -3371,6 +3621,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as DisplayWebviewImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    InputAttachment self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as InputAttachmentImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -3415,6 +3678,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       self,
       serializer,
     );
+  }
+
+  @protected
+  void
+  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    InputAttachment self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+      self,
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self, serializer);
   }
 
   @protected
@@ -4069,6 +4351,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void
+  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+    InputAttachment? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+        self,
+        serializer,
+      );
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_bool(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_display_cursor(
     DisplayCursor? self,
     SseSerializer serializer,
@@ -4284,6 +4593,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       serializer,
     );
     sse_encode_opt_box_autoadd_key_bindings(self.keyBindings, serializer);
+    sse_encode_opt_box_autoadd_bool(self.ime, serializer);
+    sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInputAttachment(
+      self.attachment,
+      serializer,
+    );
     sse_encode_list_display_font(self.fonts, serializer);
     sse_encode_opt_box_autoadd_display_window_options(
       self.windowOptions,
@@ -4358,6 +4672,16 @@ class ApplicationImpl extends RustOpaque implements Application {
   /// Sends Neovim key notation; literal less-than characters use `<LT>`.
   Future<void> input({required String keys}) => RustLib.instance.api
       .crateApiApplicationApplicationInput(that: this, keys: keys);
+
+  /// Sends keys only while the attachment that supplied the input remains active.
+  Future<void> inputOnAttachment({
+    required String keys,
+    required InputAttachment attachment,
+  }) => RustLib.instance.api.crateApiApplicationApplicationInputOnAttachment(
+    that: this,
+    keys: keys,
+    attachment: attachment,
+  );
 
   /// Pastes from the clipboard backend selected by core.
   Future<void> paste() =>
@@ -4463,4 +4787,24 @@ class DisplayWebviewImpl extends RustOpaque implements DisplayWebview {
   /// Reports a native preview error through the engine's updates.
   Future<void> reportError({required String message}) => RustLib.instance.api
       .crateApiDisplayDisplayWebviewReportError(that: this, message: message);
+}
+
+@sealed
+class InputAttachmentImpl extends RustOpaque implements InputAttachment {
+  // Not to be used by end users
+  InputAttachmentImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  InputAttachmentImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_InputAttachment,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_InputAttachment,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_InputAttachmentPtr,
+  );
 }

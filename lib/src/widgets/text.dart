@@ -24,7 +24,7 @@ int byteOffsetToUtf16(String text, int offset) {
 TextStyle editorTextStyle(
   List<String> families,
   double size, {
-  double lineHeight = 1.2,
+  double? lineHeight = 1.2,
   List<(String, double)> variations = const [],
 }) => TextStyle(
   fontFamily: families.first,
@@ -45,12 +45,15 @@ TextPainter widgetTextPainter(
   EditorModel model,
   TextStyle style, {
   EditorPaintStyle paintStyle = const EditorPaintStyle(),
+  List<DisplayChunk>? chunks,
 }) => TextPainter(
   textDirection: TextDirection.ltr,
   textScaler: TextScaler.noScaling,
   text: TextSpan(
     style: style,
-    children: [highlightedChunks(item.chunks, model, paintStyle: paintStyle)],
+    children: [
+      highlightedChunks(chunks ?? item.chunks, model, paintStyle: paintStyle),
+    ],
   ),
 )..layout();
 

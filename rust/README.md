@@ -43,8 +43,10 @@ No extra task or queue is introduced per key.
 
 Each queued input carries its attachment epoch. Changing attachments cancels the
 old epoch, drops the current input future, and drains queued input. A sender that
-reserved capacity before the change still carries the cancelled epoch, so it
-cannot inject stale input into a new attachment.
+reserved capacity before the change still carries the cancelled epoch. The first
+displayed frame supplies an attachment capability to Flutter. Passing this
+capability with a key or native text commit lets the runtime discard input from
+a retired attachment even while its last frame remains on screen.
 
 Shutdown cancels admission, completes core cleanup outside the driver's `select!`,
 and forwards final preview-close/error events before `shutdown`. Final updates

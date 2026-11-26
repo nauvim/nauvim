@@ -34,6 +34,9 @@ abstract class DisplayWebview implements RustOpaqueInterface {
   Future<void> reportError({required String message});
 }
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<InputAttachment>>
+abstract class InputAttachment implements RustOpaqueInterface {}
+
 /// Cell text and its Neovim highlight handle.
 ///
 /// An empty string can be a continuation cell of a wider glyph.
@@ -674,6 +677,12 @@ class UiUpdate {
   /// The remembered or connecting destination, independent of its display label.
   final DisplayDestination? destination;
   final KeyBindings? keyBindings;
+
+  /// Native text input preference, supplied with the ready update.
+  final bool? ime;
+
+  /// Input capability supplied with the first frame of each attachment.
+  final InputAttachment? attachment;
   final List<DisplayFont> fonts;
   final DisplayWindowOptions? windowOptions;
   final DisplayWindow? window;
@@ -686,6 +695,8 @@ class UiUpdate {
     this.defaultHost,
     this.destination,
     this.keyBindings,
+    this.ime,
+    this.attachment,
     required this.fonts,
     this.windowOptions,
     this.window,
@@ -703,6 +714,8 @@ class UiUpdate {
       defaultHost.hashCode ^
       destination.hashCode ^
       keyBindings.hashCode ^
+      ime.hashCode ^
+      attachment.hashCode ^
       fonts.hashCode ^
       windowOptions.hashCode ^
       window.hashCode;
@@ -719,6 +732,8 @@ class UiUpdate {
           defaultHost == other.defaultHost &&
           destination == other.destination &&
           keyBindings == other.keyBindings &&
+          ime == other.ime &&
+          attachment == other.attachment &&
           fonts == other.fonts &&
           windowOptions == other.windowOptions &&
           window == other.window;

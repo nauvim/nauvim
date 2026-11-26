@@ -1,11 +1,25 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
 
 import '../headless/editor_model.dart';
 import '../headless/protocol.dart';
-import 'text.dart';
+import '../headless/text_input.dart';
 import 'paint_style.dart';
+import 'text.dart';
+
+/// Carries the painted prompt's metrics at its caret anchor.
+class CommandLineCaret extends SizedBox {
+  const CommandLineCaret({
+    required super.key,
+    required this.baseline,
+    required this.style,
+  });
+
+  final double baseline;
+  final TextStyle style;
+}
 
 class CommandLine extends StatefulWidget {
   const CommandLine({
@@ -14,6 +28,9 @@ class CommandLine extends StatefulWidget {
     required this.model,
     required this.style,
     required this.active,
+    this.caretKey,
+    this.composingKey,
+    this.preedit,
     this.popupLink,
     this.popupByteOffset,
     this.popupWidth = 480,
@@ -25,6 +42,9 @@ class CommandLine extends StatefulWidget {
   final EditorModel model;
   final TextStyle style;
   final bool active;
+  final GlobalKey? caretKey;
+  final GlobalKey? composingKey;
+  final ValueListenable<EditorPreedit?>? preedit;
   final LayerLink? popupLink;
   final int? popupByteOffset;
   final double popupWidth;
@@ -67,33 +87,68 @@ class _CommandLineState extends State<CommandLine> {
 
   @override
   Widget build(BuildContext context) {
+    final preedit = widget.preedit;
+    if (preedit == null || !widget.active) return _buildLine(context, null);
+    return ValueListenableBuilder(
+      valueListenable: preedit,
+      builder: (context, draft, _) => _buildLine(context, draft),
+    );
+  }
+
+  Widget _buildLine(BuildContext context, EditorPreedit? draft) {
     final text = widget.item.chunks.map((c) => c.text).join();
+    final insertion = byteOffsetToUtf16(text, widget.item.selected);
+    final composition = draft != null && draft.text.isNotEmpty
+        ? _Composition(
+            insertion,
+            draft.text.length,
+            TextSelection(
+              baseOffset: draft.selectionStart,
+              extentOffset: draft.selectionEnd,
+            ),
+            draft.segments,
+          )
+        : null;
+    final chunks = composition == null
+        ? null
+        : _insertDraft(widget.item.chunks, insertion, draft!.text);
     final painter = widgetTextPainter(
       widget.item,
       widget.model,
       widget.style,
       paintStyle: widget.paintStyle,
+      chunks: chunks,
     );
     final size = painter.size;
-    double position(int byteOffset) => painter
-        .getOffsetForCaret(
-          TextPosition(offset: byteOffsetToUtf16(text, byteOffset)),
-          Rect.zero,
-        )
-        .dx;
-    final caret = position(widget.item.selected);
-    final popup = position(widget.popupByteOffset ?? widget.item.selected);
+    Offset position(int offset) =>
+        painter.getOffsetForCaret(TextPosition(offset: offset), Rect.zero);
+    final caret = position(insertion);
+    final caretHeight = painter.preferredLineHeight;
+    final caretBaseline =
+        painter.computeDistanceToActualBaseline(TextBaseline.alphabetic) -
+        caret.dy;
+    final popupOffset = byteOffsetToUtf16(
+      text,
+      widget.popupByteOffset ?? widget.item.selected,
+    );
+    final popup = position(
+      popupOffset + (popupOffset > insertion ? composition?.length ?? 0 : 0),
+    ).dx;
+    final followOffset = composition?.cursorOffset ?? insertion;
+    final follow = position(followOffset).dx;
+    final composingBounds = composition?.bounds(painter);
     painter.dispose();
+    final visibleText = chunks?.map((c) => c.text).join() ?? text;
     return Semantics(
-      label: text,
+      label: visibleText,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final viewportWidth = constraints.hasBoundedWidth
               ? constraints.maxWidth
               : size.width + 3;
           final key = (
-            text,
-            widget.item.selected,
+            visibleText,
+            followOffset,
             widget.style,
             viewportWidth,
             widget.active,
@@ -101,7 +156,7 @@ class _CommandLineState extends State<CommandLine> {
           if (key != _followKey) {
             _followKey = key;
             if (widget.active) {
-              followCursor(caret, size.width + 3, viewportWidth);
+              followCursor(follow, size.width + 3, viewportWidth);
             }
           }
           return SingleChildScrollView(
@@ -121,6 +176,10 @@ class _CommandLineState extends State<CommandLine> {
                     widget.cursorColor,
                     widget.cursorWidth,
                     widget.paintStyle,
+                    insertion,
+                    chunks,
+                    composition,
+                    1 / View.of(context).devicePixelRatio,
                   ),
                 ),
                 builder: (context, child) {
@@ -133,6 +192,24 @@ class _CommandLineState extends State<CommandLine> {
                     clipBehavior: Clip.none,
                     children: [
                       Positioned.fill(child: child!),
+                      if (widget.caretKey case final key? when widget.active)
+                        Positioned(
+                          left: caret.dx,
+                          top: caret.dy,
+                          width: widget.cursorWidth,
+                          height: caretHeight,
+                          child: CommandLineCaret(
+                            key: key,
+                            baseline: caretBaseline,
+                            style: widget.style,
+                          ),
+                        ),
+                      if (widget.composingKey case final key?
+                          when composingBounds != null)
+                        Positioned.fromRect(
+                          rect: composingBounds,
+                          child: SizedBox(key: key),
+                        ),
                       if (widget.popupLink case final link?)
                         Positioned(
                           left: anchor,
@@ -156,6 +233,120 @@ class _CommandLineState extends State<CommandLine> {
   }
 }
 
+List<DisplayChunk> _insertDraft(
+  List<DisplayChunk> chunks,
+  int offset,
+  String draft,
+) {
+  var remaining = offset;
+  for (var i = 0; i < chunks.length; i++) {
+    final chunk = chunks[i];
+    if (remaining > chunk.text.length) {
+      remaining -= chunk.text.length;
+      continue;
+    }
+
+    return [
+      ...chunks.take(i),
+      DisplayChunk(
+        text: chunk.text.replaceRange(remaining, remaining, draft),
+        highlight: chunk.highlight,
+      ),
+      ...chunks.skip(i + 1),
+    ];
+  }
+  return [...chunks, DisplayChunk(text: draft, highlight: 0)];
+}
+
+class _Composition {
+  const _Composition(this.start, this.length, this.selection, this.segments);
+
+  final int start;
+  final int length;
+  final TextSelection selection;
+  final List<EditorPreeditSegment> segments;
+
+  bool get hasSelection => selection.isValid && selection.end <= length;
+  int get cursorOffset =>
+      start + (hasSelection ? selection.extentOffset : length);
+
+  TextSelection get range =>
+      TextSelection(baseOffset: start, extentOffset: start + length);
+
+  Rect? bounds(TextPainter painter) {
+    Rect? bounds;
+    for (final box in painter.getBoxesForSelection(range)) {
+      final rect = box.toRect();
+      bounds = bounds?.expandToInclude(rect) ?? rect;
+    }
+    return bounds;
+  }
+
+  void paint(
+    Canvas canvas,
+    TextPainter painter,
+    Size size,
+    Paint ink,
+    double pixel,
+  ) {
+    final baseline = painter.computeDistanceToActualBaseline(
+      TextBaseline.alphabetic,
+    );
+    final bottom = math.min(size.height, baseline + 3 * pixel);
+    void underline(TextSelection selection, double thickness) {
+      for (final box in painter.getBoxesForSelection(selection)) {
+        canvas.drawRect(
+          Rect.fromLTRB(box.left, bottom - thickness, box.right, bottom),
+          ink,
+        );
+      }
+    }
+
+    underline(range, pixel);
+    for (final segment in segments) {
+      final marked = TextSelection(
+        baseOffset: start + segment.start,
+        extentOffset: start + segment.end,
+      );
+      underline(marked, (segment.selected ? 3 : 2) * pixel);
+      if (segment.end < length) {
+        final edge = painter.getOffsetForCaret(
+          TextPosition(offset: start + segment.end),
+          Rect.zero,
+        );
+        canvas.drawRect(
+          Rect.fromLTRB(edge.dx - pixel, bottom - 4 * pixel, edge.dx, bottom),
+          ink,
+        );
+      }
+    }
+    if (!hasSelection) return;
+    if (!selection.isCollapsed) {
+      underline(
+        TextSelection(
+          baseOffset: start + selection.start,
+          extentOffset: start + selection.end,
+        ),
+        2 * pixel,
+      );
+    } else {
+      final caret = painter.getOffsetForCaret(
+        TextPosition(offset: cursorOffset, affinity: selection.affinity),
+        Rect.zero,
+      );
+      canvas.drawRect(
+        Rect.fromLTRB(
+          caret.dx,
+          math.max(0, baseline - 4 * pixel),
+          caret.dx + pixel,
+          bottom,
+        ),
+        ink,
+      );
+    }
+  }
+}
+
 class _CommandLinePainter extends CustomPainter {
   const _CommandLinePainter(
     this.item,
@@ -165,6 +356,10 @@ class _CommandLinePainter extends CustomPainter {
     this.cursorColor,
     this.cursorWidth,
     this.paintStyle,
+    this.insertion,
+    this.chunks,
+    this.composition,
+    this.pixel,
   );
   final DisplayWidget item;
   final EditorModel model;
@@ -173,6 +368,10 @@ class _CommandLinePainter extends CustomPainter {
   final Color? cursorColor;
   final double cursorWidth;
   final EditorPaintStyle paintStyle;
+  final int insertion;
+  final List<DisplayChunk>? chunks;
+  final _Composition? composition;
+  final double pixel;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -181,12 +380,22 @@ class _CommandLinePainter extends CustomPainter {
       model,
       style,
       paintStyle: paintStyle,
+      chunks: chunks,
     );
     painter.paint(canvas, Offset.zero);
-    if (active) {
-      final text = item.chunks.map((c) => c.text).join();
+    final composing = composition;
+    final foreground = paintStyle.resolveForeground(model.frame?.foreground);
+    if (composing != null) {
+      composing.paint(
+        canvas,
+        painter,
+        size,
+        Paint()..color = foreground,
+        pixel,
+      );
+    } else if (active) {
       final cursor = painter.getOffsetForCaret(
-        TextPosition(offset: byteOffsetToUtf16(text, item.selected)),
+        TextPosition(offset: insertion),
         Rect.zero,
       );
       canvas.drawRect(
@@ -196,10 +405,7 @@ class _CommandLinePainter extends CustomPainter {
           cursorWidth,
           painter.preferredLineHeight,
         ),
-        Paint()
-          ..color =
-              cursorColor ??
-              paintStyle.resolveForeground(model.frame?.foreground),
+        Paint()..color = cursorColor ?? foreground,
       );
     }
     painter.dispose();

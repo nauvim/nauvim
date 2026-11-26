@@ -14,10 +14,13 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// Configuration is loaded on the engine thread and delivered through
 /// [`Application::updates()`]. Host attachment waits for [`Application::start()`]
 /// or an explicit connection action. An error here means the thread could not start.
-Future<Application> createApplication({String? configPath}) => RustLib
-    .instance
-    .api
-    .crateApiApplicationCreateApplication(configPath: configPath);
+Future<Application> createApplication({
+  String? configPath,
+  required List<String> luaModulePaths,
+}) => RustLib.instance.api.crateApiApplicationCreateApplication(
+  configPath: configPath,
+  luaModulePaths: luaModulePaths,
+);
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Application>>
 abstract class Application implements RustOpaqueInterface {
@@ -42,6 +45,12 @@ abstract class Application implements RustOpaqueInterface {
 
   /// Sends Neovim key notation; literal less-than characters use `<LT>`.
   Future<void> input({required String keys});
+
+  /// Sends keys only while the attachment that supplied the input remains active.
+  Future<void> inputOnAttachment({
+    required String keys,
+    required InputAttachment attachment,
+  });
 
   /// Pastes from the clipboard backend selected by core.
   Future<void> paste();

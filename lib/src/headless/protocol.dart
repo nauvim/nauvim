@@ -22,4 +22,5 @@ export '../bridge/api/display.dart'
         DisplayWindowOptions,
         DisplayDecorations,
         DisplayStartupMode,
+        InputAttachment,
         UiUpdate;

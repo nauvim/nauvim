@@ -1,5 +1,6 @@
+use crate::api::InputAttachment;
 use crate::api::display::{DisplayDestination, DisplayLength, DisplayLengthUnit, UiUpdate};
-use crate::configuration;
+use crate::configuration::Source;
 use crate::display::Presenter;
 
 use super::Command;
@@ -19,19 +20,20 @@ use tokio::time::{Duration, MissedTickBehavior, interval, timeout};
 use tokio_util::sync::CancellationToken;
 
 use std::future::{Future, poll_fn};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use std::sync::Arc;
 use std::task::Poll;
 
 pub(super) async fn run(
-    path: Option<String>,
+    source: Source,
     state_path: Option<PathBuf>,
     mut commands: mpsc::Receiver<Command>,
     mut input: mpsc::Receiver<QueuedInput>,
-    input_epoch: watch::Sender<CancellationToken>,
+    input_epoch: watch::Sender<Arc<CancellationToken>>,
     observed_size: watch::Receiver<Option<WindowSize>>,
     updates: Updates,
 ) {
-    let (config, mut options) = match configuration::load(path.as_deref().map(Path::new)) {
+    let (config, mut options) = match source.load() {
         Ok(config) => config,
         Err(e) => {
             let _ = updates.send(message("welcome", Some(e.to_string()))).await;
@@ -88,6 +90,7 @@ pub(super) async fn run(
             alias: destination.into_alias(),
         }),
         key_bindings: options.key_bindings,
+        ime: Some(config.ime()),
         fonts: options.fonts,
         window_options: options.window,
         ..UiUpdate::default()
@@ -233,7 +236,7 @@ pub(super) async fn run(
                 }
                 let update = match event {
                     EngineEvent::Frame(frame) => {
-                        if let Attachment::Connecting(Attempt {
+                        let origin = if let Attachment::Connecting(Attempt {
                             dimensions: initial,
                             identity: Identity::Verified(token),
                             ..
@@ -245,11 +248,15 @@ pub(super) async fn run(
                             }
                             let session = token.take().map(Session::new);
                             attachment = Attachment::Ready(session);
-                        }
+                            Some(InputAttachment(input_epoch.borrow().clone()))
+                        } else {
+                            None
+                        };
                         attachment.observe(&engine);
                         UiUpdate {
                             kind: "frame".into(),
                             frame: Some(presenter.frame(frame)),
+                            attachment: origin,
                             ..UiUpdate::default()
                         }
                     }

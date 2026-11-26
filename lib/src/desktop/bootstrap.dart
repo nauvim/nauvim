@@ -15,6 +15,7 @@ import 'platform.dart';
 /// Startup failures remain available through the controller's error state.
 Future<NauvimController> createDesktopController({
   String? configPath,
+  List<String> luaModulePaths = const [],
   NauvimPlatform? platform,
 }) async {
   final services = platform ?? DesktopNauvimPlatform();
@@ -30,7 +31,10 @@ Future<NauvimController> createDesktopController({
             ? '$executableDir/../Frameworks/libnauvim_flutter.dylib'
             : '$executableDir/lib/libnauvim_flutter.so');
     await RustLib.init(externalLibrary: ExternalLibrary.open(library));
-    final application = await createApplication(configPath: configPath);
+    final application = await createApplication(
+      configPath: configPath,
+      luaModulePaths: luaModulePaths,
+    );
     return NauvimController(
       engine: RustNauvimEngine(application),
       platform: services,

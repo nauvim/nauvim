@@ -54,6 +54,12 @@ class FakeApplication implements Application {
   @override
   Future<void> input({required String keys}) async => inputs.add(keys);
   @override
+  Future<void> inputOnAttachment({
+    required String keys,
+    required InputAttachment attachment,
+  }) => input(keys: keys);
+
+  @override
   Future<void> paste() async => pastes++;
   @override
   Future<void> resize({required int width, required int height}) async {}

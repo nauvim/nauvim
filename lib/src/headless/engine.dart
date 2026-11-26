@@ -29,6 +29,14 @@ abstract interface class NauvimEngine {
   Future<void> close();
 }
 
+/// Delivers editor input using the attachment that supplied the displayed frame.
+abstract interface class AttachmentInputEngine {
+  Future<void> inputOnAttachment({
+    required String keys,
+    required InputAttachment attachment,
+  });
+}
+
 /// Receives actual client-area dimensions in logical pixels for persistence.
 abstract interface class WindowSizeRecorder {
   void recordWindowSize({required int width, required int height});

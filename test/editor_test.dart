@@ -8,6 +8,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nauvim_flutter/main.dart';
 import 'package:nauvim_flutter/nauvim.dart';
 import 'package:nauvim_flutter/nauvim_material.dart';
+import 'package:nauvim_flutter/src/widgets/command_line.dart'
+    show CommandLineCaret;
+import 'package:nauvim_flutter/src/widgets/ime_geometry.dart';
 
 import 'support/fakes.dart';
 
@@ -234,14 +237,22 @@ void main() {
         items: const [],
         handles: const [],
       );
-      const style = TextStyle(fontFamily: 'monospace', fontSize: 16);
+      const style = TextStyle(
+        fontFamily: 'monospace',
+        fontSize: 16,
+        height: 1.8,
+      );
       final expected = widgetTextPainter(item, model, style);
       final caret = expected.getOffsetForCaret(
         const TextPosition(offset: 5),
         Rect.zero,
       );
       expect(commandLineOffset(item, model, style, 9), caret.dx);
+      final baseline = expected.computeDistanceToActualBaseline(
+        TextBaseline.alphabetic,
+      );
       expected.dispose();
+      final caretKey = GlobalKey();
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
@@ -250,21 +261,26 @@ void main() {
             model: model,
             style: style,
             active: true,
+            caretKey: caretKey,
           ),
         ),
       );
+      final marker = tester.widget<CommandLineCaret>(find.byKey(caretKey));
+      expect(marker.baseline + caret.dy, closeTo(baseline, 1e-6));
+      expect(marker.style, style);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       model.dispose();
     },
   );
   testWidgets(
-    'follows a long command-line cursor and its scrolled popup anchor',
+    'follows the command-line cursor, popup, and IME anchors while scrolling',
     (tester) async {
       final model = EditorModel();
       final link = LayerLink();
       final text = ':${List.filled(100, '界').join()}';
       final viewportKey = GlobalKey();
+      final caretKey = GlobalKey();
       Widget line(int cursor) => Directionality(
         textDirection: TextDirection.ltr,
         child: Align(
@@ -287,6 +303,7 @@ void main() {
               model: model,
               style: const TextStyle(fontFamily: 'monospace', fontSize: 16),
               active: true,
+              caretKey: caretKey,
               popupLink: link,
               popupByteOffset: cursor,
               popupWidth: 100,
@@ -301,16 +318,101 @@ void main() {
       final viewport = tester.getRect(find.byKey(viewportKey));
       var anchor = tester.getTopLeft(find.byType(CompositedTransformTarget));
       expect(anchor.dx, inInclusiveRange(viewport.left, viewport.right - 100));
+      final caret = imeCommandLineCaret(caretKey)!;
+      expect(caret.left, greaterThan(anchor.dx));
+      expect(viewport.contains(caret.center), isTrue);
+
+      scrollable.position.jumpTo(0);
+      await tester.pump();
+      expect(imeCommandLineCaret(caretKey), isNull);
+
       await tester.pumpWidget(line(0));
       await tester.pump();
       expect(scrollable.position.pixels, 0);
       anchor = tester.getTopLeft(find.byType(CompositedTransformTarget));
       expect(anchor.dx, viewport.left);
+      expect(imeCommandLineCaret(caretKey)?.left, viewport.left);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       model.dispose();
     },
   );
+  testWidgets('shapes command-line preedit in the same paragraph', (
+    tester,
+  ) async {
+    final model = EditorModel();
+    final caretKey = GlobalKey();
+    final composingKey = GlobalKey();
+    final preedit = ValueNotifier<EditorPreedit?>(
+      const EditorPreedit(text: '日本', selectionStart: 1, selectionEnd: 1),
+    );
+    const style = TextStyle(fontFamily: 'Ahem', fontSize: 16);
+    DisplayWidget command(String text) => DisplayWidget(
+      kind: 'cmdline',
+      grid: 1,
+      row: 0,
+      col: 0,
+      selected: 6,
+      chunks: [DisplayChunk(text: text, highlight: 0)],
+      items: const [],
+      handles: const [],
+    );
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 400,
+            height: 40,
+            child: CommandLine(
+              item: command(':a😀bc'),
+              model: model,
+              style: style,
+              active: true,
+              caretKey: caretKey,
+              composingKey: composingKey,
+              preedit: preedit,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final expected = widgetTextPainter(command(':a😀日本bc'), model, style);
+    final caret = expected.getOffsetForCaret(
+      const TextPosition(offset: 4),
+      Rect.zero,
+    );
+    final boxes = expected.getBoxesForSelection(
+      const TextSelection(baseOffset: 4, extentOffset: 6),
+    );
+    final bounds = boxes
+        .map((box) => box.toRect())
+        .reduce((left, right) => left.expandToInclude(right));
+    expected.dispose();
+
+    expect(tester.getTopLeft(find.byKey(caretKey)), caret);
+    expect(tester.getRect(find.byKey(composingKey)), bounds);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics && widget.properties.label == ':a😀日本bc',
+      ),
+      findsOneWidget,
+    );
+
+    preedit.value = null;
+    await tester.pump();
+    expect(find.byKey(composingKey), findsNothing);
+    expect(tester.getTopLeft(find.byKey(caretKey)), caret);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    preedit.dispose();
+    model.dispose();
+  });
   testWidgets(
     'welcome displays configuration failures without closing the application',
     (tester) async {

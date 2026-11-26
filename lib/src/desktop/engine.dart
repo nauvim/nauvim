@@ -3,7 +3,8 @@ import '../headless/engine.dart';
 import '../headless/protocol.dart';
 
 /// Forwards session operations to the opaque Rust application.
-final class RustNauvimEngine implements NauvimEngine, WindowSizeRecorder {
+final class RustNauvimEngine
+    implements NauvimEngine, AttachmentInputEngine, WindowSizeRecorder {
   const RustNauvimEngine(this.application);
   final Application application;
 
@@ -25,6 +26,11 @@ final class RustNauvimEngine implements NauvimEngine, WindowSizeRecorder {
   Future<void> detach() => application.detach();
   @override
   Future<void> input({required String keys}) => application.input(keys: keys);
+  @override
+  Future<void> inputOnAttachment({
+    required String keys,
+    required InputAttachment attachment,
+  }) => application.inputOnAttachment(keys: keys, attachment: attachment);
   @override
   Future<void> paste() => application.paste();
   @override

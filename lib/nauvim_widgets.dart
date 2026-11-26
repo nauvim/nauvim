@@ -1,6 +1,7 @@
 /// Unstyled Flutter interaction, layout, and painting primitives for Nauvim.
 library;
 
+export 'src/headless/text_input.dart' show EditorPreedit, EditorPreeditSegment;
 export 'src/widgets/command_line.dart' show CommandLine;
 export 'src/widgets/editor_surface.dart' show EditorSurface;
 export 'src/widgets/editor_viewport.dart' show EditorViewportRegion;
