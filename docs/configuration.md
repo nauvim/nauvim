@@ -3,7 +3,6 @@
 ## Full example
 
 Save as [`nauvim/init.lua`](#configuration-file-location) on the GUI machine.
-Edit `hosts.work` before connecting to it. [SSH settings](#ssh)
 
 ```lua
 local client = require("nauvim-client-info")
@@ -79,13 +78,25 @@ return {
 | Linux | `~/.config/nauvim/init.lua` |
 | macOS | `~/Library/Application Support/nauvim/init.lua` |
 
-To use another file, start Nauvim with its path.
+To use another file, run the command for your platform from the repository root.
 
 ```sh
-nauvim --config /absolute/path/init.lua
+# Linux x86-64 (use arm64 in the path on aarch64)
+build/linux/x64/release/bundle/nauvim --config /absolute/path/init.lua
+
+# macOS
+open build/macos/Build/Products/Release/Nauvim.app --args --config /absolute/path/init.lua
 ```
 
 Restart after edits. Nauvim uses built-in settings if the default file is absent.
+[Launch commands by platform](building.md#launch-the-bundle)
+
+## Connect from the welcome page
+
+With the full example, choose **laptop** to open a local Neovim session.
+For **work**, set its hostname, SSH user, and Neovim path, then choose it
+after restarting Nauvim. The connected host appears in the toolbar.
+[SSH settings](#ssh) · [Connection errors](troubleshooting.md#connection-errors)
 
 ## Hosts and startup
 
@@ -142,51 +153,62 @@ nvim = {
 socket = "/tmp/my-nauvim-work.sock", -- Omit to use a generated path.
 ```
 
-| Detail | Behavior |
-| --- | --- |
-| Launch | Appends `--headless --listen <socket>` and sets `NAUVIM_CONNECTION` to `local` or `ssh`. Wrappers pass both through. |
-| Socket | Reuses a session at the selected path. The default is a per-destination path under `/tmp/nauvim-sockets-<uid>` on the host. |
-| Function value | `nvim` and `socket` functions run on the client with the target's host information. |
+| Field | Value | Default |
+| --- | --- | --- |
+| `nvim` | Executable string, program table, or function returning either | `"nvim"` |
+| `nvim.prog` | Executable name or path on the host | `"nvim"` on the host's `PATH` |
+| `nvim.args` | List of literal argument strings | `{}` |
+| `nvim.env` | Table of environment variable names and string values | `{}` |
+| `socket` | Path on the host or function returning a path. Nauvim reuses a session at this path. | Generated per destination under `/tmp/nauvim-sockets-<uid>` |
+
+Functions run on the client with the target's host information. A Neovim
+wrapper must pass through the appended `--headless --listen <socket>`
+arguments and the `NAUVIM_CONNECTION` environment variable (`local` or `ssh`).
 
 ### SSH
 
+Inside `hosts.work`.
+
 ```lua
-hosts = {
-    work = {
-        ssh = { -- Settings for this destination.
-            host_name = "work.example.com", -- Defaults to the alias.
-            user = "dev", -- Defaults to your local username.
-            port = 22,
-            identity_file = "/home/me/.ssh/work_ed25519",
-            -- certificate_file = "/home/me/.ssh/work_ed25519-cert.pub",
-            -- identity_agent = os.getenv("SSH_AUTH_SOCK"),
-            -- identities_only = true,
-            -- proxy_jump = "bastion",
-            -- kex_algorithms = { "curve25519-sha256" },
-            -- host_key_algorithms = { "ssh-ed25519" },
-        },
-    },
-},
-ssh = { -- Files on the GUI machine.
-    config = "/home/me/.ssh/config", -- Defaults to ~/.ssh/config.
-    -- config = { path = "/home/me/.ssh/config", format = "openssh" },
-    -- config = false, -- Also accepts { disabled = true }.
-    known_hosts = "/home/me/.ssh/known_hosts", -- Defaults to ~/.ssh/known_hosts.
+ssh = {
+    host_name = "work.example.com",
+    user = "dev",
+    port = 22,
+    identity_file = "/home/me/.ssh/work_ed25519",
+    -- certificate_file = "/home/me/.ssh/work_ed25519-cert.pub",
+    -- identity_agent = os.getenv("SSH_AUTH_SOCK"),
+    -- identities_only = true,
+    -- proxy_jump = "bastion",
+    -- kex_algorithms = { "curve25519-sha256" },
+    -- host_key_algorithms = { "ssh-ed25519" },
 },
 ```
 
-| Detail | Rule |
-| --- | --- |
-| Lookup order | Host entry → named SSH entry for `host_name` → OpenSSH file if enabled → built-in defaults |
-| `ssh.config` | Use a readable file, or `false` to skip OpenSSH lookup. Formats `"openssh"` and `"auto"` both read OpenSSH. |
-| `ssh.known_hosts` | Trust file for the destination and jump hosts, even with `config = false`. |
-| Paths and agent | Use absolute client paths. Set `identity_agent` explicitly to use `SSH_AUTH_SOCK`. |
-| `identities_only` | Boolean or `"yes"`, `"no"`, `"true"`, `"false"` |
-| `proxy_jump` | Alias, `{ host_name = "bastion.example.com" }`, or a list of either |
-| Algorithm lists | Lua list or comma-separated string. Prefix with `+`, `-`, or `^` to append, remove, or prepend. List certificate algorithms before plain host keys. |
+At the top level of `init.lua`, choose the SSH files on the GUI machine.
 
-An unlisted alias uses OpenSSH settings when enabled. With `config = false`,
-the alias is the hostname.
+```lua
+ssh = {
+    config = "/home/me/.ssh/config",
+    -- config = { path = "/home/me/.ssh/config", format = "openssh" },
+    -- config = false, -- Also accepts { disabled = true }.
+    known_hosts = "/home/me/.ssh/known_hosts",
+},
+```
+
+| Setting | Value and default |
+| --- | --- |
+| `host_name`, `user` | Strings. Default to the alias and client username. |
+| `port` | Integer or decimal string from 0 to 65535. Default `22`. |
+| `identity_file`, `certificate_file`, `identity_agent` | Absolute client paths. Set `identity_agent` to use `SSH_AUTH_SOCK`. |
+| `identities_only` | Boolean or `"yes"`, `"no"`, `"true"`, `"false"`. Default `false`. |
+| `proxy_jump` | Alias, `{ host_name = "bastion.example.com" }`, or a list of either |
+| `kex_algorithms`, `host_key_algorithms` | List or comma-separated string. Prefix with `+`, `-`, or `^` to append, remove, or prepend to defaults. Put certificate algorithms before plain host-key algorithms. |
+| Top-level `ssh.config` | Absolute file path or table with `path` and `format` (`"openssh"` or `"auto"`). Default `~/.ssh/config`. Use `false` or `{ disabled = true }` to skip lookup. |
+| Top-level `ssh.known_hosts` | Absolute path to the trust file for the destination and jump hosts. Default `~/.ssh/known_hosts`. Nauvim reads this file even with `config = false`. |
+
+Lookup order is host entry → named SSH entry for `host_name` → OpenSSH file
+if enabled → built-in defaults. An unlisted alias uses the OpenSSH file, or
+the alias as hostname when `config = false`.
 
 ### Host plugin permissions
 
@@ -268,7 +290,12 @@ ui_opts = {
 },
 ```
 
-Nauvim selects one entry. A missing entry uses the built-in UI defaults.
+| `use_ui_opts` | Selected entry in `ui_opts` |
+| --- | --- |
+| `nil` (default) | `"com.naughie.nauvim.flutter"` |
+| String key | The entry with that key |
+
+A missing entry uses the built-in UI defaults.
 
 ### Fonts
 
@@ -302,7 +329,8 @@ fonts = {
 | `path` | Optional OpenType file or collection. Uses the first matching face. Relative to the resolved `init.lua` directory. |
 
 Names are case-sensitive. The first usable font sets cell size. An empty
-or unusable list falls back to system monospace.
+or unusable list falls back to system monospace. Variable fonts use their
+default instance.
 
 ### Window
 
@@ -370,7 +398,8 @@ return {
 }
 ```
 
-Add search paths at launch.
+Add search paths at launch. Replace `nauvim` with the path to your executable.
+On macOS, use the executable inside the bundle at `Nauvim.app/Contents/MacOS/Nauvim`.
 
 ```sh
 NAUVIM_LUA_PATH='/path/to/shared/?.lua;/path/to/shared/?/init.lua' \
@@ -390,9 +419,8 @@ Nauvim runs this file in its own Lua 5.4 interpreter on the client.
 
 | Problem | Result |
 | --- | --- |
-| Unknown dictionary key or unsupported value type | Treat as omitted. |
-| Recovery removes a required field with no default | Drop its dictionary. |
-| Other loading or validation error | Report it and use defaults for the entire configuration, including hosts. |
+| Unknown dictionary key or unsupported value type, such as `window = true` | Treat that setting as omitted. |
+| Loading or validation error, such as `window.opacity = 2` | Report it and use defaults for the entire configuration, including hosts. |
 | Unavailable font | Report it and skip that font. |
 
 [Troubleshoot configuration](troubleshooting.md#configuration-errors)

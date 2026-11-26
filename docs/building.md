@@ -56,15 +56,23 @@ tool/build.sh
 
 ## Launch the bundle
 
-| Platform | What to launch |
+Run the command for your platform from the repository root.
+
+| Platform | Launch command |
 | --- | --- |
 | Linux x86-64 | `build/linux/x64/release/bundle/nauvim` |
 | Linux aarch64 | `build/linux/arm64/release/bundle/nauvim` |
-| macOS | `build/macos/Build/Products/Release/Nauvim.app` |
+| macOS | `open build/macos/Build/Products/Release/Nauvim.app` |
 
-Use a bundle for your architecture and OS. Copy the complete bundle when installing elsewhere.
+On a first launch with default settings, Nauvim opens a local Neovim session.
+When the welcome page appears, select a destination to open the editor.
+[Connect from the welcome page](configuration.md#connect-from-the-welcome-page)
 
-[Configuration](configuration.md) · [Display troubleshooting](troubleshooting.md#display-and-rendering)
+Use a bundle built for your architecture and OS. Copy the complete bundle
+when installing elsewhere.
+
+[Troubleshoot connections](troubleshooting.md#connection-errors) ·
+[Troubleshoot display problems](troubleshooting.md#display-and-rendering)
 
 <a id="development-run"></a>
 

@@ -1,5 +1,16 @@
 # Persistent state and font cache
 
+## Reset saved data
+
+Close Nauvim, delete the file for the data you want to clear, then relaunch.
+Existing Neovim sessions remain available for reattachment.
+
+| To clear | File and location |
+| --- | --- |
+| Remembered destination and window size | [`state.sqlite3`](#application-state-database) |
+| Saved display data for reattachment | [`ui-checkpoints.sqlite3`](#session-ui-checkpoints) |
+| Prepared fonts | [`fonts.sqlite3`](#location-and-recovery) |
+
 ## Host selection
 
 The welcome page remembers the last destination you requested across launches,
@@ -25,11 +36,9 @@ your OS account.
 | Linux | `$XDG_DATA_HOME/nauvim/state.sqlite3`, or `$HOME/.local/share/nauvim/state.sqlite3` when no absolute XDG data directory is set |
 | macOS | `$HOME/Library/Application Support/nauvim/state.sqlite3` |
 
-Storage errors appear in the error display. You can still connect and start
-with the platform's default size when the saved size is unavailable. To clear
-the saved destination and size or recover from a damaged database, close Nauvim
-and delete `state.sqlite3`. The next launch creates a new database. You can still
-reattach to existing Neovim sessions.
+Storage errors appear in the error banner. When the saved size is unavailable,
+Nauvim uses the platform's default size unless you set a startup size. The next
+launch creates the database if it is missing.
 
 ## Session UI checkpoints
 
@@ -45,10 +54,8 @@ after you close Nauvim or restart the client.
 | macOS | `$HOME/Library/Application Support/nauvim/ui-checkpoints.sqlite3` |
 
 If no matching checkpoint is available, Nauvim attempts to attach without
-saved display state. Storage errors appear in the error display. To clear the
-checkpoints, close Nauvim and delete `ui-checkpoints.sqlite3`. See
-[blank buffers after reattachment](troubleshooting.md#blank-buffers-after-reattachment)
-for a Neovim reattachment limitation when no checkpoint is available.
+saved display state. Storage errors appear in the error banner.
+[Blank buffers after reattachment](troubleshooting.md#blank-buffers-after-reattachment)
 
 ## Font cache
 
@@ -65,8 +72,7 @@ a font file takes effect the next time Nauvim loads fonts.
 | macOS | `$HOME/Library/Caches/nauvim/fonts.sqlite3` |
 
 If the cache is unavailable, usable fonts still load from their source files.
-To clear the cache or recover from a damaged database, close Nauvim and delete
-`fonts.sqlite3`. Nauvim rebuilds it the next time it loads fonts.
+Nauvim rebuilds a deleted cache the next time it loads fonts.
 
 <a id="storage-design"></a>
 
