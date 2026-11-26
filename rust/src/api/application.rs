@@ -1,9 +1,12 @@
 use crate::application::{self, Handle};
+use crate::configuration::Source;
 use crate::frb_generated::StreamSink;
 
-use super::display::UiUpdate;
+use super::display::{InputAttachment, UiUpdate};
 
 use flutter_rust_bridge::frb;
+
+use std::path::PathBuf;
 
 /// Sends application actions to the engine's dedicated I/O thread.
 ///
@@ -21,10 +24,16 @@ pub struct Application {
 /// Configuration is loaded on the engine thread and delivered through
 /// [`Application::updates()`]. Host attachment waits for [`Application::start()`]
 /// or an explicit connection action. An error here means the thread could not start.
-pub fn create_application(config_path: Option<String>) -> Result<Application, String> {
-    application::spawn(config_path)
-        .map(|handle| Application { handle })
-        .map_err(|e| e.to_string())
+pub fn create_application(
+    config_path: Option<String>,
+    lua_module_paths: Vec<String>,
+) -> Result<Application, String> {
+    application::spawn(Source {
+        path: config_path.map(PathBuf::from),
+        lua_module_paths,
+    })
+    .map(|handle| Application { handle })
+    .map_err(|e| e.to_string())
 }
 
 impl Application {
@@ -83,6 +92,18 @@ impl Application {
     /// Sends Neovim key notation; literal less-than characters use `<LT>`.
     pub async fn input(&self, keys: String) -> Result<(), String> {
         self.handle.input(keys).await.map_err(|e| e.to_string())
+    }
+
+    /// Sends keys only while the attachment that supplied the input remains active.
+    pub async fn input_on_attachment(
+        &self,
+        keys: String,
+        attachment: &InputAttachment,
+    ) -> Result<(), String> {
+        self.handle
+            .input_on_attachment(keys, &attachment.0)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Pastes from the clipboard backend selected by core.

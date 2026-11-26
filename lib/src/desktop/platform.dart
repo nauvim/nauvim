@@ -4,16 +4,25 @@ import 'package:flutter/services.dart';
 
 import '../headless/platform.dart';
 import '../headless/protocol.dart';
+import '../headless/text_input.dart';
 import '../headless/viewport.dart';
 import '../headless/window_geometry.dart';
 import '../bridge/api/fonts.dart' as native_fonts;
 
 /// Desktop capabilities implemented by the Linux and macOS runners.
-final class DesktopNauvimPlatform implements NauvimPlatform {
-  DesktopNauvimPlatform({MethodChannel? channel})
-    : _channel = channel ?? const MethodChannel('io.nauvim/window');
+final class DesktopNauvimPlatform
+    implements NauvimPlatform, EditorTextInputPlatform {
+  DesktopNauvimPlatform({
+    MethodChannel? channel,
+    MethodChannel? textInputChannel,
+  }) : _channel = channel ?? const MethodChannel('io.nauvim/window'),
+       _textInput =
+           textInputChannel ?? const MethodChannel('nauvim/native_text_input');
 
   final MethodChannel _channel;
+  final MethodChannel _textInput;
+  int? _textClient;
+  final _textEdits = <int, void Function(EditorTextInputEvent)>{};
   Future<void> Function(NauvimPlatformEvent)? _eventHandler;
   static int _nextFontFamily = 0;
 
@@ -62,6 +71,107 @@ final class DesktopNauvimPlatform implements NauvimPlatform {
               }
             },
     );
+  }
+
+  @override
+  Future<void> openTextInput(
+    int client,
+    void Function(EditorTextInputEvent) onEdit,
+  ) async {
+    _textClient = client;
+    if (_textEdits.isEmpty) {
+      _textInput.setMethodCallHandler(_handleTextInput);
+    }
+    _textEdits[client] = onEdit;
+
+    try {
+      await _textInput.invokeMethod<void>('open', {'client': client});
+    } on MissingPluginException {
+      if (_textClient == client) _textClient = null;
+      _removeTextEditor(client);
+    }
+  }
+
+  Future<void> _handleTextInput(MethodCall call) async {
+    if (call.arguments is! Map<Object?, Object?>) return;
+    final args = call.arguments as Map<Object?, Object?>;
+    if (args['client'] case final int client) {
+      final onEdit = _textEdits[client];
+      if (onEdit == null || args['text'] is! String) return;
+      final text = args['text'] as String;
+      switch (call.method) {
+        case 'commit':
+          onEdit(EditorTextCommit(text));
+        case 'preedit':
+          int offset(Object? value) =>
+              value is int ? value.clamp(0, text.length) : text.length;
+          final raw = args['segments'];
+          final segments = <EditorPreeditSegment>[
+            if (raw is List<Object?>)
+              for (final segment in raw)
+                if (segment
+                    case {
+                      'start': final int start,
+                      'end': final int end,
+                      'selected': final bool selected,
+                    }
+                    when 0 <= start && start < end && end <= text.length)
+                  (start: start, end: end, selected: selected),
+          ];
+          onEdit(
+            EditorPreedit(
+              text: text,
+              selectionStart: offset(args['selectionStart']),
+              selectionEnd: offset(args['selectionEnd']),
+              segments: segments,
+            ),
+          );
+      }
+    }
+  }
+
+  void _removeTextEditor(int client) {
+    _textEdits.remove(client);
+    if (_textEdits.isEmpty) _textInput.setMethodCallHandler(null);
+  }
+
+  @override
+  Future<void> closeTextInput(int client) async {
+    if (_textClient != client) return;
+    _textClient = null;
+    try {
+      await _textInput.invokeMethod<void>('close', {'client': client});
+    } on MissingPluginException {
+      // The embedding can omit native text input.
+    } finally {
+      // A commit sent before the native context closed still belongs to
+      // its original attachment, even if Flutter focus has already moved.
+      _removeTextEditor(client);
+    }
+  }
+
+  @override
+  Future<void> updateTextInputGeometry(
+    int client, {
+    required Rect caret,
+    required Rect composing,
+  }) async {
+    if (_textClient != client) return;
+    Map<String, double> rectangle(Rect rect) => {
+      'left': rect.left,
+      'top': rect.top,
+      'width': rect.width,
+      'height': rect.height,
+    };
+    try {
+      await _textInput.invokeMethod<void>('geometry', {
+        'client': client,
+        'caret': rectangle(caret),
+        'composing': rectangle(composing),
+      });
+    } on MissingPluginException {
+      // The embedding can omit native text input.
+    }
   }
 
   static bool _isWindowDimension(num value) =>

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'editor_model.dart';
 import 'engine.dart';
 import 'key_bindings.dart';
+import 'text_input.dart';
 import 'platform.dart';
 import 'previews.dart';
 import 'protocol.dart';
@@ -63,6 +64,8 @@ final class NauvimController extends ChangeNotifier {
   _WindowSetup _windowSetup = _WindowSetup.waiting;
   DisplayWindowOptions? _pendingWindow;
   int _attachment = 0;
+  InputAttachment? _engineAttachment;
+  bool _nativeTextInput = true;
   int _fontRequest = 0;
   (double, double, double, double, int, Size)? _windowGrid;
   (int, int)? _dimensions;
@@ -83,6 +86,18 @@ final class NauvimController extends ChangeNotifier {
   bool get closing => _phase == SessionPhase.closing;
   bool get ready => _ready && _windowSetup == _WindowSetup.done;
   bool get hasEngine => _engine != null;
+
+  /// Indicates whether the attached editor is configured for native text input.
+  bool get nativeTextInput => _nativeTextInput;
+
+  /// Identifies the displayed attachment for local editor callbacks.
+  int get attachmentGeneration => _attachment;
+
+  EditorTextInputPlatform? get textInputPlatform => switch (_platform) {
+    final EditorTextInputPlatform input => input,
+    _ => null,
+  };
+
   String get destination => _destination;
   List<String> get hosts => _hosts;
   NauvimKeyBindings get keyBindings => _keyBindings;
@@ -288,6 +303,7 @@ final class NauvimController extends ChangeNotifier {
       case 'ready':
         if (closing) return;
         _hosts = List.unmodifiable(update.hosts);
+        _nativeTextInput = update.ime ?? true;
         _keyBindings = NauvimKeyBindings(update.keyBindings);
         _previews.keyBindings = _keyBindings.bindings(KeyContext.webview);
         if (!_started) _destination = update.destination?.alias ?? '';
@@ -307,6 +323,7 @@ final class NauvimController extends ChangeNotifier {
         final frame = update.frame;
         if (frame == null) return;
         final wasAttached = attached;
+        if (update.attachment case final origin?) _engineAttachment = origin;
         _phase = SessionPhase.attached;
         _previews.invalidateLayout();
         editor.apply(frame);
@@ -355,6 +372,7 @@ final class NauvimController extends ChangeNotifier {
 
   void _resetAttachment() {
     _attachment++;
+    _engineAttachment = null;
     _previews.reset();
     editor.clear();
   }
@@ -482,7 +500,28 @@ final class NauvimController extends ChangeNotifier {
 
   Future<void> sendKeys(String keys) {
     editor.clearSelection();
-    return _queue((engine) => engine.input(keys: keys));
+    return _sendEditorInput(keys);
+  }
+
+  /// Queues literal text from the native text input system on its attachment.
+  Future<void> sendText(String text, {required int attachment}) {
+    if (_disposed || !attached || attachment != _attachment || text.isEmpty) {
+      return Future.value();
+    }
+    final queued = _sendEditorInput(text.replaceAll('<', '<LT>'));
+    editor.clearSelection();
+    return queued;
+  }
+
+  Future<void> _sendEditorInput(String keys) {
+    final origin = _engineAttachment;
+    return _queue((engine) {
+      if (engine case final AttachmentInputEngine capable) {
+        if (origin == null) return Future.value();
+        return capable.inputOnAttachment(keys: keys, attachment: origin);
+      }
+      return engine.input(keys: keys);
+    });
   }
 
   Future<void> paste() => _queue((engine) => engine.paste());
@@ -539,6 +578,7 @@ final class NauvimController extends ChangeNotifier {
     _finishUpdates();
     _resize?.cancel();
     _attachment++;
+    _engineAttachment = null;
     _previews.reset();
     unawaited(_subscription?.cancel());
     _platform.setEventHandler(null);

@@ -9,7 +9,7 @@ mod window;
 
 use nauvim_core::{Config, Error, UiConfig, UiTable, UiValue};
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const UI_ID: &str = "com.naughie.nauvim.flutter";
 
@@ -34,16 +34,29 @@ impl UiOptions {
     }
 }
 
-pub(crate) fn load(path: Option<&Path>) -> Result<(Config, UiOptions), Error> {
-    let (config, mut options) = Config::load(path, UI_ID, UiOptions::parse)?;
+pub(crate) struct Source {
+    pub(crate) path: Option<PathBuf>,
+    pub(crate) lua_module_paths: Vec<String>,
+}
 
-    options.resolve_paths(
-        config
-            .client_info()
-            .and_then(|info| info.config_file.as_deref()),
-    )?;
+impl Source {
+    pub(crate) fn load(self) -> Result<(Config, UiOptions), Error> {
+        let lua_module_paths: Vec<_> = self.lua_module_paths.iter().map(String::as_str).collect();
+        let (config, mut options) = Config::load_with_module_paths(
+            self.path.as_deref(),
+            UI_ID,
+            &lua_module_paths,
+            UiOptions::parse,
+        )?;
 
-    Ok((config, options))
+        options.resolve_paths(
+            config
+                .client_info()
+                .and_then(|info| info.config_file.as_deref()),
+        )?;
+
+        Ok((config, options))
+    }
 }
 
 fn invalid(message: impl Into<String>) -> Error {

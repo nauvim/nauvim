@@ -5,6 +5,9 @@ use super::keys::KeyBindings;
 use nauvim_core::WebviewWindow;
 
 use flutter_rust_bridge::frb;
+use tokio_util::sync::CancellationToken;
+
+use std::sync::Arc;
 
 /// A typed bridge update. Frame rows contain only changes since the preceding update.
 #[derive(Default)]
@@ -17,10 +20,18 @@ pub struct UiUpdate {
     /// The remembered or connecting destination, independent of its display label.
     pub destination: Option<DisplayDestination>,
     pub key_bindings: Option<KeyBindings>,
+    /// Native text input preference, supplied with the ready update.
+    pub ime: Option<bool>,
+    /// Input capability supplied with the first frame of each attachment.
+    pub attachment: Option<InputAttachment>,
     pub fonts: Vec<DisplayFont>,
     pub window_options: Option<DisplayWindowOptions>,
     pub window: Option<DisplayWindow>,
 }
+
+/// Identifies the attachment that produced the first displayed frame.
+#[frb(opaque)]
+pub struct InputAttachment(pub(crate) Arc<CancellationToken>);
 
 /// A host choice; an absent alias selects the independent default host.
 #[derive(Debug, PartialEq)]

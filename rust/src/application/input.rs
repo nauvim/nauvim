@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 use std::future::{Future, pending};
 use std::pin::Pin;
+use std::sync::Arc;
 
 pub(super) enum Input {
     Paste,
@@ -22,7 +23,7 @@ pub(super) enum HostInput {
 }
 
 pub(super) struct QueuedInput {
-    pub(super) epoch: CancellationToken,
+    pub(super) epoch: Arc<CancellationToken>,
     pub(super) input: Input,
 }
 
@@ -78,11 +79,13 @@ pub(super) async fn completed<F: Future<Output = ()>>(task: Pin<&mut Option<F>>)
 pub(super) fn reset_input<F>(
     task: Pin<&mut Option<F>>,
     input: &mut mpsc::Receiver<QueuedInput>,
-    epoch: &watch::Sender<CancellationToken>,
+    epoch: &watch::Sender<Arc<CancellationToken>>,
 ) {
     // A reserved channel permit can outlive the drain below. Cancelled stamps
     // remain invalid even if that sender enqueues after the next attachment.
-    epoch.send_replace(CancellationToken::new()).cancel();
+    epoch
+        .send_replace(Arc::new(CancellationToken::new()))
+        .cancel();
     stop_input(task, input);
 }
 

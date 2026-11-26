@@ -1,4 +1,5 @@
 #include "my_application.h"
+#include "native_text_input.h"
 #include "renderer_policy.h"
 #include "webviews.h"
 #include "window_options.h"
@@ -73,6 +74,7 @@ static void my_application_activate(GApplication* application) {
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(overlay));
   gtk_widget_show(GTK_WIDGET(overlay));
   nauvim_register_windows(view, window, overlay);
+  nauvim_register_native_text_input(view, window);
 
   // Realize the view to start Flutter while the toplevel is still hidden.
   g_signal_connect(view, "first-frame", G_CALLBACK(first_frame_cb), window);

@@ -151,7 +151,22 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     if let focusedPreview, !previewHasFocus(focusedPreview) {
       closePreview(focusedPreview.handle, notify: true)
     }
+    refreshNativeTextInputFocus()
     return accepted
+  }
+
+  private var editorController: EditorFlutterViewController? {
+    contentViewController as? EditorFlutterViewController
+  }
+
+  private func refreshNativeTextInputFocus() {
+    guard let controller = editorController else { return }
+    let focused = firstResponder as? NSView
+    let editorHasFocus = focused.map { view in
+      view === controller.view || view.isDescendant(of: controller.view)
+    } ?? false
+    let previewFocused = webviews.values.contains(where: previewHasFocus)
+    controller.setNativeTextInputFocus(isKeyWindow && editorHasFocus && !previewFocused)
   }
 
   private func previewHasFocus(_ preview: PreviewWebView) -> Bool {
@@ -222,10 +237,20 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
   }
 
   func windowDidResize(_ notification: Notification) {
+    editorController?.invalidateNativeTextInputCoordinates()
     reportWindowSize()
   }
 
+  func windowDidMove(_ notification: Notification) {
+    editorController?.invalidateNativeTextInputCoordinates()
+  }
+
+  func windowDidBecomeKey(_ notification: Notification) {
+    refreshNativeTextInputFocus()
+  }
+
   func windowDidResignKey(_ notification: Notification) {
+    editorController?.setNativeTextInputFocus(false)
     if let view = webviews.values.first(where: { $0.closeOnBlur && previewHasFocus($0) }) {
       closePreview(view.handle, notify: true)
     }
@@ -257,13 +282,15 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
   override func awakeFromNib() {
     // Keep the window ordered so Flutter and AppKit can initialize it.
     alphaValue = 0
-    let controller = FlutterViewController()
+    let controller = EditorFlutterViewController()
     let windowFrame = frame
     contentViewController = controller
     setFrame(windowFrame, display: true)
     title = "Nauvim"
     delegate = self
     RegisterGeneratedPlugins(registry: controller)
+    controller.installNativeTextInput()
+    refreshNativeTextInputFocus()
     channel = FlutterMethodChannel(name: "io.nauvim/window", binaryMessenger: controller.engine.binaryMessenger)
     channel?.setMethodCallHandler { [weak self] call, result in
       guard let self = self else { result(nil); return }

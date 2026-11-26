@@ -4,38 +4,41 @@ import 'package:flutter/widgets.dart';
 
 import 'nauvim_desktop.dart';
 import 'nauvim_material.dart';
+import 'src/desktop/startup_options.dart';
 
 export 'app.dart' show NauvimApp;
 export 'window.dart' show NauvimWindow;
 
+const _usage = 'Usage: nauvim [--config PATH] [--lua-path TEMPLATE]...';
+
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
-  String? config;
-  for (var i = 0; i < arguments.length; i++) {
-    switch (arguments[i]) {
-      case '--help' || '-h':
-        stdout.writeln('Usage: nauvim [--config PATH]');
-        await stdout.flush();
-        exit(0);
-      case '--version':
-        stdout.writeln('Nauvim 0.1.0');
-        await stdout.flush();
-        exit(0);
-      case '--config':
-        if (i + 1 >= arguments.length || config != null) {
-          stderr.writeln('Usage: nauvim [--config PATH]');
-          await stderr.flush();
-          exit(64);
-        }
-        config = arguments[++i];
-      default:
-        stderr.writeln(
-          'Unknown option: ${arguments[i]}\nUsage: nauvim [--config PATH]',
-        );
-        await stderr.flush();
-        exit(64);
-    }
+  final StartupOptions startup;
+  try {
+    startup = parseStartupOptions(
+      arguments,
+      luaPathEnvironment: Platform.environment['NAUVIM_LUA_PATH'],
+    );
+  } on FormatException catch (error) {
+    stderr.writeln(error.message);
+    stderr.writeln(_usage);
+    await stderr.flush();
+    exit(64);
   }
-  final controller = await createDesktopController(configPath: config);
-  runApp(NauvimMaterialApp(controller: controller));
+  switch (startup.action) {
+    case StartupAction.help:
+      stdout.writeln(_usage);
+      await stdout.flush();
+      exit(0);
+    case StartupAction.version:
+      stdout.writeln('Nauvim 0.1.0');
+      await stdout.flush();
+      exit(0);
+    case StartupAction.run:
+      final controller = await createDesktopController(
+        configPath: startup.configPath,
+        luaModulePaths: startup.luaModulePaths,
+      );
+      runApp(NauvimMaterialApp(controller: controller));
+  }
 }

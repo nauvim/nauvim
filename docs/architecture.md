@@ -177,10 +177,18 @@ closing the native window. Call `dispose()` when its listeners and model are no
 longer needed. The compatibility `NauvimApp` owns its internally created
 controller.
 
-Desktop behavior implements `NauvimEngine` and `NauvimPlatform`. Widgets never
-invoke bridge methods or native channels directly. `DesktopNauvimPlatform`
-translates platform events and typed preview geometry to the runner's existing
-method channel; `RustNauvimEngine` forwards commands to the Rust application.
+Desktop behavior implements `NauvimEngine` and `NauvimPlatform`.
+`DesktopNauvimPlatform` exchanges platform events and geometry with the native
+runner. `RustNauvimEngine` forwards commands to the Rust application.
+
+`EditorSurface` opens a native text input client for the focused attachment when
+the configuration enables it and the platform implements
+`EditorTextInputPlatform`. The native runner filters key events before Flutter
+receives them. Returned keys use the regular editor keyboard handler. The
+surface draws preedit in the grid or supplies it to the active command line. It
+reports view-relative rectangles for the system's candidate window. Committed
+text joins the controller's ordered editor input queue with the originating
+attachment.
 
 ## Validation
 

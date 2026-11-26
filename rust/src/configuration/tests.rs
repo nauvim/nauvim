@@ -407,7 +407,12 @@ fn follows_core_ui_selection_and_default_fallback() {
     std::fs::write(&path, format!(
         "return {{hosts={{chosen={{}}}},ui_opts={{['{UI_ID}']={{fonts={{family='Kept',size=true}},window=42}}}}}}"
     )).unwrap();
-    let (config, options) = load(Some(&path)).unwrap();
+    let (config, options) = Source {
+        path: Some(path.clone()),
+        lua_module_paths: Vec::new(),
+    }
+    .load()
+    .unwrap();
     assert_eq!(config.hosts().collect::<Vec<_>>(), ["chosen"]);
     assert!(config.diagnostics().is_empty());
     assert_eq!(options.fonts[0].family, "Kept");

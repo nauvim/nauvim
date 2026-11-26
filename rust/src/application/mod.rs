@@ -1,6 +1,7 @@
 //! Owns the engine thread, bounded action queues, and attachment lifetimes.
 
 use crate::api::display::UiUpdate;
+use crate::configuration::Source;
 
 mod attachment;
 mod checkpoints;
@@ -23,6 +24,7 @@ use tokio::sync::{Mutex, mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::thread;
 
 enum Command {
@@ -36,7 +38,7 @@ enum Command {
 pub(crate) struct Handle {
     commands: mpsc::Sender<Command>,
     input: mpsc::Sender<QueuedInput>,
-    input_epoch: watch::Receiver<CancellationToken>,
+    input_epoch: watch::Receiver<Arc<CancellationToken>>,
     stop: CancellationToken,
     stopped: watch::Receiver<bool>,
     window_size: watch::Sender<Option<WindowSize>>,
@@ -44,17 +46,14 @@ pub(crate) struct Handle {
 }
 
 /// Starts the engine without blocking Flutter's UI isolate.
-pub(crate) fn spawn(config_path: Option<String>) -> Result<Handle, Error> {
-    spawn_with_history(config_path, None)
+pub(crate) fn spawn(source: Source) -> Result<Handle, Error> {
+    spawn_with_history(source, None)
 }
 
-fn spawn_with_history(
-    config_path: Option<String>,
-    state_path: Option<PathBuf>,
-) -> Result<Handle, Error> {
+fn spawn_with_history(source: Source, state_path: Option<PathBuf>) -> Result<Handle, Error> {
     let (commands, receiver) = mpsc::channel(32);
     let (input, input_receiver) = mpsc::channel(256);
-    let (input_epoch_tx, input_epoch) = watch::channel(CancellationToken::new());
+    let (input_epoch_tx, input_epoch) = watch::channel(Arc::new(CancellationToken::new()));
     let (sender, update_receiver) = mpsc::channel(8);
     let stop = CancellationToken::new();
     let run_stop = stop.clone();
@@ -73,7 +72,7 @@ fn spawn_with_history(
                 .build()
             {
                 Ok(runtime) => runtime.block_on(run(
-                    config_path,
+                    source,
                     state_path,
                     receiver,
                     input_receiver,
@@ -142,6 +141,15 @@ impl Handle {
         self.send_input(Input::Host(HostInput::Keys(keys))).await
     }
 
+    pub(crate) async fn input_on_attachment(
+        &self,
+        keys: String,
+        origin: &Arc<CancellationToken>,
+    ) -> Result<(), Error> {
+        self.send_input_in_epoch(Input::Host(HostInput::Keys(keys)), Some(origin))
+            .await
+    }
+
     /// Pastes from the clipboard backend selected by core.
     pub(crate) async fn paste(&self) -> Result<(), Error> {
         self.send_input(Input::Paste).await
@@ -195,7 +203,23 @@ impl Handle {
     }
 
     async fn send_input(&self, input: Input) -> Result<(), Error> {
-        let epoch = self.input_epoch.borrow().clone();
+        self.send_input_in_epoch(input, None).await
+    }
+
+    async fn send_input_in_epoch(
+        &self,
+        input: Input,
+        origin: Option<&Arc<CancellationToken>>,
+    ) -> Result<(), Error> {
+        let epoch = {
+            let current = self.input_epoch.borrow();
+            if let Some(origin) = origin
+                && !Arc::ptr_eq(origin, &current)
+            {
+                return Ok(());
+            }
+            Arc::clone(&current)
+        };
 
         let permit = tokio::select! {
             biased;

@@ -8,7 +8,7 @@ pub use display::{
     DisplayCell, DisplayChunk, DisplayCompletion, DisplayCursor, DisplayDecorations, DisplayEvent,
     DisplayFont, DisplayFrame, DisplayGrid, DisplayHighlight, DisplayLength, DisplayLengthUnit,
     DisplayMargins, DisplayRow, DisplayStartupMode, DisplayWebview, DisplayWidget, DisplayWindow,
-    DisplayWindowOptions, UiUpdate,
+    DisplayWindowOptions, InputAttachment, UiUpdate,
 };
 
 pub(crate) mod fonts;

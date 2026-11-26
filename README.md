@@ -31,7 +31,9 @@ build command, and the location of the application bundle.
 Editing keys follow your Neovim mappings. Drag to select text within a grid.
 By default, copy and paste use Ctrl-Shift-c and Ctrl-Shift-v on Linux and
 Command-c and Command-v on macOS. Nauvim uses mouse input for GUI controls
-and text selection. Native IME composition is unavailable.
+and text selection. The focused editor uses native text input by default. See
+[native text input](docs/configuration.md#native-text-input) to select the input
+route.
 
 Use the detach button or Neovim's `:detach` command to return to the welcome
 page. Closing Nauvim leaves host Neovim processes running for reattachment.
@@ -50,5 +52,5 @@ page. Closing Nauvim leaves host Neovim processes running for reattachment.
 - [Development guide](docs/development.md) for running and testing changes.
 - [Flutter design guide](docs/architecture.md) and [Rust architecture](rust/README.md)
   for changing the frontend.
-- [Nauvim specification v1.2.0](https://github.com/nauvim/nauvim-spec/blob/v1.2.0/specification.md)
+- [Nauvim specification v1.3.0](https://github.com/nauvim/nauvim-spec/blob/v1.3.0/specification.md)
   for shared session, configuration, and plugin contracts.

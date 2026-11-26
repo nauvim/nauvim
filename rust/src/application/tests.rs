@@ -15,7 +15,13 @@ fn spawn(config_path: Option<String>) -> Result<Handle, Error> {
         .parent()
         .unwrap()
         .join("state.sqlite3");
-    spawn_with_history(config_path, Some(state_path))
+    spawn_with_history(
+        Source {
+            path: config_path.map(PathBuf::from),
+            lua_module_paths: Vec::new(),
+        },
+        Some(state_path),
+    )
 }
 
 struct Host {
@@ -159,6 +165,34 @@ fn visible_row<'f>(frame: &'f DisplayFrame, text: &str) -> Option<&'f DisplayRow
             && row_has_text(row, text)
             && frame.grids.iter().any(|g| g.id == row.grid && !g.hidden)
     })
+}
+
+#[tokio::test]
+async fn evaluates_startup_configuration_with_supplied_lua_module_paths() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = dir.path().join("init.lua");
+    let modules = dir.path().join("modules");
+    fs::create_dir(&modules).unwrap();
+    fs::write(&config_path, r#"return require("startup_settings")"#).unwrap();
+    fs::write(
+        modules.join("startup_settings.lua"),
+        "return { hosts = { work = {} } }",
+    )
+    .unwrap();
+
+    let app = spawn_with_history(
+        Source {
+            path: Some(config_path),
+            lua_module_paths: vec![format!("{}/?.lua", modules.display())],
+        },
+        Some(dir.path().join("state.sqlite3")),
+    )
+    .unwrap();
+    let mut updates = app.take_updates().await.unwrap();
+
+    let ready = receive(&mut updates, "ready").await;
+    assert_eq!(ready.hosts, ["work"]);
+    app.close().await.unwrap();
 }
 
 #[tokio::test]
@@ -508,11 +542,13 @@ async fn live_orders_input_reuses_hosts_and_follows_plugin_switches() {
     let mut updates = app.updates.lock().await.take().unwrap();
     receive(&mut updates, "ready").await;
     app.start(80, 24).await.unwrap();
-    receive(&mut updates, "frame").await;
+    let origin = receive(&mut updates, "frame").await.attachment.unwrap();
     let first_pid = first.evaluate("getpid()");
     assert_eq!(first.evaluate("len(nvim_list_uis())"), "1");
     app.input("iα".into()).await.unwrap();
-    app.input("<LT>Esc><Esc>".into()).await.unwrap();
+    app.input_on_attachment("<LT>Esc><Esc>".into(), &origin.0)
+        .await
+        .unwrap();
     timeout(Duration::from_secs(3), async {
         loop {
             let update = updates.recv().await.unwrap();
@@ -571,14 +607,20 @@ async fn live_orders_input_reuses_hosts_and_follows_plugin_switches() {
     app.detach().await.unwrap();
     receive(&mut updates, "welcome").await;
     app.connect("first".into(), 90, 28).await.unwrap();
-    receive(&mut updates, "frame").await;
+    let resumed = receive(&mut updates, "frame").await.attachment.unwrap();
+    assert!(!Arc::ptr_eq(&origin.0, &resumed.0));
     assert_eq!(first.evaluate("getpid()"), first_pid);
     assert_eq!(first.evaluate("getline(1)"), "α<Esc>");
     stale_permit.send(QueuedInput {
         epoch: stale_stamp,
         input: Input::Host(HostInput::Keys("iSTALE<Esc>".into())),
     });
-    app.input("A!<Esc>".into()).await.unwrap();
+    app.input_on_attachment("iOLD COMMIT<Esc>".into(), &origin.0)
+        .await
+        .unwrap();
+    app.input_on_attachment("A!<Esc>".into(), &resumed.0)
+        .await
+        .unwrap();
     timeout(Duration::from_secs(3), async {
         loop {
             let update = updates.recv().await.unwrap();
@@ -614,11 +656,11 @@ async fn live_orders_input_reuses_hosts_and_follows_plugin_switches() {
 fn input_endpoint() -> (
     Handle,
     mpsc::Receiver<QueuedInput>,
-    watch::Sender<CancellationToken>,
+    watch::Sender<Arc<CancellationToken>>,
 ) {
     let (commands, _commands) = mpsc::channel(1);
     let (input, receiver) = mpsc::channel(1);
-    let (epoch_tx, input_epoch) = watch::channel(CancellationToken::new());
+    let (epoch_tx, input_epoch) = watch::channel(Arc::new(CancellationToken::new()));
     let (_updates, updates) = mpsc::channel(1);
     let (_stopped, stopped) = watch::channel(true);
     let (window_size, _) = watch::channel(None);
@@ -651,7 +693,9 @@ async fn cancels_a_blocked_input_sender_when_its_attachment_changes() {
         Poll::Ready(())
     })
     .await;
-    epoch.send_replace(CancellationToken::new()).cancel();
+    epoch
+        .send_replace(Arc::new(CancellationToken::new()))
+        .cancel();
     assert!(input.try_recv().unwrap().into_current().is_none());
     deferred.await.unwrap();
     assert!(matches!(
@@ -667,11 +711,41 @@ async fn cancels_a_blocked_input_sender_when_its_attachment_changes() {
 }
 
 #[tokio::test]
+async fn rejects_text_input_from_a_retired_attachment() {
+    let (app, mut input, epoch) = input_endpoint();
+    let first = epoch.borrow().clone();
+    app.input_on_attachment("first".into(), &first)
+        .await
+        .unwrap();
+    assert!(input.try_recv().unwrap().into_current().is_some());
+
+    let current = Arc::new(CancellationToken::new());
+    epoch.send_replace(Arc::clone(&current)).cancel();
+    app.input_on_attachment("stale".into(), &first)
+        .await
+        .unwrap();
+    assert!(matches!(
+        input.try_recv(),
+        Err(mpsc::error::TryRecvError::Empty)
+    ));
+
+    app.input_on_attachment("current".into(), &current)
+        .await
+        .unwrap();
+    let Some(Input::Host(HostInput::Keys(keys))) = input.try_recv().unwrap().into_current() else {
+        panic!("Expected current-attachment keys");
+    };
+    assert_eq!(keys, "current");
+}
+
+#[tokio::test]
 async fn rejects_input_enqueued_after_its_reserved_permit_outlives_an_attachment() {
     let (app, mut input, epoch) = input_endpoint();
     let stamp = app.input_epoch.borrow().clone();
     let permit = app.input.reserve().await.unwrap();
-    epoch.send_replace(CancellationToken::new()).cancel();
+    epoch
+        .send_replace(Arc::new(CancellationToken::new()))
+        .cancel();
     permit.send(QueuedInput {
         epoch: stamp,
         input: Input::Paste,
