@@ -14,10 +14,10 @@ The release archives are built on Ubuntu 24.04. Choose the `linux-x64` archive
 for x86-64 or the `linux-arm64` archive for aarch64. Extract the archive and keep
 the whole `nauvim` directory together.
 
-For example, to extract and run v1.0.0 on x86-64, use the following commands.
+For example, to extract and run v1.0.1 on x86-64, use the following commands.
 
 ```sh
-tar -xzf nauvim-v1.0.0-linux-x64.tar.gz
+tar -xzf nauvim-v1.0.1-linux-x64.tar.gz
 ./nauvim/nauvim
 ```
 

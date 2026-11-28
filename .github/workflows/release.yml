@@ -168,7 +168,7 @@ jobs:
         run: |
           cmake -S linux/runner/tests -B build/linux-runner-tests
           cmake --build build/linux-runner-tests --parallel 2
-          xvfb-run -a ctest --test-dir build/linux-runner-tests --output-on-failure
+          NO_AT_BRIDGE=1 xvfb-run -a ctest --test-dir build/linux-runner-tests --output-on-failure
 
       - name: Install the Rust license report tool
         env:

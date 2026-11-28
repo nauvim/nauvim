@@ -312,8 +312,8 @@ private final class EditorTextInput: NSView, NSTextInputClient {
     requestedCommand = true
   }
 
-  @objc func insertTab(_ sender: Any?) {
-    // Declaring the command lets AppKit return Tab as a key binding.
+  override func insertTab(_ sender: Any?) {
+    // Route Tab through Flutter's key binding handling.
     requestedCommand = true
   }
 
