@@ -1,5 +1,7 @@
 # Nauvim
 
+<img src="assets/nauvim-logo.svg" alt="Nauvim logo" width="160" height="160">
+
 Nauvim is a Flutter desktop GUI for Neovim on Linux and macOS. Connect to a
 local or SSH host and return to the same editor session after closing the GUI.
 

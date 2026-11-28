@@ -108,11 +108,16 @@ static gboolean my_application_local_command_line(GApplication* application,
 
 // Implements GApplication::startup.
 static void my_application_startup(GApplication* application) {
-  // MyApplication* self = MY_APPLICATION(object);
-
-  // Perform any actions required at application startup.
-
   G_APPLICATION_CLASS(my_application_parent_class)->startup(application);
+
+  // Look up the named icon from a relocatable Flutter bundle as well.
+  g_autofree char* executable = g_file_read_link("/proc/self/exe", nullptr);
+  if (executable != nullptr) {
+    g_autofree char* bundle = g_path_get_dirname(executable);
+    g_autofree char* icons = g_build_filename(bundle, "share", "icons", nullptr);
+    gtk_icon_theme_append_search_path(gtk_icon_theme_get_default(), icons);
+  }
+  gtk_window_set_default_icon_name(APPLICATION_ID);
 }
 
 // Implements GApplication::shutdown.

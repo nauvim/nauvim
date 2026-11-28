@@ -96,6 +96,14 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
+# Desktop entry and hicolor icon share the GTK application ID.
+configure_file("runner/nauvim.desktop.in" "${APPLICATION_ID}.desktop" @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${APPLICATION_ID}.desktop"
+  DESTINATION "share/applications" COMPONENT Runtime)
+install(FILES "runner/nauvim-icon.png"
+  DESTINATION "share/icons/hicolor/256x256/apps"
+  RENAME "${APPLICATION_ID}.png" COMPONENT Runtime)
+
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 
