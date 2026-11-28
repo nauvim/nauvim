@@ -529,7 +529,8 @@ void main() {
     });
     final data = await raster(tester, editor, renderer, width: 60);
     expect(pixel(data, 60, 19, 10), [255, 255, 255, 255]);
-    expect(pixel(data, 60, 17, 10), [0, 0, 0, 255]);
+    // Sample far enough from the glyph edge to avoid antialiasing.
+    expect(pixel(data, 60, 16, 10), [0, 0, 0, 255]);
     expect(pixel(data, 60, 36, 10), [255, 255, 255, 255]);
   });
 }
