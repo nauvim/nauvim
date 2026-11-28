@@ -5,9 +5,8 @@ project(runner LANGUAGES CXX)
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "nauvim")
-# The unique GTK application identifier for this application. See:
-# https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "io.nauvim.nauvim_flutter")
+# Use the Nauvim UI implementation ID as the GTK application ID.
+set(APPLICATION_ID "com.naughie.nauvim.flutter")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -103,6 +102,8 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${APPLICATION_ID}.desktop"
 install(FILES "runner/nauvim-icon.png"
   DESTINATION "share/icons/hicolor/256x256/apps"
   RENAME "${APPLICATION_ID}.png" COMPONENT Runtime)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/install-desktop-entry.sh"
+  DESTINATION "." COMPONENT Runtime)
 
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)

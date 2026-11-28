@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Nauvim Rust dependency notices</title>
+<h1>Nauvim Rust dependency notices</h1>
+{{#each licenses}}
+<h2>{{name}}</h2>
+<ul>
+{{#each used_by}}
+{{#if crate.source}}
+<li><a href="https://static.crates.io/crates/{{crate.name}}/{{crate.name}}-{{crate.version}}.crate">{{crate.name}} {{crate.version}}</a></li>
+{{else}}
+<li>{{crate.name}} {{crate.version}}</li>
+{{/if}}
+{{/each}}
+</ul>
+<pre style="white-space: pre-wrap">{{text}}</pre>
+{{/each}}
+</html>

@@ -8,7 +8,7 @@
 PRODUCT_NAME = Nauvim
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = io.nauvim.app
+PRODUCT_BUNDLE_IDENTIFIER = com.naughie.nauvim.flutter
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 io.nauvim. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Masato Nakata. All rights reserved.

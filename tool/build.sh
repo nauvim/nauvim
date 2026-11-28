@@ -1,9 +1,16 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
-cargo build --manifest-path rust/Cargo.toml --release
-flutter pub get
-case "$(uname -s)" in
+platform=$(uname -s)
+case "$platform" in
+  Linux) ;;
+  Darwin) export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-12.0} ;;
+  *) echo 'Nauvim currently supports Linux and macOS.' >&2; exit 1 ;;
+esac
+
+cargo build --manifest-path rust/Cargo.toml --release --locked
+flutter pub get --enforce-lockfile
+case "$platform" in
   Linux) flutter build linux --release --no-pub "$@" ;;
   Darwin)
     flutter build macos --release --no-pub "$@"
@@ -12,5 +19,4 @@ case "$(uname -s)" in
     cp rust/target/release/libnauvim_flutter.dylib "$destination/"
     codesign --force --deep --sign - build/macos/Build/Products/Release/Nauvim.app
     ;;
-  *) echo 'Nauvim currently supports Linux and macOS.' >&2; exit 1 ;;
 esac

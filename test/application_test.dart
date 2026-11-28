@@ -201,7 +201,7 @@ DisplayWidget widget(
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('io.nauvim/window');
+  const channel = MethodChannel('com.naughie.nauvim.flutter/window');
   late List<MethodCall> nativeCalls;
   Future<Object?> Function(MethodCall)? nativeResponse;
   late TestPlatform platform;
