@@ -1,5 +1,7 @@
 # Develop and validate Nauvim
 
+[Release guide](releasing.md) for packaging and publishing a GitHub Release.
+
 ## Run a debug build
 
 Set up the [build-time prerequisites](building.md#build-time-prerequisites)

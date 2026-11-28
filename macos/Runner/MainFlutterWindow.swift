@@ -291,7 +291,9 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, WKNavigationDelegate {
     RegisterGeneratedPlugins(registry: controller)
     controller.installNativeTextInput()
     refreshNativeTextInputFocus()
-    channel = FlutterMethodChannel(name: "io.nauvim/window", binaryMessenger: controller.engine.binaryMessenger)
+    channel = FlutterMethodChannel(
+      name: "com.naughie.nauvim.flutter/window",
+      binaryMessenger: controller.engine.binaryMessenger)
     channel?.setMethodCallHandler { [weak self] call, result in
       guard let self = self else { result(nil); return }
       let args = call.arguments as? [String: Any] ?? [:]

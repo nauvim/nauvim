@@ -1,0 +1,245 @@
+name: Desktop release
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.50.0'
+  FLUTTER_REVISION: ab2912035e160d9cad6306df307576da6128ebdb
+  RUSTUP_TOOLCHAIN: '1.100.0'
+  CARGO_ABOUT_VERSION: '0.9.3'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tag:
+    name: Tag the merged release
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      commit: ${{ steps.release.outputs.commit }}
+    steps:
+      - name: Read the version and merged commit
+        id: release
+        env:
+          RELEASE_BRANCH: ${{ github.event.pull_request.head.ref }}
+          MERGE_COMMIT: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          if [[ ! "$RELEASE_BRANCH" =~ ^release/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Expected a release/vX.Y.Z branch. Got $RELEASE_BRANCH." >&2
+            exit 1
+          fi
+
+          if [[ ! "$MERGE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Expected the SHA of the merged commit.' >&2
+            exit 1
+          fi
+
+          printf 'tag=%s\ncommit=%s\n' "${RELEASE_BRANCH#release/}" "$MERGE_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.release.outputs.commit }}
+          persist-credentials: false
+
+      - name: Check the version and create the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          MERGE_COMMIT: ${{ steps.release.outputs.commit }}
+        run: |
+          version=$(awk '$1 == "version:" { sub(/\+.*/, "", $2); print $2 }' pubspec.yaml)
+          rust_version=$(awk '$1 == "version" { gsub(/"/, "", $3); print $3 }' rust/Cargo.toml)
+          if [[ "v$version" != "$TAG" || "$version" != "$rust_version" ]]; then
+            echo "Expected release version ${TAG#v} in pubspec.yaml and rust/Cargo.toml." >&2
+            exit 1
+          fi
+
+          ref="refs/tags/$TAG"
+          matching_refs=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$TAG")
+          if jq -e --arg ref "$ref" 'any(.[]; .ref == $ref)' <<< "$matching_refs" > /dev/null; then
+            existing=$(gh api "repos/$GITHUB_REPOSITORY/commits/tags/$TAG" --jq '.sha')
+            if [[ "$existing" != "$MERGE_COMMIT" ]]; then
+              echo "Tag $TAG points to $existing. Expected $MERGE_COMMIT." >&2
+              exit 1
+            fi
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="$ref" -f sha="$MERGE_COMMIT" --jq '.ref'
+          fi
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: tag
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      TAG: ${{ needs.tag.outputs.tag }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-24.04
+            flutter_platform: linux
+            cargo_about_target: x86_64-unknown-linux-musl
+            cargo_about_sha256: 3ad1e94ea1e63d69d1961f4fb15ccbbe9575d906111f96d2cb4dce6df48f71b4
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+            flutter_platform: linux
+            cargo_about_target: aarch64-unknown-linux-musl
+            cargo_about_sha256: eb4d9ff6ebd2518152a8308729431a04b3836e71d2bd5ead7aea69f91a71162e
+          - target: macos-arm64
+            runner: macos-15
+            flutter_platform: macos
+            cargo_about_target: aarch64-apple-darwin
+            cargo_about_sha256: 45520df8680978a6e7c4023ace0e3f311c73efc208cd68e5a7f4ed4822fa0349
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.tag.outputs.commit }}
+          persist-credentials: false
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang cmake ninja-build pkg-config \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libfontconfig1-dev desktop-file-utils xauth xvfb
+
+      - name: Install Flutter
+        # The Linux ARM64 engine artifacts are available for the tagged SDK via Git.
+        run: |
+          sdk="$RUNNER_TEMP/flutter"
+          git init --quiet --initial-branch=stable "$sdk"
+          git -C "$sdk" remote add origin https://github.com/flutter/flutter.git
+          git -C "$sdk" fetch --quiet --depth=1 origin tag "$FLUTTER_VERSION"
+          git -C "$sdk" reset --quiet --hard "refs/tags/$FLUTTER_VERSION"
+          test "$(git -C "$sdk" rev-parse HEAD)" = "$FLUTTER_REVISION"
+          printf '%s\n' "$sdk/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Flutter desktop engine
+        env:
+          FLUTTER_PLATFORM: ${{ matrix.flutter_platform }}
+        run: |
+          flutter --suppress-analytics precache "--$FLUTTER_PLATFORM"
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            flutter --suppress-analytics config --enable-macos-arm64-only
+          fi
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt,clippy
+
+      - name: Build the desktop bundle
+        run: tool/build.sh
+
+      - name: Check Dart and Rust
+        run: |
+          flutter analyze --no-pub
+          flutter test --no-pub
+          cargo fmt --manifest-path rust/Cargo.toml --check
+          cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path rust/Cargo.toml --locked
+
+      - name: Validate the Linux desktop entry
+        if: runner.os == 'Linux'
+        env:
+          XDG_DATA_HOME: ${{ runner.temp }}/nauvim-desktop-entry
+        run: |
+          build/linux/*/release/bundle/install-desktop-entry.sh
+          desktop-file-validate "$XDG_DATA_HOME"/applications/*.desktop
+
+      - name: Test the Linux runner
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S linux/runner/tests -B build/linux-runner-tests
+          cmake --build build/linux-runner-tests --parallel 2
+          xvfb-run -a ctest --test-dir build/linux-runner-tests --output-on-failure
+
+      - name: Install the Rust license report tool
+        env:
+          TOOL_TARGET: ${{ matrix.cargo_about_target }}
+          TOOL_SHA256: ${{ matrix.cargo_about_sha256 }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          name="cargo-about-$CARGO_ABOUT_VERSION-$TOOL_TARGET"
+          curl --fail --silent --show-error --location --retry 3 --output "$name.tar.gz" \
+            "https://github.com/EmbarkStudios/cargo-about/releases/download/$CARGO_ABOUT_VERSION/$name.tar.gz"
+          printf '%s  %s\n' "$TOOL_SHA256" "$name.tar.gz" | shasum -a 256 --check
+          tar -xzf "$name.tar.gz"
+          printf '%s/%s\n' "$RUNNER_TEMP" "$name" >> "$GITHUB_PATH"
+
+      - name: Package the desktop bundle
+        run: tool/package.sh "$TAG"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-${{ matrix.target }}
+          path: build/dist/nauvim-*
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+
+  publish:
+    name: Publish GitHub Release
+    needs: [tag, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-desktop-release-${{ needs.tag.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish the tagged release
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.tag.outputs.tag }}
+          MERGE_COMMIT: ${{ needs.tag.outputs.commit }}
+        run: |
+          tagged_commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/tags/$TAG" --jq '.sha')
+          if [[ "$tagged_commit" != "$MERGE_COMMIT" ]]; then
+            echo "Tag $TAG points to $tagged_commit. Expected $MERGE_COMMIT." >&2
+            exit 1
+          fi
+
+          assets=(
+            "nauvim-$TAG-linux-x64.tar.gz"
+            "nauvim-$TAG-linux-arm64.tar.gz"
+            "nauvim-$TAG-macos-arm64-unnotarized.zip"
+          )
+          sha256sum -- "${assets[@]}" > SHA256SUMS
+          assets+=(SHA256SUMS)
+
+          if is_draft=$(gh release view "$TAG" --json isDraft --jq '.isDraft'); then
+            if [[ "$is_draft" == true ]]; then
+              gh release upload "$TAG" "${assets[@]}" --clobber
+              gh release edit "$TAG" --draft=false
+            else
+              echo "Release $TAG is already published."
+            fi
+          else
+            gh release create "$TAG" "${assets[@]}" --verify-tag \
+              --title "Nauvim $TAG" --generate-notes
+          fi

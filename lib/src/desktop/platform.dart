@@ -9,13 +9,15 @@ import '../headless/viewport.dart';
 import '../headless/window_geometry.dart';
 import '../bridge/api/fonts.dart' as native_fonts;
 
+const _applicationId = 'com.naughie.nauvim.flutter';
+
 /// Desktop capabilities implemented by the Linux and macOS runners.
 final class DesktopNauvimPlatform
     implements NauvimPlatform, EditorTextInputPlatform {
   DesktopNauvimPlatform({
     MethodChannel? channel,
     MethodChannel? textInputChannel,
-  }) : _channel = channel ?? const MethodChannel('io.nauvim/window'),
+  }) : _channel = channel ?? const MethodChannel('$_applicationId/window'),
        _textInput =
            textInputChannel ?? const MethodChannel('nauvim/native_text_input');
 
@@ -227,7 +229,7 @@ final class DesktopNauvimPlatform
     }
     final faces = <EditorFontFace>[];
     for (final resolved in result.fonts) {
-      final family = 'com.naughie.nauvim.flutter.font.${_nextFontFamily++}';
+      final family = '$_applicationId.font.${_nextFontFamily++}';
       final loader = FontLoader(family)
         ..addFont(Future.value(ByteData.sublistView(resolved.data)));
       await loader.load();

@@ -623,7 +623,7 @@ static void destroy(gpointer data) {
 void nauvim_register_windows(FlView* view, GtkWindow* window, GtkOverlay* overlay) {
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
   FlMethodChannel* channel = fl_method_channel_new(fl_engine_get_binary_messenger(fl_view_get_engine(view)),
-      "io.nauvim/window", FL_METHOD_CODEC(codec));
+      APPLICATION_ID "/window", FL_METHOD_CODEC(codec));
   auto* windows = new Windows { window, overlay, channel,
       g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, nullptr), false, view, {} };
   fl_method_channel_set_method_call_handler(channel, call, windows, nullptr);

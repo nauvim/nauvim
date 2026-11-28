@@ -6,11 +6,13 @@ Nauvim is a Flutter desktop GUI for Neovim on Linux and macOS. Connect to a
 local or SSH host and return to the same editor session after closing the GUI.
 
 <a id="requirements"></a>
+<a id="build-and-run"></a>
 
-## Build and run
+## Install and run
 
-Use the [build guide](docs/building.md) for platform requirements, the release
-build command, and the location of the application bundle.
+Download Nauvim from [GitHub Releases](https://github.com/nauvim/nauvim/releases).
+The [installation guide](docs/building.md) covers runtime requirements, how to
+launch a downloaded bundle, and how to build from source.
 
 ## Configuration and connections
 
