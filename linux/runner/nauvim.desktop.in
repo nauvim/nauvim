@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Nauvim
+Exec=@BINARY_NAME@
+Icon=@APPLICATION_ID@
+Terminal=false
+StartupWMClass=@APPLICATION_ID@
+Categories=Utility;TextEditor;

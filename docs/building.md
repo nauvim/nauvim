@@ -71,6 +71,10 @@ When the welcome page appears, select a destination to open the editor.
 Use a bundle built for your architecture and OS. Copy the complete bundle
 when installing elsewhere.
 
+To add Nauvim to a Linux desktop menu, make the bundle's `nauvim` command
+available on `PATH`. Copy the `applications` and `icons` directories from the
+bundle's `share/` directory into `$XDG_DATA_HOME` (default `~/.local/share`).
+
 [Troubleshoot connections](troubleshooting.md#connection-errors) ·
 [Troubleshoot display problems](troubleshooting.md#display-and-rendering)
 
